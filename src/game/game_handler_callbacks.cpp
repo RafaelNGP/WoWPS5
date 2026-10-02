@@ -2066,6 +2066,11 @@ std::string GameHandler::getCachedCreatureName(uint32_t entry) const {
 // ============================================================
 
 void GameHandler::queryItemInfo(uint32_t entry, uint64_t guid) {
+    // The local realm has no server to ask; its content table is the answer,
+    // and it is there at once. Without this GetItemInfo stayed nil for every
+    // item the player had not put up for auction, and every item tooltip
+    // FrameXML built was a bare name.
+    if (localExploration_) { cacheLocalAuctionItem(entry); return; }
     if (inventoryHandler_) inventoryHandler_->queryItemInfo(entry, guid);
 }
 

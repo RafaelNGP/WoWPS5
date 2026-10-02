@@ -612,6 +612,10 @@ static int lua_GetItemInfo(lua_State* L) {
 
     const auto* info = gh->getItemInfo(itemId);
     if (!info) {
+        gh->queryItemInfo(itemId, 0);   // a local realm answers at once
+        info = gh->getItemInfo(itemId);
+    }
+    if (!info) {
     // Ask the server for it rather than only reporting its absence.
     //
     // An item template arrives from the server, and until it does this
