@@ -1,4 +1,5 @@
 #ifdef WOWEE_PS4
+#include <unordered_map>
 #include "platform/ps4/ps4_platform.hpp"
 #endif
 #include "addons/lua_engine.hpp"
@@ -3737,6 +3738,17 @@ int lua_Region_SetVertexColor(lua_State* L) {
     }
     return 0;
 }
+/// SetDesaturated(flag) / IsDesaturated() - a texture drawn in grey.
+int lua_Region_SetDesaturated(lua_State* L) {
+    if (auto* w = widgetOf(L, 1)) w->desaturated = lua_toboolean(L, 2) != 0;
+    lua_pushboolean(L, 1);   // "supported", as the 3.3.5 client answers
+    return 1;
+}
+int lua_Region_IsDesaturated(lua_State* L) {
+    const auto* w = widgetOf(L, 1);
+    lua_pushboolean(L, (w && w->desaturated) ? 1 : 0);
+    return 1;
+}
 int lua_Region_SetDrawLayer(lua_State* L) {
     if (auto* w = widgetOf(L, 1)) {
         const auto layer = wowee::ui::parseDrawLayer(luaL_optstring(L, 2, "ARTWORK"));
@@ -4264,6 +4276,8 @@ void populateRegionMethods(lua_State* L, bool isTexture, bool isFontString) {
     set("SetAlpha", lua_Region_SetAlpha);
     set("GetAlpha", lua_Region_GetAlpha);
     set("SetVertexColor", lua_Region_SetVertexColor);
+    set("SetDesaturated", lua_Region_SetDesaturated);
+    set("IsDesaturated", lua_Region_IsDesaturated);
     set("GetVertexColor", lua_Region_GetVertexColor);
     set("GetFontObject", lua_FontString_GetFontObject);
     set("SetDrawLayer", lua_Region_SetDrawLayer);
@@ -5983,6 +5997,11 @@ bool LuaEngine::initialize() {
     if (L_) return true;
 
     luaMemory_ = {};
+#ifdef WOWEE_PS5
+    // The PS5 has the room the PS4 budget was rationing: FrameXML alone is
+    // ~22 MiB, and an interface addon such as ConsolePort adds as much again.
+    luaMemory_.limit = 256ull * 1024 * 1024;
+#endif
     L_ = lua_newstate(&LuaMemoryBudget::allocate, &luaMemory_);
     if (!L_) {
         LOG_ERROR("LuaEngine: failed to create Lua state");
@@ -6009,6 +6028,30 @@ bool LuaEngine::initialize() {
         lua_pushnil(L_);
         lua_setglobal(L_, *g);
     }
+    // collectgarbage back in the shape WoW gives it: addons ask "count" to
+    // report their memory, and some "collect" after a big rebuild. The
+    // collector's tuning stays the engine's.
+    lua_pushcfunction(L_, [](lua_State* L) -> int {
+        const char* opt = luaL_optstring(L, 1, "collect");
+        if (std::strcmp(opt, "count") == 0) {
+            lua_pushnumber(L, lua_gc(L, LUA_GCCOUNT, 0) + lua_gc(L, LUA_GCCOUNTB, 0) / 1024.0);
+            return 1;
+        }
+        int what = -1;
+        if (std::strcmp(opt, "collect") == 0) what = LUA_GCCOLLECT;
+        else if (std::strcmp(opt, "step") == 0) what = LUA_GCSTEP;
+        else if (std::strcmp(opt, "stop") == 0) what = LUA_GCSTOP;
+        else if (std::strcmp(opt, "restart") == 0) what = LUA_GCRESTART;
+        if (what < 0) return 0;
+        lua_pushinteger(L, lua_gc(L, what, static_cast<int>(luaL_optinteger(L, 2, 0))));
+        return 1;
+    });
+    lua_setglobal(L_, "collectgarbage");
+    lua_pushcfunction(L_, [](lua_State* L) -> int {
+        lua_pushinteger(L, lua_gc(L, LUA_GCCOUNT, 0));
+        return 1;
+    });
+    lua_setglobal(L_, "gcinfo");
 
     // Publish the widget tree before any API is registered, so a script that
     // runs during registration still finds it.
@@ -6750,8 +6793,15 @@ void LuaEngine::registerCoreAPI() {
         "        local name, mouse = rest:match('^(.-):([^:]*)$')\n"
         "        name, mouse = name or rest, (mouse and mouse ~= '') and mouse or 'LeftButton'\n"
         "        local frame = _G[name]\n"
-        "        if type(frame) == 'table' and frame.Click and wantsEdge(frame, mouse, down) then\n"
-        "            if not (frame.IsEnabled and not frame:IsEnabled()) then frame:Click(mouse, down) end\n"
+        // The key's two edges are the button's mouse-down and mouse-up as
+        // well, which WoW delivers to a CLICK binding's button: ConsolePort's
+        // hidden pad buttons do all their work in OnMouseDown and OnMouseUp.
+        "        if type(frame) == 'table' and frame.Click and\n"
+        "           not (frame.IsEnabled and not frame:IsEnabled()) then\n"
+        "            local s = rawget(frame, '__scripts')\n"
+        "            local h = s and s[down and 'OnMouseDown' or 'OnMouseUp']\n"
+        "            if h then h(frame, mouse) end\n"
+        "            if wantsEdge(frame, mouse, down) then frame:Click(mouse, down) end\n"
         "        end\n"
         "    elseif not down then\n"
         "    elseif kind == 'SPELL' and CastSpellByName then CastSpellByName(rest)\n"
@@ -6914,24 +6964,56 @@ void LuaEngine::registerCoreAPI() {
         "    self.isPlaying = true\n"
         "    self.reversed = false\n"
         "    self.baseAlpha = self.parent and self.parent:GetAlpha() or 1\n"
+        // Scale is the group's to lend and take back: an animation draws the
+        // frame bigger, it does not SetScale it. Taken once per run, so a
+        // replay from inside OnFinished does not take the animated value.
+        "    if not self.baseScale and self.parent and self.parent.GetScale then self.baseScale = self.parent:GetScale() end\n"
         "    for _, a in ipairs(self.animations) do a.elapsed = 0 a.progress = 0 a.finished = nil end\n"
+        // Animations play in SetOrder order, each order starting when the
+        // longest of the one before has ended; within an order they overlap.
+        "    local orders, seen = {}, {}\n"
+        "    for _, a in ipairs(self.animations) do local o = a.order or 1 if not seen[o] then seen[o] = true orders[#orders+1] = o end end\n"
+        "    table.sort(orders)\n"
+        "    local start, starts = 0, {}\n"
+        "    for _, o in ipairs(orders) do\n"
+        "        starts[o] = start\n"
+        "        local longest = 0\n"
+        "        for _, a in ipairs(self.animations) do\n"
+        "            if (a.order or 1) == o then\n"
+        "                local len = (a.startDelay or 0) + (a.duration or 0) + (a.endDelay or 0)\n"
+        "                if len > longest then longest = len end\n"
+        "            end\n"
+        "        end\n"
+        "        start = start + longest\n"
+        "    end\n"
+        "    for _, a in ipairs(self.animations) do a.orderStart = starts[a.order or 1] or 0 end\n"
         "    playing[self] = true\n"
         "    if self.OnPlay then self:OnPlay() end\n"
+        "end\n"
+        "local function restoreShape(self)\n"
+        "    if self.parent then\n"
+        "        __WoweeSetAnimOffset(self.parent, 0, 0)\n"
+        "        if self.baseScale and self.parent.SetScale then self.parent:SetScale(self.baseScale) end\n"
+        "    end\n"
+        "    self.baseScale = nil\n"
         "end\n"
         "function groupMeta:Stop()\n"
         "    self.isPlaying = false\n"
         "    playing[self] = nil\n"
         // Put back what the animations moved, or a stopped group leaves the
         // frame transparent or displaced with nothing to restore it.
-        "    if self.parent then\n"
-        "        if self.baseAlpha then self.parent:SetAlpha(self.baseAlpha) end\n"
-        "        __WoweeSetAnimOffset(self.parent, 0, 0)\n"
-        "    end\n"
+        "    if self.parent and self.baseAlpha then self.parent:SetAlpha(self.baseAlpha) end\n"
+        "    restoreShape(self)\n"
         "    if self.OnStop then self:OnStop() end\n"
         "end\n"
+        // A finished group's movement and scale end with it, as in WoW, where
+        // the frame is back at its anchors and size when OnFinished runs. Left
+        // on, ConsolePort's cursor kept the last hop's offset on top of its new
+        // anchor and the shrink's scale for good, and ended up off screen.
         "function groupMeta:Finish()\n"
         "    self.isPlaying = false\n"
         "    playing[self] = nil\n"
+        "    restoreShape(self)\n"
         "    if self.OnFinished then self:OnFinished() end\n"
         "end\n"
         "function groupMeta:Pause() self.paused = true end\n"
@@ -6975,10 +7057,11 @@ void LuaEngine::registerCoreAPI() {
         "        else\n"
         "            local anyRunning = false\n"
         "            local dx, dy = 0, 0\n"
+        "            local scale = 1\n"
         "            local alpha = g.baseAlpha or 1\n"
         "            for _, a in ipairs(g.animations) do\n"
         "                a.elapsed = (a.elapsed or 0) + elapsed\n"
-        "                local t = a.elapsed - (a.startDelay or 0)\n"
+        "                local t = a.elapsed - (a.orderStart or 0) - (a.startDelay or 0)\n"
         "                local d = a.duration or 0\n"
         "                if t < 0 then\n"
         "                    anyRunning = true\n"
@@ -7007,9 +7090,7 @@ void LuaEngine::registerCoreAPI() {
         "                        dy = dy + (a.offsetY or 0) * p\n"
         "                    elseif a.kind == 'Scale' then\n"
         "                        local sx = a.scaleX\n"
-        "                        if sx and g.parent then\n"
-        "                            g.parent:SetScale(1 + (sx - 1) * p)\n"
-        "                        end\n"
+        "                        if sx then scale = scale * (1 + (sx - 1) * p) end\n"
         "                    end\n"
         "                end\n"
         "            end\n"
@@ -7017,6 +7098,7 @@ void LuaEngine::registerCoreAPI() {
         "                if alpha < 0 then alpha = 0 elseif alpha > 1 then alpha = 1 end\n"
         "                g.parent:SetAlpha(alpha)\n"
         "                __WoweeSetAnimOffset(g.parent, dx, dy)\n"
+        "                if g.baseScale and g.parent.SetScale then g.parent:SetScale(g.baseScale * scale) end\n"
         "            end\n"
         "            if not anyRunning then\n"
         "                local mode = g.looping or 'NONE'\n"
@@ -8894,13 +8976,158 @@ void LuaEngine::registerCoreAPI() {
         "    frame.offset = math.floor(value / (itemHeight or 1) + 0.5)\n"
         "    if updateFunction then updateFunction() end\n"
         "end\n"
-        // SecureCmdOptionParse - parses conditional macros like [target=focus]
-        "function SecureCmdOptionParse(options)\n"
-        "    if not options then return nil end\n"
-        "    -- Simple: return the unconditional fallback (text after last semicolon or the whole string)\n"
-        "    local result = options:match(';%s*(.-)$') or options:match('^%[.*%]%s*(.-)$') or options\n"
-        "    return result\n"
+        // SecureCmdOptionParse - WoW's macro conditionals; see the Lua below.
+        "-- SecureCmdOptionParse(options) -> action, target: WoW's macro conditionals.\n"
+        "-- Clauses split on ';'; a clause is any number of [..] groups and an action.\n"
+        "-- A clause applies when it has no group, or any of its groups holds (groups\n"
+        "-- are OR, the comma-separated conditions inside one are AND, 'no' negates,\n"
+        "-- 'cond:a/b' is a or b). target=unit and @unit pick the unit the group tests\n"
+        "-- and the one handed back. Every secure state driver reads its state through\n"
+        "-- this - bar visibility, paging, the modifier state - and the old stand-in\n"
+        "-- answered the last clause always, so '[nocombat] show; hide' said hide.\n"
+        "do\n"
+        "  local function call(f, ...) if type(f) == 'function' then return f(...) end end\n"
+        "  local function trim(x) return (x:gsub('^%s+', ''):gsub('%s+$', '')) end\n"
+        "  local function anyArg(args, test, x)\n"
+        "    if not args then return test(nil, x) end\n"
+        "    for i = 1, #args do if test(args[i], x) then return true end end\n"
+        "    return false\n"
+        "  end\n"
+        "  local function numEq(v, x) return tonumber(v) == x end\n"
+        "  local function strEq(v, x) return v == x end\n"
+        "  local function modDown(m)\n"
+        "    m = m and m:lower()\n"
+        "    if not m then return call(IsModifierKeyDown) and true or false end\n"
+        "    if m == 'shift' or m == 'lshift' or m == 'rshift' then return call(IsShiftKeyDown) and true or false end\n"
+        "    if m == 'ctrl' or m == 'lctrl' or m == 'rctrl' then return call(IsControlKeyDown) and true or false end\n"
+        "    if m == 'alt' or m == 'lalt' or m == 'ralt' then return call(IsAltKeyDown) and true or false end\n"
+        "    return false\n"
+        "  end\n"
+        "  local C = {}\n"
+        "  C.combat = function() return (call(InCombatLockdown) or call(UnitAffectingCombat, 'player')) and true or false end\n"
+        "  C.mod = function(args) return anyArg(args, modDown) end\n"
+        "  C.modifier = C.mod\n"
+        "  C.button = function(args) local b = tostring(__WoweeSecureButton or '1')\n"
+        "    return anyArg(args, function(v) return v == nil or v == b or (v == 'LeftButton' and b == '1') end) end\n"
+        "  C.btn = C.button\n"
+        "  C.pet = function(args) if not call(UnitExists, 'pet') then return false end\n"
+        "    if not args then return true end\n"
+        "    local n = call(UnitName, 'pet') or ''; local f = call(UnitCreatureFamily, 'pet') or ''\n"
+        "    return anyArg(args, function(v) return v == n or v == f end) end\n"
+        "  C.exists = function(_, u) return call(UnitExists, u) and true or false end\n"
+        "  C.harm = function(_, u) return call(UnitCanAttack, 'player', u) and true or false end\n"
+        "  C.help = function(_, u) return call(UnitCanAssist, 'player', u) and true or false end\n"
+        "  C.dead = function(_, u) return call(UnitIsDead, u) and true or false end\n"
+        "  C.party = function(_, u) return call(UnitInParty, u) and true or false end\n"
+        "  C.raid = function(_, u) return call(UnitInRaid, u) and true or false end\n"
+        "  C.unithasvehicleui = function(_, u) return call(UnitHasVehicleUI, u) and true or false end\n"
+        "  C.stance = function(args) local f = call(GetShapeshiftForm) or 0\n"
+        "    if not args then return f > 0 end\n"
+        "    return anyArg(args, numEq, f) end\n"
+        "  C.form = C.stance\n"
+        "  C.stealth = function() return call(IsStealthed) and true or false end\n"
+        "  C.mounted = function() return call(IsMounted) and true or false end\n"
+        "  C.swimming = function() return call(IsSwimming) and true or false end\n"
+        "  C.flying = function() return call(IsFlying) and true or false end\n"
+        "  C.flyable = function() return call(IsFlyableArea) and true or false end\n"
+        "  C.indoors = function() return call(IsIndoors) and true or false end\n"
+        "  C.outdoors = function() return call(IsOutdoors) and true or false end\n"
+        "  C.channeling = function(args) local n = call(UnitChannelInfo, 'player')\n"
+        "    if not n then return false end\n"
+        "    if not args then return true end\n"
+        "    return anyArg(args, strEq, n) end\n"
+        "  C.actionbar = function(args) local p = call(GetActionBarPage) or 1\n"
+        "    return anyArg(args, numEq, p) end\n"
+        "  C.bar = C.actionbar\n"
+        "  C.bonusbar = function(args) local o = call(GetBonusBarOffset) or 0\n"
+        "    if not args then return o > 0 end\n"
+        "    return anyArg(args, numEq, o) end\n"
+        "  C.vehicleui = function() return call(UnitHasVehicleUI, 'player') and true or false end\n"
+        "  C.possessbar = function() return (call(GetBonusBarOffset) or 0) == 5 end\n"
+        "  C.overridebar = function() return false end\n"
+        "  C.petbattle = function() return false end\n"
+        "  C.group = function(args)\n"
+        "    local raid = (call(GetNumRaidMembers) or 0) > 0\n"
+        "    local party = raid or (call(GetNumPartyMembers) or 0) > 0\n"
+        "    if not args then return party end\n"
+        "    return anyArg(args, function(v) if v == 'raid' then return raid end return party end) end\n"
+        "  C.spec = function(args) local g = call(GetActiveTalentGroup) or 1\n"
+        "    return anyArg(args, numEq, g) end\n"
+        "  C.equipped = function(args) return anyArg(args, function(v) return v and call(IsEquippedItemType, v) and true or false end) end\n"
+        "  C.worn = C.equipped\n"
+        "  C.cursor = function() return (call(GetCursorInfo) or call(CursorHasItem) or call(CursorHasSpell)) and true or false end\n"
+        "  C.target = nil\n"
+        "\n"
+        "  -- Parsed once per distinct string and kept: the state drivers evaluate\n"
+        "  -- the same few strings every frame, and splitting them anew each time was\n"
+        "  -- the largest source of garbage in the interface.\n"
+        "  local function parseGroup(body)\n"
+        "    local g = { unit = 'target', conds = {} }\n"
+        "    for raw in body:gmatch('[^,]+') do\n"
+        "      local c = trim(raw)\n"
+        "      local u = c:match('^@(.+)$') or c:match('^target%s*=%s*(.+)$')\n"
+        "      if u then g.unit = trim(u); g.explicit = true\n"
+        "      elseif c ~= '' then\n"
+        "        local name, args = c:match('^([^:]+):(.*)$')\n"
+        "        if not name then name = c end\n"
+        "        name = trim(name):lower()\n"
+        "        local neg = false\n"
+        "        if name:sub(1, 2) == 'no' and not C[name] and C[name:sub(3)] then neg = true; name = name:sub(3) end\n"
+        "        local list\n"
+        "        if args then list = {} for v in args:gmatch('[^/]+') do list[#list + 1] = trim(v) end end\n"
+        "        g.conds[#g.conds + 1] = { f = C[name], args = list, neg = neg }\n"
+        "      end\n"
+        "    end\n"
+        "    return g\n"
+        "  end\n"
+        "  local function parse(options)\n"
+        "    local clauses = {}\n"
+        "    for clause in (options .. ';'):gmatch('([^;]*);') do\n"
+        "      local rest, groups = clause, {}\n"
+        "      while true do\n"
+        "        local body, after = rest:match('^%s*%[([^%]]*)%](.*)$')\n"
+        "        if not body then break end\n"
+        "        groups[#groups + 1] = parseGroup(body)\n"
+        "        rest = after\n"
+        "      end\n"
+        "      clauses[#clauses + 1] = { groups = groups, action = trim(rest) }\n"
+        "    end\n"
+        "    return clauses\n"
+        "  end\n"
+        "  local cache, cached = {}, 0\n"
+        "  local function holds(g)\n"
+        "    for i = 1, #g.conds do\n"
+        "      local c = g.conds[i]\n"
+        "      local ok = c.f and (c.f(c.args, g.unit) and true or false) or false\n"
+        "      if c.neg then ok = not ok end\n"
+        "      if not ok then return false end\n"
+        "    end\n"
+        "    return true\n"
+        "  end\n"
+        "\n"
+        "  function SecureCmdOptionParse(options)\n"
+        "    if type(options) ~= 'string' then return nil end\n"
+        "    local clauses = cache[options]\n"
+        "    if not clauses then\n"
+        "      if cached > 1024 then cache, cached = {}, 0 end\n"
+        "      clauses = parse(options)\n"
+        "      cache[options] = clauses\n"
+        "      cached = cached + 1\n"
+        "    end\n"
+        "    for i = 1, #clauses do\n"
+        "      local cl = clauses[i]\n"
+        "      local groups = cl.groups\n"
+        "      if #groups == 0 then return cl.action, nil end\n"
+        "      for k = 1, #groups do\n"
+        "        local g = groups[k]\n"
+        "        if holds(g) then return cl.action, g.explicit and g.unit or nil end\n"
+        "      end\n"
+        "    end\n"
+        "    return nil\n"
+        "  end\n"
         "end\n"
+
+
         // ChatFrame message group stubs
         "function ChatFrame_AddMessageGroup(frame, group) end\n"
         "function ChatFrame_RemoveMessageGroup(frame, group) end\n"
@@ -12290,12 +12517,36 @@ bool LuaEngine::saveSavedVariables(const std::string& path, const std::vector<st
         std::filesystem::create_directories(path.substr(0, lastSlash), ec);
     }
 
-    std::ofstream f(path);
-    if (!f.is_open()) {
-        LOG_WARNING("LuaEngine: cannot write saved variables to '", path, "'");
+    // Unchanged since the last write is not written again: the console saves
+    // on a timer (AddonManager::update), and most ticks change nothing.
+    static std::unordered_map<std::string, size_t> lastWritten;
+    const size_t digest = std::hash<std::string>{}(output);
+    if (auto it = lastWritten.find(path); it != lastWritten.end() && it->second == digest) {
+        return true;
+    }
+    // Written beside the file and renamed over it, so an app closed mid-write
+    // (on the console that is how the game ends) leaves the old copy whole.
+    const std::string tmp = path + ".tmp";
+    {
+        std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
+        if (!f.is_open()) {
+            LOG_WARNING("LuaEngine: cannot write saved variables to '", tmp, "'");
+            return false;
+        }
+        f << output;
+        f.flush();
+        if (!f) {
+            LOG_WARNING("LuaEngine: short write of saved variables to '", tmp, "'");
+            return false;
+        }
+    }
+    std::error_code ec;
+    std::filesystem::rename(tmp, path, ec);
+    if (ec) {
+        LOG_WARNING("LuaEngine: cannot replace '", path, "': ", ec.message());
         return false;
     }
-    f << output;
+    lastWritten[path] = digest;
     LOG_INFO("LuaEngine: saved variables to '", path, "' (", output.size(), " bytes)");
     return true;
 }

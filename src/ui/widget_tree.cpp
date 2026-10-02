@@ -1001,6 +1001,7 @@ void WidgetTree::layout(float pixelW, float pixelH) {
     rootW.effStrata = rootW.strata;
     rootW.effLevel = 0;
     rootW.effScale = 1.0f;
+    rootW.effAlpha = rootW.alpha;
     rootW.resolvedGen = layoutGeneration_;
     // The screen and UIParent are placed here rather than by the walk, so the
     // walk never visits them - and the two lists it gathers would be missing
@@ -1024,6 +1025,7 @@ void WidgetTree::layout(float pixelW, float pixelH) {
         ui->effStrata = ui->strata;
         ui->effLevel = 0;
         ui->effScale = 1.0f;
+        ui->effAlpha = ui->alpha * rootW.effAlpha;
         ui->resolvedGen = layoutGeneration_;
         considerForDraw(*ui);
         if (ui->visibleChain || ui->visible) {
@@ -1058,8 +1060,13 @@ void WidgetTree::layoutWidget(uint32_t id, float screenW, float screenH) {
     // so first display and resolution changes use this frame's target rect.
     int depth = 0;
     resolveChain(id, screenW, screenH, depth);
-    const Widget* w = get(id);
+    Widget* w = get(id);
     if (!w) return;
+    // Parents are walked before their children, so the parent's is current.
+    {
+        const Widget* p = w->parent ? get(w->parent) : nullptr;
+        w->effAlpha = w->alpha * (p ? p->effAlpha : 1.0f);
+    }
     considerForDraw(*w);
     // A widget whose chain is not shown has nothing under it that can be seen
     // or that can run, so the subtree is marked unseen instead of solved. That
@@ -1473,7 +1480,7 @@ void WidgetTree::considerForDraw(const Widget& w) {
     // below, because that filter drops precisely those containers.
     if (w.kind == WidgetKind::Frame) hitCandidates_.push_back(w.id);
     {
-        if (w.alpha <= 0.001f) return;
+        if (w.effAlpha <= 0.001f) return;
         // Frames are containers, except when they carry a backdrop or are a
         // status bar - then the frame itself has something to paint, and it
         // paints underneath its own regions because they sit a level above it.

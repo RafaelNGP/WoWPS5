@@ -2011,6 +2011,21 @@ void AddonManager::update(float deltaTime) {
         if (originalInterfaceLoaded_ && luaEngine_.luaErrorCount() != originalErrorBaseline_) {
             failOriginalInterface("original UI OnUpdate failed");
             discardPartialInterface();
+            return;
+        }
+        // Saved every half minute as well as on logout. A console game ends
+        // when the app is closed from the system menu, with no logout and no
+        // shutdown, and every setting an addon kept would go with it -
+        // ConsolePort asked to set up its bindings again on every launch.
+        savedVariablesTimer_ += deltaTime;
+        if (savedVariablesTimer_ >= 30.0f) {
+            savedVariablesTimer_ = 0.0f;
+            saveAllSavedVariables();
+            // And how much the interface holds, so growth shows in the log
+            // long before the budget runs out.
+            const auto& mem = luaEngine_.memoryBudget();
+            LOG_INFO("[LUA_MEMORY] usedKiB=", mem.used / 1024, " peakKiB=", mem.peak / 1024,
+                     " limitKiB=", mem.limit / 1024, " failures=", mem.failures);
         }
     } catch (const std::bad_alloc&) {
         failOriginalInterface("original UI runtime allocation failed");

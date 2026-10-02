@@ -312,6 +312,7 @@ public:
     const ui::WidgetTree& widgets() const { return widgets_; }
 
     lua_State* getState() { return L_; }
+    const LuaMemoryBudget& memoryBudget() const { return luaMemory_; }
     [[nodiscard]] bool isInitialized() const { return L_ != nullptr; }
 
     /// Abort a chunk that runs longer than this many milliseconds, naming the

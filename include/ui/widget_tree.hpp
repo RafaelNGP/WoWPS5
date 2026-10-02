@@ -126,6 +126,11 @@ struct Widget {
     float height = 0.0f;
     bool shown = true;
     float alpha = 1.0f;
+    /// What it is drawn at: its own alpha times every ancestor's, which is how
+    /// WoW composes it. Set by the layout walk; a fade on a panel fades
+    /// everything inside it, and drawing at `alpha` alone left a faded-out
+    /// action button's icons on screen.
+    float effAlpha = 1.0f;
     /// Whether this frame takes the mouse. False by default, as in WoW, where a
     /// plain Frame is transparent to clicks until EnableMouse is called; Buttons
     /// switch it on for themselves.
@@ -277,6 +282,9 @@ struct Widget {
     bool  texCoordRotated = false;
     float texCoordQuad[8] = {0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f};
     float color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    /// SetDesaturated: drawn in grey. ActionButton art greys out an empty slot
+    /// this way, and without it the empty-slot icon showed in full colour.
+    bool  desaturated = false;
     bool solidColor = false;    ///< SetTexture(r,g,b[,a]) rather than a file.
 
     // Backdrop, the bordered panel look most of the original interface is

@@ -98,6 +98,7 @@ public:
     bool reload();
 
 private:
+    float savedVariablesTimer_ = 0.0f;  // periodic save, see update()
     /// The addon whose files are being run (loadAddon), empty otherwise.
     std::string loadingAddon_;
     std::string originalRecoveryPath_;

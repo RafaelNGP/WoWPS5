@@ -94,6 +94,15 @@ void WidgetRenderer::initialize(pipeline::AssetManager* assets,
 
 // Additive art is uploaded as its own image, because the same file can be
 // asked for both ways and the two differ in their alpha channel.
+/// The texture key a desaturated region draws under: the path with a suffix no
+/// file name can carry, decoded to grey by texture().
+static const std::string kDesaturatedSuffix = "\x01grey";
+static const std::string& desaturatedPath(const Widget& w, std::string& scratch) {
+    if (!w.desaturated) return w.texturePath;
+    scratch = w.texturePath + kDesaturatedSuffix;
+    return scratch;
+}
+
 static std::string cacheKey(const std::string& path, bool add) {
     return add ? path + "|add" : path;
 }
@@ -262,11 +271,18 @@ std::vector<uint8_t> WidgetRenderer::readTextureFile(const std::string& path,
     return data;
 }
 
-VkDescriptorSet WidgetRenderer::texture(const std::string& path, bool add) {
-    const std::string key = cacheKey(path, add);
+VkDescriptorSet WidgetRenderer::texture(const std::string& fullPath, bool add) {
+    const std::string key = cacheKey(fullPath, add);
     auto it = textures_.find(key);
     if (it != textures_.end()) return it->second;
-    if (!assets_ || !vkCtx_ || path.empty()) return kMissing;
+    if (!assets_ || !vkCtx_ || fullPath.empty()) return kMissing;
+    // A desaturated draw asks for the same file under its own key, and gets
+    // a grey copy (desaturatedPath).
+    const bool grey = fullPath.size() > kDesaturatedSuffix.size() &&
+        fullPath.compare(fullPath.size() - kDesaturatedSuffix.size(),
+                         kDesaturatedSuffix.size(), kDesaturatedSuffix) == 0;
+    const std::string path = grey ? fullPath.substr(0, fullPath.size() - kDesaturatedSuffix.size())
+                                  : fullPath;
 
     std::string resolved;
     auto data = readTextureFile(path, resolved);
@@ -283,6 +299,13 @@ VkDescriptorSet WidgetRenderer::texture(const std::string& path, bool add) {
     }
     if (path.find("UI-MicroButton-") != std::string::npos)
         microButtonContent_[path] = textureContentBounds(image.data,image.width,image.height);
+    if (grey) {
+        for (size_t i = 0; i + 3 < image.data.size(); i += 4) {
+            const uint8_t lum = static_cast<uint8_t>(
+                (image.data[i] * 77 + image.data[i + 1] * 150 + image.data[i + 2] * 29) >> 8);
+            image.data[i] = image.data[i + 1] = image.data[i + 2] = lum;
+        }
+    }
     if (add) {
         // Additive blending is not something a single ImGui draw list can be
         // asked for - it has one pipeline and one blend state. But the art it
@@ -772,7 +795,7 @@ void WidgetRenderer::drawBackdrop(ImDrawList* dl, const Widget& w, float scale,
     const float by1 = y1 - w.insetBottom * scale;
     if (bx1 > bx0 && by1 > by0) {
         VkDescriptorSet bg = resident(w.bgFile);
-        const uint32_t col = packColor(w.backdropColor, w.alpha);
+        const uint32_t col = packColor(w.backdropColor, w.effAlpha);
         if (bg != kMissing) {
             // Tiling repeats the art at its own size instead of stretching it,
             // which is the difference between a stone wall and a smear.
@@ -801,7 +824,7 @@ void WidgetRenderer::drawBackdrop(ImDrawList* dl, const Widget& w, float scale,
     // rather than assumed: UI-Tooltip-Border is 128x16 and UI-DialogBox-Border
     // 256x32, both exactly eight tiles wide.
     const float e = w.edgeSize * scale;
-    const uint32_t col = packColor(w.borderColor, w.alpha);
+    const uint32_t col = packColor(w.borderColor, w.effAlpha);
     auto piece = [&](int index, float px0, float py0, float px1, float py1) {
         const float u0 = index / 8.0f, u1 = (index + 1) / 8.0f;
         dl->AddImage(reinterpret_cast<ImTextureID>(edge), ImVec2(px0, py0), ImVec2(px1, py1),
@@ -899,7 +922,7 @@ void WidgetRenderer::drawStatusBar(ImDrawList* dl, const Widget& w,
     // in screen terms means growing upward from y1.
     const float fx1 = w.barVertical ? x1 : x0 + (x1 - x0) * f;
     const float fy0 = w.barVertical ? y1 - (y1 - y0) * f : y0;
-    const uint32_t col = packColor(w.barColor, w.alpha);
+    const uint32_t col = packColor(w.barColor, w.effAlpha);
 
     VkDescriptorSet tex = resident(w.barTexture);
     if (tex != kMissing) {
@@ -1055,7 +1078,7 @@ void WidgetRenderer::drawSlider(ImDrawList* dl, const Widget& w,
     // The thumb sits at the value along the track, and is as wide as the track
     // is narrow - a scroll bar's grip is square to its channel.
     const float f = w.barFraction();
-    const uint32_t col = packColor(w.barColor, w.alpha);
+    const uint32_t col = packColor(w.barColor, w.effAlpha);
     if (w.barVertical) {
         const float size = x1 - x0;
         // Screen y grows downward while a slider's value grows upward, so the
@@ -1941,7 +1964,7 @@ void WidgetRenderer::reportWidgetDiagnostics(WidgetTree& tree,
             LOG_WARNING("  ", (w->name.empty() ? "(unnamed)" : w->name),
                         " kind=", static_cast<int>(w->kind),
                         " rect=(", w->left, ",", w->bottom, " ", w->rectW, "x", w->rectH, ")",
-                        " alpha=", w->alpha,
+                        " alpha=", w->effAlpha,
                         // Whether its art has actually reached the GPU. A
                         // texture with a correct rect and nothing uploaded
                         // draws nothing at all, and looks identical in a list
@@ -2095,8 +2118,10 @@ void WidgetRenderer::draw(WidgetTree& tree, float screenW, float screenH) {
     if (discoverUploads) {
         for (const Widget* w : order) {
             if (static_cast<int>(wanted.size()) >= kUploadsPerFrame) break;
-            if (w->kind == WidgetKind::Texture && !w->solidColor)
-                want(w->texturePath, w->blendAdd);
+            if (w->kind == WidgetKind::Texture && !w->solidColor) {
+                std::string scratch;
+                want(desaturatedPath(*w, scratch), w->blendAdd);
+            }
             if (!w->text.empty()) wantMarkup(w->text);
             for (const auto& line : w->tooltipLines) {
                 wantMarkup(line.left);
@@ -2267,7 +2292,7 @@ void WidgetRenderer::draw(WidgetTree& tree, float screenW, float screenH) {
                                  reinterpret_cast<VkDescriptorSet>(w->externalTexture)),
                              ImVec2(x0, y0), ImVec2(x1, y1),
                              ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f),
-                             packColor(w->color, w->alpha));
+                             packColor(w->color, w->effAlpha));
             }
             if (w->hasBackdrop) drawBackdrop(dl, *w, s, x0, y0, x1, y1);
             if (w->isStatusBar) drawStatusBar(dl, *w, x0, y0, x1, y1);
@@ -2286,14 +2311,14 @@ void WidgetRenderer::draw(WidgetTree& tree, float screenW, float screenH) {
                 for (const auto& line : w->tooltipLines) {
                     float lc[4] = {line.lc[0], line.lc[1], line.lc[2], line.lc[3]};
                     drawMarkupText(dl, font, size, ImVec2(x0 + pad, y),
-                                   packColor(lc, w->alpha), w->alpha, line.left,
+                                   packColor(lc, w->effAlpha), w->effAlpha, line.left,
                                    line.wrap ? textW : 0.0f);
                     if (!line.right.empty()) {
                         float rc[4] = {line.rc[0], line.rc[1], line.rc[2], line.rc[3]};
                         const float rw = font->CalcTextSizeA(
                             size, FLT_MAX, 0.0f, strippedText(line.right).c_str()).x;
                         drawMarkupText(dl, font, size, ImVec2(x1 - pad - rw, y),
-                                       packColor(rc, w->alpha), w->alpha, line.right);
+                                       packColor(rc, w->effAlpha), w->effAlpha, line.right);
                     }
                     // A wrapped line is as tall as the rows it produced, which
                     // the sizing pass counted - otherwise the next line draws
@@ -2376,11 +2401,11 @@ void WidgetRenderer::draw(WidgetTree& tree, float screenW, float screenH) {
                                        w->shadowColor[2], w->shadowColor[3]};
                         drawMarkupText(dl, font, size,
                                        ImVec2(x0 + w->shadowX * s, top - w->shadowY * s),
-                                       packColor(sc, w->alpha * w->shadowColor[3]),
-                                       w->alpha, m.text, wrapW, false, nullptr, true);
+                                       packColor(sc, w->effAlpha * w->shadowColor[3]),
+                                       w->effAlpha, m.text, wrapW, false, nullptr, true);
                     }
                     drawMarkupText(dl, font, size, ImVec2(x0, top),
-                                   packColor(rgba, w->alpha), w->alpha, m.text,
+                                   packColor(rgba, w->effAlpha), w->effAlpha, m.text,
                                    wrapW, false, nullptr, false, &tree, w->id);
                     y -= lineH * static_cast<float>(rows);
                     ++painted;
@@ -2449,7 +2474,7 @@ void WidgetRenderer::draw(WidgetTree& tree, float screenW, float screenH) {
                                 y0, " to ", x1, ",", y1, "), font height ",
                                 w->fontHeight, " scaled ",
                                 interfaceFontSize(w->fontHeight) * s,
-                                ", colour a=", w->color[3], " alpha=", w->alpha,
+                                ", colour a=", w->color[3], " alpha=", w->effAlpha,
                                 ", visible=", w->visible ? 1 : 0);
                 }
             }
@@ -2464,12 +2489,12 @@ void WidgetRenderer::draw(WidgetTree& tree, float screenW, float screenH) {
                                    w->shadowColor[2], w->shadowColor[3]};
                     drawMarkupText(dl, font, size,
                                    ImVec2(x0 + w->shadowX * s, y0 - w->shadowY * s),
-                                   packColor(sc, w->alpha * w->shadowColor[3]),
-                                   w->alpha, w->text, wrapW, false,
+                                   packColor(sc, w->effAlpha * w->shadowColor[3]),
+                                   w->effAlpha, w->text, wrapW, false,
                                    w->justifyH.c_str(), true);
                 }
                 drawMarkupText(dl, font, size, ImVec2(x0, y0),
-                               packColor(w->color, w->alpha), w->alpha, w->text,
+                               packColor(w->color, w->effAlpha), w->effAlpha, w->text,
                                wrapW, false, w->justifyH.c_str(), false,
                                &tree, w->id);
             }
@@ -2479,7 +2504,7 @@ void WidgetRenderer::draw(WidgetTree& tree, float screenW, float screenH) {
                 // while it has focus so it is clear which box is listening.
                 ImFont* font = faceFor(w->fontFace);
                 const float size = interfaceFontSize(w->fontHeight) * s;
-                const uint32_t col = packColor(w->color, w->alpha);
+                const uint32_t col = packColor(w->color, w->effAlpha);
                 // Between the top and bottom insets rather than the whole
                 // frame, so a box with art above its text does not sit high.
                 const float boxTop = y0 + w->textInsetTop * s;
@@ -2498,8 +2523,8 @@ void WidgetRenderer::draw(WidgetTree& tree, float screenW, float screenH) {
                         drawMarkupText(dl, font, size,
                                        ImVec2(x0 + pad + w->shadowX * s,
                                               ty - w->shadowY * s),
-                                       packColor(sc, w->alpha * w->shadowColor[3]),
-                                       w->alpha, w->editText, 0.0f, false,
+                                       packColor(sc, w->effAlpha * w->shadowColor[3]),
+                                       w->effAlpha, w->editText, 0.0f, false,
                                        nullptr, true);
                     }
                     // Through the markup parser like everything else. An edit
@@ -2510,7 +2535,7 @@ void WidgetRenderer::draw(WidgetTree& tree, float screenW, float screenH) {
                     // Links are only clickable at all as of this branch, so
                     // this became reachable at the same moment.
                     drawMarkupText(dl, font, size, ImVec2(x0 + pad, ty), col,
-                                   w->alpha, w->editText);
+                                   w->effAlpha, w->editText);
                 }
                 if (w->editFocused) {
                     // Measured against what is drawn, not what is held. The
@@ -2567,7 +2592,7 @@ void WidgetRenderer::draw(WidgetTree& tree, float screenW, float screenH) {
             // full-width backdrop is a white slab across the screen.
             if (w->solidColor) {
                 dl->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1),
-                                  packColor(w->color, w->alpha));
+                                  packColor(w->color, w->effAlpha));
                 continue;
             }
             // A texture the client renders into has no file and does not need
@@ -2592,8 +2617,9 @@ void WidgetRenderer::draw(WidgetTree& tree, float screenW, float screenH) {
             } else {
                 // Only what is already resident. Anything still queued draws on
                 // a later frame rather than forcing an upload here.
+                std::string scratch;
                 const VkDescriptorSet* set =
-                    cachedTexture(w->texturePath, w->blendAdd);
+                    cachedTexture(desaturatedPath(*w, scratch), w->blendAdd);
                 if (!set || *set == kMissing) continue;
                 tex = *set;
             }
@@ -2651,11 +2677,11 @@ void WidgetRenderer::draw(WidgetTree& tree, float screenW, float screenH) {
                                  ImVec2(q[4], q[5]),   // upper-right
                                  ImVec2(q[6], q[7]),   // lower-right
                                  ImVec2(q[2], q[3]),   // lower-left
-                                 packColor(w->color, w->alpha));
+                                 packColor(w->color, w->effAlpha));
             } else {
                 dl->AddImage(reinterpret_cast<ImTextureID>(tex),
                              ImVec2(x0, y0), ImVec2(x1, y1), uv0, uv1,
-                             packColor(w->color, w->alpha));
+                             packColor(w->color, w->effAlpha));
             }
         } else if (w->kind == WidgetKind::FontString) {
             // Font objects carry a height, and honouring it is most of what
@@ -2805,7 +2831,7 @@ void WidgetRenderer::draw(WidgetTree& tree, float screenW, float screenH) {
             if (!w->fontOutline.empty()) {
                 const float d = (w->fontOutline == "THICK") ? 2.0f : 1.0f;
                 const uint32_t shadow = IM_COL32(0, 0, 0,
-                    static_cast<int>(std::clamp(w->alpha, 0.0f, 1.0f) * 255.0f));
+                    static_cast<int>(std::clamp(w->effAlpha, 0.0f, 1.0f) * 255.0f));
                 const ImVec2 around[8] = {
                     {-d, 0}, {d, 0}, {0, -d}, {0, d},
                     {-d, -d}, {d, -d}, {-d, d}, {d, d},
@@ -2816,7 +2842,7 @@ void WidgetRenderer::draw(WidgetTree& tree, float screenW, float screenH) {
                     // copy of the words in a darker shade, out of line with
                     // the ones on top of it.
                     drawMarkupText(dl, font, size, ImVec2(tx + o.x, ty + o.y),
-                                   shadow, w->alpha, w->text, wrapW,
+                                   shadow, w->effAlpha, w->text, wrapW,
                                    w->nonSpaceWrap, w->justifyH.c_str(), true);
                 }
             }
@@ -2829,8 +2855,8 @@ void WidgetRenderer::draw(WidgetTree& tree, float screenW, float screenH) {
                                w->shadowColor[2], w->shadowColor[3]};
                 drawMarkupText(dl, font, size,
                                ImVec2(tx + w->shadowX * s, ty - w->shadowY * s),
-                               packColor(sc, w->alpha * w->shadowColor[3]),
-                               w->alpha, w->text, wrapW, w->nonSpaceWrap,
+                               packColor(sc, w->effAlpha * w->shadowColor[3]),
+                               w->effAlpha, w->text, wrapW, w->nonSpaceWrap,
                                w->justifyH.c_str(), true);
             }
             // A button's label takes its colour from the button's state. The
@@ -2847,7 +2873,7 @@ void WidgetRenderer::draw(WidgetTree& tree, float screenW, float screenH) {
                 }
             }
             drawMarkupText(dl, font, size, ImVec2(tx, ty),
-                           packColor(textColor, w->alpha), w->alpha, w->text,
+                           packColor(textColor, w->effAlpha), w->effAlpha, w->text,
                            wrapW, w->nonSpaceWrap, w->justifyH.c_str(), false,
                            &tree, w->id);
         }
