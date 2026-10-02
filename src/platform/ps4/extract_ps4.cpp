@@ -76,6 +76,16 @@ void mirrorBundledData() {
     reportBootStage("assets: metadata sync begin");
     std::string error;
     const std::string bundled = core::resolveRelativeAssetPath("Data");
+#if defined(WOWEE_PS5)
+    // On the PS5 the data root is the app folder itself and /app0/Data holds
+    // the user's MPQs: the package stages the expansion and opcode tables at
+    // the root already (tools/ps5/package.sh), so there is nothing to mirror,
+    // and mirroring would copy the archives into /app0.
+    if (bundled == dataRoot() + "/Data") {
+        reportBootStage("assets: metadata staged by the package; no sync");
+        return;
+    }
+#endif
     const int copied = tools::syncBundledData(bundled, dataRoot(), &error);
     if (copied < 0) {
         LOG_WARNING("Bundled Data tree not found at ", bundled, "; expansion profiles must be copied by hand");

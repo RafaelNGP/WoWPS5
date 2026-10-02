@@ -302,6 +302,9 @@ bool copyMetadata(const fs::path& source, const fs::path& destination, std::stri
 
 } // namespace
 
+// The largest bundled table is well under 1 MiB.
+constexpr std::uintmax_t kMaxBundledMetadataBytes = 16u * 1024u * 1024u;
+
 int syncBundledData(const std::string& bundledDataDir, const std::string& outputRoot,
                     std::string* error) {
     if (error) error->clear();
@@ -324,6 +327,11 @@ int syncBundledData(const std::string& bundledDataDir, const std::string& output
         // else (an extracted file, a manifest) is not ours to overwrite.
         const std::string name = lower(rel.filename().string());
         if (name == "manifest.json") continue;
+        // When the user's client shares the tree (the PS5 app keeps both in
+        // /app0/Data), only the bundled tables - small JSON files - are
+        // metadata: never copy an archive, a cinematic or the client's docs.
+        if (lower(rel.extension().string()) != ".json") continue;
+        if (it->file_size(fec) > kMaxBundledMetadataBytes || fec) continue;
         const fs::path dst = fs::path(outputRoot) / rel;
 
         // Compare content, not mtime: package timestamps and the console
