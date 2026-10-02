@@ -1767,8 +1767,13 @@ bool Renderer::captureScreenshot(const std::string& outputPath) {
     void* mapped = nullptr;
     vmaMapMemory(alloc, stagingAlloc, &mapped);
     auto* pixels = static_cast<uint8_t*>(mapped);
-    for (uint32_t i = 0; i < w * h; ++i) {
-        std::swap(pixels[i * 4 + 0], pixels[i * 4 + 2]); // B ↔ R
+    // PNG wants RGBA; only a BGRA swapchain needs its channels swapped (the
+    // consoles' are R8G8B8A8).
+    const VkFormat format = vkCtx->getSwapchainFormat();
+    if (format == VK_FORMAT_B8G8R8A8_UNORM || format == VK_FORMAT_B8G8R8A8_SRGB) {
+        for (uint32_t i = 0; i < w * h; ++i) {
+            std::swap(pixels[i * 4 + 0], pixels[i * 4 + 2]); // B ↔ R
+        }
     }
 
     // Ensure output directory exists

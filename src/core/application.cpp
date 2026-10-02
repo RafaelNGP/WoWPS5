@@ -4384,6 +4384,22 @@ void Application::update(float deltaTime) {
     }
 
     // Update based on current state
+    // Development: WOWEE_DEV_SCREENSHOT_SECONDS=N (config/env.txt) writes the
+    // screen to <writable>/screenshots/dev_latest.png every N seconds, so a
+    // console run can be looked at from the PC.
+#ifdef WOWEE_PS4
+    if (static const float devShotEvery = [] {
+            const char* v = std::getenv("WOWEE_DEV_SCREENSHOT_SECONDS");
+            return v ? std::max(0.0f, static_cast<float>(std::atof(v))) : 0.0f;
+        }();
+        devShotEvery > 0.0f && renderer) {
+        devScreenshotTimer_ += deltaTime;
+        if (devScreenshotTimer_ >= devShotEvery) {
+            devScreenshotTimer_ = 0.0f;
+            renderer->captureScreenshot(platform::ps4::writableRoot() + "/screenshots/dev_latest.png");
+        }
+    }
+#endif
     updateCheckpoint = "state switch";
     switch (state) {
         case AppState::AUTHENTICATION:
