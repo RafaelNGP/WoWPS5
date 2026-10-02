@@ -759,7 +759,15 @@ void pumpConsolePort(float dt) {
     bool right = false;
     applyRightStick(dt, right);
     applyKeys(want);
-    applyMouseButtons(false, right);
+    // L3 and R3 are the mouse's two buttons at the cursor, which is what
+    // ConsolePort's binding screen calls them ("Left Click / Movement",
+    // "Right Click / Mouse") and why it leaves both unbound: on a PC the pad
+    // mapper clicks with them. Without this nothing on the pad could click, and
+    // the touchpad cursor moved over the interface without ever pressing it.
+    // Both together are the mode switch, not a click.
+    const bool l3 = st.connected && (st.buttons & ORBIS_PAD_BUTTON_L3);
+    const bool r3 = st.connected && (st.buttons & ORBIS_PAD_BUTTON_R3);
+    applyMouseButtons(l3 && !r3, right || (r3 && !l3));
 }
 
 // Keys an interface binding holds on the client's behalf (holdSyntheticKey):

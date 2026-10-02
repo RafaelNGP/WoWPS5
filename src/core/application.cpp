@@ -4021,7 +4021,11 @@ void Application::updateInGame(float deltaTime, const char*& updateCheckpoint) {
         applyServerMovementState(deltaTime);
         if (renderer && renderer->getCameraController() && localRealm_) {
             const auto* local = localRealm_->localPlayer();
-            renderer->getCameraController()->setMovementRooted(local && local->dead);
+            // Rooted while lying dead, free again as a ghost: the released
+            // spirit has to walk back to its corpse, and rooting every dead
+            // state left a ghost at the graveyard unable to take a step - one
+            // death and the character could never be revived.
+            renderer->getCameraController()->setMovementRooted(local && local->dead && !local->ghost);
         }
         updateCheckpoint = "local realm: render instance sync";
         const auto syncStart = std::chrono::steady_clock::now();
