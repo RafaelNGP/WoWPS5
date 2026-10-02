@@ -114,7 +114,15 @@ void Application::renderLocalRealmOverlay() {
     std::sort(nearby.begin(), nearby.end(), [&](const auto* a, const auto* b) {
         return distanceTo(self, *a) < distanceTo(self, *b);
     });
-    bool toggleTarget=pressed(ImGuiKey_Tab);
+    // Tab is WoW's TARGETNEARESTENEMY, and ConsolePort presses it for its
+    // targeting button: it cycles to the next creature rather than clearing.
+    // The native pad's Triangle below keeps its select/clear toggle.
+    if(pressed(ImGuiKey_Tab) && !self.dead){
+        uint64_t next=game::nearestLivingLocalTarget(self,npcs,40.0f,localRealmTarget_);
+        if(!next)next=localRealmTarget_;
+        if(next!=localRealmTarget_){select(next);LOG_INFO("[PAD_TARGET] cycled to the next target");}
+    }
+    bool toggleTarget=false;
 #ifdef WOWEE_PS4
     const auto& targetPad=platform::ps4::padState();
     if(keys && localFrameXml_.ready() && targetPad.connected &&
