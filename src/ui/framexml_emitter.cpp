@@ -922,6 +922,13 @@ struct Emitter {
         // "Name" and the lookup that wanted it found nothing.
         const std::string anchor = nameVar.empty() ? var : nameVar;
 
+        // protected="true" (the Secure* templates): what IsProtected answers.
+        // Emitted in the body, so a template carries it to every frame that
+        // inherits it.
+        if (const std::string* prot = node.attr("protected"); prot && *prot == "true") {
+            line(var + ".__protected = true");
+        }
+
         // hidden="true" is the frame's state from the moment it exists, not
         // something done to it once it is built. This ran last - after the
         // children were created, after every OnLoad had fired - so a frame the

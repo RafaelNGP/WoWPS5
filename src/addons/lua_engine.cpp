@@ -319,8 +319,27 @@ static int lua_Frame_SetScript(lua_State* L) {
 // (ConsolePort's mixins) only install scripts the widget says it takes.
 static int lua_Frame_HasScript(lua_State* L) {
     const char* name = luaL_optstring(L, 2, "");
-    lua_pushboolean(L, name && name[0] == 'O' && name[1] == 'n' && name[2] >= 'A' && name[2] <= 'Z');
+    const bool handler = name && name[0] == 'O' && name[1] == 'n' && name[2] >= 'A' && name[2] <= 'Z';
+    // A button's click wrappers have no On prefix.
+    const bool click = name && (std::strcmp(name, "PreClick") == 0 || std::strcmp(name, "PostClick") == 0);
+    lua_pushboolean(L, handler || click);
     return 1;
+}
+
+// frame:IsProtected() -> isProtected, isExplicitlyProtected. A frame is
+// protected when it, or a template it inherits, is declared protected="true"
+// in XML (the Secure* templates are); the emitter records that as __protected.
+// There is no taint here, so the two answers are the same.
+static int lua_Frame_IsProtected(lua_State* L) {
+    bool isProtected = false;
+    if (lua_istable(L, 1)) {
+        lua_getfield(L, 1, "__protected");
+        isProtected = lua_toboolean(L, -1) != 0;
+        lua_pop(L, 1);
+    }
+    lua_pushboolean(L, isProtected);
+    lua_pushboolean(L, isProtected);
+    return 2;
 }
 
 static int lua_Frame_GetScript(lua_State* L) {
@@ -5356,6 +5375,13 @@ static int lua_CreateFrame(lua_State* L) {
 
     // Create the frame table
     lua_newtable(L);
+    // frame[0] is the client's handle to the widget, a userdata in every real
+    // frame. Blizzard's secure handlers recognise a frame by it
+    // (SecureHandlers.lua IsValidFrame: type(frame[0]) == "userdata"), so
+    // without it every SecureHandlerWrapScript/Execute/SetFrameRef refused
+    // the frame it was given.
+    lua_pushlightuserdata(L, const_cast<void*>(lua_topointer(L, -1)));
+    lua_rawseti(L, -2, 0);
 
     // Record the parent table, not only the widget id. GetParent() is
     // everywhere in FrameXML - a nested button's OnLoad opens with
@@ -5988,6 +6014,7 @@ void LuaEngine::registerCoreAPI() {
         {"SetScript",       lua_Frame_SetScript},
         {"GetScript",       lua_Frame_GetScript},
         {"HasScript",       lua_Frame_HasScript},
+        {"IsProtected",     lua_Frame_IsProtected},
         {"GetName",         lua_Frame_GetName},
         {"Show",            lua_Region_Show},
         {"Hide",            lua_Region_Hide},
@@ -9640,6 +9667,15 @@ void LuaEngine::noteLuaError(const std::string& message) {
     if (message.empty()) return;
     auto [it, inserted] = luaErrors_.emplace(message, 0u);
     ++it->second;
+    // A player's addon: its chunk names come from an AddOns directory on disk
+    // (the archives' own addons are mpq/interface/addons/...).
+    std::string lower = message;
+    for (char& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    bool userAddon = false;
+    for (size_t at = lower.find("/addons/"); at != std::string::npos; at = lower.find("/addons/", at + 1)) {
+        if (at < 13 || lower.compare(at - 13, 13, "mpq/interface") != 0) { userAddon = true; break; }
+    }
+    if (!userAddon) ++interfaceErrorCount_;
     // Written the first time each distinct error is seen, not only at
     // shutdown. The errors worth reading are often the ones just before a
     // crash, and a report written on a clean quit is exactly the report that

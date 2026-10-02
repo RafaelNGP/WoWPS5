@@ -352,11 +352,12 @@ public:
     /// reason.
     void noteLuaError(const std::string& message);
     void writeLuaErrorReport() const;
-    [[nodiscard]] uint64_t luaErrorCount() const {
-        uint64_t total = 0;
-        for (const auto& error : luaErrors_) total += error.second;
-        return total;
-    }
+    /// Errors raised by the client's own interface (FrameXML and the
+    /// Blizzard addons in the archives). A player's addon failing is that
+    /// addon's problem, recorded in lua_errors.txt like any other, but it
+    /// must not take the original UI down with it: this count is what the
+    /// interface's validation compares against its baseline.
+    [[nodiscard]] uint64_t luaErrorCount() const { return interfaceErrorCount_; }
 
 private:
     friend class LocalFrameXml; // Controller adapter dispatches the same slider scripts as the mouse.
@@ -369,6 +370,7 @@ private:
     /// Distinct Lua errors this session and how often each fired. A handler
     /// that raises on every frame is one entry, not forty thousand.
     std::map<std::string, uint64_t> luaErrors_;
+    uint64_t interfaceErrorCount_ = 0;
     OpenSettingsCallback openSettingsCallback_;
     /// How many events are being dispatched inside one another right now.
     /// Guards against two handlers triggering each other without end.

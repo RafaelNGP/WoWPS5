@@ -1539,8 +1539,30 @@ bool AddonManager::loadFrameXml(const std::string& frameXmlDir) {
 
 bool AddonManager::executeSourceFile(const std::string& path) {
     frameXmlCheckpoint("Lua read", path.c_str());
-    const auto text = interfaceSource_.read(path);
+    auto text = interfaceSource_.read(path);
     if (!text) { LOG_ERROR("[FRAMEXML_SOURCE] missing/oversized: ", path); return false; }
+    // RestrictedFrames.lua gives each frame a secure handle backed by a
+    // "surrogate" - {[0] = frame[0], [1] = frame} wearing the frame's own
+    // metatable - and calls the frame's methods on it. The real client's
+    // methods find the widget through [0]; this one's read fields off the
+    // table they are given (__wid, __scripts, __protected, ...), which the
+    // surrogate does not have, so every handle answered as a frame of
+    // nothing (ConsolePort: "Invalid 'self' frame handle"). Forward the
+    // surrogate's reads and writes to the frame itself instead.
+    {
+        std::string lower = path;
+        for (char& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        static const std::string kSurrogateLine = "setmetatable(surrogate, getmetatable(frame));";
+        if (lower.size() >= 20 && lower.compare(lower.size() - 20, 20, "restrictedframes.lua") == 0) {
+            if (const size_t at = text->find(kSurrogateLine); at != std::string::npos) {
+                text->replace(at, kSurrogateLine.size(),
+                              "setmetatable(surrogate, { __index = frame, __newindex = frame });");
+                LOG_INFO("FrameXML: secure frame handles forward to their frames");
+            } else {
+                LOG_WARNING("FrameXML: RestrictedFrames.lua surrogate line not found; secure handles stay inert");
+            }
+        }
+    }
     frameXmlCheckpoint("Lua compile/execute", path.c_str());
     // An addon's own files get its (name, private table) as `...`; FrameXML
     // and the client's own chunks run outside any addon.
