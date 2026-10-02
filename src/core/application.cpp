@@ -153,14 +153,21 @@ void setExternalTexture(ui::WidgetTree& tree, ui::Widget* w, uint64_t handle) {
 
 std::optional<float> movingEntityFloor(rendering::Renderer* renderer,
                                         const glm::vec3& renderPos,
-                                        const std::optional<glm::vec3>& previousRenderPos) {
+                                        const std::optional<glm::vec3>& previousRenderPos,
+                                        bool approximateZ = false) {
     if (!renderer) return std::nullopt;
 
     // Server movement Z is the reference surface.  In WMO overlap regions the
     // outdoor heightfield may be a roof many units above a tunnel/interior, so
     // choose the closest reachable floor instead of blindly preferring terrain.
-    constexpr float kMaxStepUp = 1.5f;
-    constexpr float kMaxGroundDrop = 3.0f;
+    //
+    // approximateZ: the standalone realm has no navmesh, so its walkers keep
+    // the height of where they started (local_bots.cpp, the creature roam).
+    // That Z is only a hint: on a slope the real ground is soon more than a
+    // step away, and the model was drawn sunk into the hill or floating off it.
+    // Search a wider window around it, still taking the floor nearest to it.
+    const float kMaxStepUp = approximateZ ? 6.0f : 1.5f;
+    const float kMaxGroundDrop = approximateZ ? 6.0f : 3.0f;
     const float probeZ = renderPos.z + kMaxStepUp;
     std::optional<float> best;
 
@@ -227,7 +234,7 @@ std::optional<float> movingEntityFloor(rendering::Renderer* renderer,
     // ambiguous near overlapping shells or non-collidable authored props. Require
     // continuity with the last rendered ground position before accepting it. This
     // preserves server-authored waypoint height without creature-entry exceptions.
-    if (best && std::abs(*best - renderPos.z) > 0.35f) {
+    if (best && std::abs(*best - renderPos.z) > 0.35f && !approximateZ) {
         if (!previousRenderPos) return std::nullopt;
         const glm::vec2 planarDelta = glm::vec2(renderPos) - glm::vec2(*previousRenderPos);
         const float maxContinuousStep = 0.35f + glm::length(planarDelta) * 1.5f;
@@ -241,6 +248,24 @@ std::optional<float> movingEntityFloor(rendering::Renderer* renderer,
 } // namespace
 
 Application* Application::instance = nullptr;
+
+// The rendered floor under a standalone-realm unit that is not moving. Its
+// simulation Z is the height its roam started at (see movingEntityFloor's
+// approximateZ); the floor is projected once per simulated position, so a unit
+// standing still costs a map lookup per frame, not a collision walk.
+float Application::groundedLocalZ(uint64_t guid, const glm::vec3& renderPos,
+                                  const std::optional<glm::vec3>& previousRenderPos) {
+    auto& cached = localGroundCache_[guid];
+    if (cached.valid && cached.simZ == renderPos.z &&
+        std::abs(cached.x - renderPos.x) < 0.01f && std::abs(cached.y - renderPos.y) < 0.01f)
+        return cached.groundZ;
+    const auto floor = movingEntityFloor(renderer.get(), renderPos, previousRenderPos, true);
+    // No floor loaded yet (terrain still streaming): keep the simulation Z and
+    // try again next frame.
+    if (!floor) return renderPos.z;
+    cached = {renderPos.x, renderPos.y, renderPos.z, *floor, true};
+    return *floor;
+}
 
 Application::Application() {
     instance = this;
@@ -3612,11 +3637,17 @@ void Application::syncRenderInstancesToEntities(float deltaTime) {
             // above a tunnel cannot move the model into/onto the WMO shell.
             const bool groundCreature = !_creatureFlyingState.count(guid) &&
                                         !_creatureSwimmingState.count(guid);
-            if (entity->isActivelyMoving() && groundCreature &&
-                !gameHandler->transportAttachmentsRef().count(guid)) {
-                if (auto floorZ = movingEntityFloor(renderer.get(), renderPos,
-                                                    previousRenderPos)) {
-                    renderPos.z = *floorZ;
+            const bool approximateZ = localRealm_ && localRealm_->ready();
+            if (groundCreature && !gameHandler->transportAttachmentsRef().count(guid)) {
+                if (entity->isActivelyMoving()) {
+                    if (auto floorZ = movingEntityFloor(renderer.get(), renderPos,
+                                                        previousRenderPos, approximateZ)) {
+                        renderPos.z = *floorZ;
+                    }
+                } else if (approximateZ) {
+                    // Standing where a roam ended: the same projection, once
+                    // per position rather than every frame.
+                    renderPos.z = groundedLocalZ(guid, renderPos, previousRenderPos);
                 }
             }
 
@@ -3810,11 +3841,15 @@ void Application::syncRenderInstancesToEntities(float deltaTime) {
             // WMO overlap regions (tunnels, buildings, bridges).
             const bool groundPlayer = !_pCreatureFlyingState.count(guid) &&
                                       !_pCreatureSwimmingState.count(guid);
-            if (entity->isActivelyMoving() && groundPlayer &&
-                !gameHandler->transportAttachmentsRef().count(guid)) {
-                if (auto floorZ = movingEntityFloor(renderer.get(), renderPos,
-                                                    previousMountPos)) {
-                    renderPos.z = *floorZ;
+            const bool approximateZ = localRealm_ && localRealm_->ready();
+            if (groundPlayer && !gameHandler->transportAttachmentsRef().count(guid)) {
+                if (entity->isActivelyMoving()) {
+                    if (auto floorZ = movingEntityFloor(renderer.get(), renderPos,
+                                                        previousMountPos, approximateZ)) {
+                        renderPos.z = *floorZ;
+                    }
+                } else if (approximateZ) {
+                    renderPos.z = groundedLocalZ(guid, renderPos, previousMountPos);
                 }
             }
 

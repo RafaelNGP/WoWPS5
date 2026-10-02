@@ -168,6 +168,10 @@ public:
     audio::AudioCoordinator* getAudioCoordinator() { return audioCoordinator_.get(); }
 
 private:
+    struct LocalGroundSample { float x = 0, y = 0, simZ = 0, groundZ = 0; bool valid = false; };
+    std::unordered_map<uint64_t, LocalGroundSample> localGroundCache_;
+    float groundedLocalZ(uint64_t guid, const glm::vec3& renderPos,
+                         const std::optional<glm::vec3>& previousRenderPos);
     void update(float deltaTime);
 
     /// One frame of being in the world - the largest arm of update()'s state
