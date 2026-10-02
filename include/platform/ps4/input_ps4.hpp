@@ -203,6 +203,13 @@ struct PadState {
 };
 const PadState& padState();
 
+/// ConsolePortLK: when the addon has loaded, the pad becomes the keyboard it
+/// expects (each button a key, L1/L2 SHIFT/CTRL, left stick W/A/S/D) and every
+/// other consumer of padState() sees a pad with nothing pressed. Holding L3+R3
+/// for two seconds switches between that and this client's own scheme.
+void setConsolePortAvailable(bool available);
+bool consolePortMode();
+
 /// Whether a pad was opened. The ImGui backend advertises a gamepad on it.
 bool padConnected();
 

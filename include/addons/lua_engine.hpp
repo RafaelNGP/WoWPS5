@@ -322,6 +322,11 @@ public:
     /// the connection for want of a heartbeat. A C++ backtrace only says which
     /// binding it was inside; this says which line of Lua kept calling it.
     void setChunkTimeoutMs(unsigned long long ms) { chunkTimeoutMs_ = ms; }
+    /// fireEvent with the runaway guard on: a handler still running after `ms`
+    /// is stopped where it is and reported, rather than freezing the client
+    /// (an addon's event handler looping forever froze it at world entry).
+    void fireEventGuarded(const std::string& eventName,
+                          const std::vector<std::string>& args, unsigned long long ms);
 
     // Optional callback for Lua errors (displayed as UI errors to the player)
     /// Open this client's own settings window.

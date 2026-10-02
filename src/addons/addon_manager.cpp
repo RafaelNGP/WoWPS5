@@ -1694,6 +1694,43 @@ bool AddonManager::loadXmlFile(const std::string& path, int depth) {
                (name.compare(name.size() - 4, 4, ".lua") == 0 ||
                 name.compare(name.size() - 4, 4, ".LUA") == 0);
     };
+    // A player's addon is loaded the way the client reads the file: element
+    // by element, in order. Its XML declares templates and then names the
+    // script that instantiates them (ConsolePortBar's WatchBars.xml), which
+    // the order below - every script before any frame - cannot satisfy. The
+    // client's own FrameXML keeps that order, which it was tuned against.
+    if (!loadingAddon_.empty() && !emitted.steps.empty()) {
+        using Step = ui::EmitResult::Step;
+        for (const auto& step : emitted.steps) {
+            bool loaded = true;
+            switch (step.kind) {
+            case Step::Lua:
+                loaded = luaEngine_.executeAddonSource(step.text, "@" + path, loadingAddon_);
+                if (!loaded && ok) lastXmlError_ = "frames: " + luaEngine_.lastError();
+                break;
+            case Step::Script:
+                if (!interfaceSource_.exists(sibling(step.text).string())) {
+                    LOG_WARNING("AddonManager: ", path, " names ", step.text,
+                                ", which this addon does not ship - skipped");
+                    continue;
+                }
+                [[fallthrough]];
+            case Step::Include:
+                loaded = isLua(step.text)
+                    ? executeSourceFile(sibling(step.text).string())
+                    : loadXmlFile(sibling(step.text).string(), depth + 1);
+                if (!loaded && ok) {
+                    lastXmlError_ = step.text + ": " +
+                                    (isLua(step.text) ? luaEngine_.lastError() : lastXmlError_);
+                }
+                if (!loaded) LOG_ERROR("AddonManager: ", path, " referenced ", step.text, " which failed");
+                break;
+            }
+            if (!loaded) ok = false;
+        }
+        if (ok) LOG_INFO("AddonManager: built frames from ", path);
+        return ok;
+    }
     for (const auto& body : emitted.leadingScripts) {
         const bool loaded = loadingAddon_.empty()
             ? luaEngine_.executeSource(body, "@" + path)
@@ -1821,10 +1858,46 @@ bool AddonManager::loadAddon(const TocFile& addon) {
         }
     }
 
+    // ConsolePortLK: the pad is its keyboard here (input_ps4.cpp, ConsolePort
+    // mode), with no mapper to calibrate against. Before its own settings
+    // load, make sure they exist (as the PS5 pad), carry the calibration of the
+    // keys this client sends for each button, take the left stick as 8-way
+    // W/A/S/D, and skip the grips a DualSense does not have. The keys here and
+    // kConsolePortKeys in input_ps4.cpp are the same table.
+    if (addon.addonName == "ConsolePort") {
+        static const char* kSeed = R"LUA(
+if type(ConsolePort) == 'table' and type(ConsolePort.LoadSettings) == 'function' then
+  local load = ConsolePort.LoadSettings
+  ConsolePort.LoadSettings = function(self, ...)
+    if not ConsolePortSettings then
+      ConsolePortSettings = self:GetDefaultAddonSettings()
+      ConsolePortSettings.type = 'PS5'
+    end
+    local s = ConsolePortSettings
+    s.calibration = s.calibration or {}
+    local keys = {
+      CP_R_UP = 'F9', CP_R_RIGHT = 'F10', CP_R_DOWN = 'F11', CP_R_LEFT = 'F12',
+      CP_L_UP = 'F5', CP_L_RIGHT = 'F6', CP_L_DOWN = 'F7', CP_L_LEFT = 'F8',
+      CP_T1 = 'F1', CP_T2 = 'F2', CP_T_L3 = 'F3', CP_T_R3 = 'F4',
+      CP_X_LEFT = 'INSERT', CP_X_CENTER = 'PAGEUP', CP_X_RIGHT = 'PAGEDOWN',
+    }
+    for button, key in pairs(keys) do s.calibration[button] = key end
+    if not s.stickRadialType or s.stickRadialType == 0 then s.stickRadialType = 2 end
+    s.skipCP_T3, s.skipCP_T4, s.skipCP_T5, s.skipCP_T6 = true, true, true, true
+    return load(self, ...)
+  end
+end
+)LUA";
+        if (!luaEngine_.executeSource(kSeed, "@WoWPS/ConsolePortSeed.lua"))
+            LOG_WARNING("[CONSOLEPORT] calibration seed failed: ", luaEngine_.lastError());
+        platform::ps4::setConsolePortAvailable(
+            luaEngine_.evaluateBoolean("type(ConsolePort) == 'table'"));
+    }
+
     // Fire ADDON_LOADED event after all addon files are executed
     // This is the standard WoW pattern for addon initialization
     if (success) {
-        luaEngine_.fireEvent("ADDON_LOADED", {addon.addonName});
+        luaEngine_.fireEventGuarded("ADDON_LOADED", {addon.addonName}, 5000);
     }
     return success;
 }
@@ -1914,7 +1987,7 @@ bool AddonManager::interfaceCommandBoolean(const std::string& expression) {
 
 void AddonManager::fireEvent(const std::string& event, const std::vector<std::string>& args) {
     if (!addonsLoaded_) return;
-    luaEngine_.fireEvent(event, args);
+    luaEngine_.fireEventGuarded(event, args, 5000);
     if (originalInterfaceLoaded_ && luaEngine_.luaErrorCount() != originalErrorBaseline_)
         failOriginalInterface("Lua event handler failed");
 }

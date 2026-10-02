@@ -32,6 +32,13 @@ struct EmitResult {
     /// ConsolePort's Plugins.xml defines AddPlugin inline and then names the
     /// files that call it; folded into `lua`, the body ran after them.
     std::vector<std::string> leadingScripts;
+    /// The same document as steps in the order it was written - Lua built
+    /// from its frames (each step self-contained), <Script file>, inline
+    /// <Script>, <Include> - for callers that load a file the way the client
+    /// reads it: an addon's WatchBars.xml declares its templates and then
+    /// names the script that instantiates them.
+    struct Step { enum Kind { Lua, Script, Include } kind; std::string text; };
+    std::vector<Step> steps;
     std::vector<std::string> includeFiles;
     std::vector<std::string> warnings;
 };

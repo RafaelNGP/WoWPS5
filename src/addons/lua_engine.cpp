@@ -386,6 +386,13 @@ wowee::ui::Widget* widgetOf(lua_State* L, int index) {
     return tree->get(widgetIdOf(L, index));
 }
 
+// frame:IsMouseWheelEnabled(): what EnableMouseWheel last set.
+int lua_Frame_IsMouseWheelEnabled(lua_State* L) {
+    const auto* w = widgetOf(L, 1);
+    lua_pushboolean(L, (w && w->wheelEnabled) ? 1 : 0);
+    return 1;
+}
+
 /// Say the tree has moved, from a binding that wrote a Widget field directly.
 ///
 /// WidgetRenderer::layout gates its solve on the tree's generation counter, and
@@ -929,6 +936,19 @@ static int lua_Region_SetParent(lua_State* L) {
         lua_replace(L, 2);
     }
     if (!lua_istable(L, 2) && !lua_isnil(L, 2)) return 0;
+    // WoW refuses a parent that is the frame itself or one of its own
+    // descendants. Allowing it made a parent chain that never ends, and code
+    // walking up it - ConsolePort's Node:GetScrollButtons - looped forever.
+    if (lua_istable(L, 2)) {
+        lua_pushvalue(L, 2);
+        for (int depth = 0; lua_istable(L, -1) && depth < 512; ++depth) {
+            if (lua_rawequal(L, -1, 1)) { lua_pop(L, 1); return 0; }
+            lua_pushstring(L, "__parent");
+            lua_rawget(L, -2);
+            lua_remove(L, -2);
+        }
+        lua_pop(L, 1);
+    }
     lua_pushvalue(L, 2);
     lua_setfield(L, 1, "__parent");
     // And the widget, which is what everything inherited actually follows.
@@ -944,7 +964,26 @@ static int lua_Region_SetParent(lua_State* L) {
 
 static int lua_Region_GetParent(lua_State* L) {
     luaL_checktype(L, 1, LUA_TTABLE);
-    lua_getfield(L, 1, "__parent");
+    // Raw: through __index a frame without a recorded parent could answer
+    // whatever its method chain or the missing-API fallback hands back, and
+    // a walk up to the root then never reached nil.
+    lua_pushstring(L, "__parent");
+    lua_rawget(L, 1);
+    if (lua_isnil(L, -1)) {
+        // A secure-handler surrogate, { [0] = frame[0], [1] = frame }, stands
+        // in for the frame and answers for its parent.
+        lua_pop(L, 1);
+        lua_rawgeti(L, 1, 1);
+        if (lua_istable(L, -1)) {
+            lua_pushstring(L, "__parent");
+            lua_rawget(L, -2);
+            lua_remove(L, -2);
+        }
+    }
+    if (!lua_istable(L, -1) || lua_rawequal(L, -1, 1)) {
+        lua_pop(L, 1);
+        lua_pushnil(L);
+    }
     return 1;
 }
 
@@ -3334,26 +3373,99 @@ static bool frameScriptSet(lua_State* L, int frameIndex, const char* name) {
 ///
 /// The real client runs OnShow as part of Show, so this is the faithful
 /// order rather than a workaround for that one function.
-static void fireOnShowNow(lua_State* L, int frameIndex, wowee::ui::Widget* w) {
+static void fireScriptNow(lua_State* L, int frameIndex, wowee::ui::Widget* w,
+                          const char* script) {
+    const bool show = std::strcmp(script, "OnShow") == 0;
+    // Marked before the handler runs: it may Hide or Show the frame again,
+    // and that inner call's own flag is the one that has to stand.
+    if (show) { w->onShowFired = true; w->onHideFired = false; }
+    else      { w->onHideFired = true; w->onShowFired = false; }
     const int abs = frameIndex > 0 ? frameIndex : lua_gettop(L) + frameIndex + 1;
     lua_getfield(L, abs, "__scripts");
     if (!lua_istable(L, -1)) { lua_pop(L, 1); return; }
-    lua_getfield(L, -1, "OnShow");
+    lua_getfield(L, -1, script);
     if (!lua_isfunction(L, -1)) { lua_pop(L, 2); return; }
     lua_pushvalue(L, abs);                       // self
     // Errors are reported the same way every other script call reports them
     // rather than unwinding through Show.
-    if (pcallScript(L, "OnShow", 1, 0) != 0) {
-        LOG_WARNING("[Lua] OnShow error: ", lua_tostring(L, -1) ? lua_tostring(L, -1) : "?");
+    if (pcallScript(L, script, 1, 0) != 0) {
+        LOG_WARNING("[Lua] ", script, " error: ", lua_tostring(L, -1) ? lua_tostring(L, -1) : "?");
         lua_pop(L, 1);
     }
     lua_pop(L, 1);                               // __scripts
-    w->onShowFired = true;
+}
+static void fireOnShowNow(lua_State* L, int frameIndex, wowee::ui::Widget* w) {
+    fireScriptNow(L, frameIndex, w, "OnShow");
+}
+
+/// Whether the frame at `index` was created while a player's addon loaded.
+static bool ownedByUserAddon(lua_State* L, int index) {
+    if (!lua_istable(L, index)) return false;
+    lua_pushstring(L, "__ownerAddon");
+    lua_rawget(L, index > 0 ? index : index - 1);
+    const bool user = lua_isstring(L, -1) != 0;
+    lua_pop(L, 1);
+    return user;
+}
+
+/// And the same for the children already marked shown, which become visible
+/// with it: WoW runs their OnShow inside the parent's Show too. ConsolePort
+/// opens its config by showing a panel under the hidden window and then the
+/// window, and builds the panel from that panel's OnShow - the very next line
+/// calls into what it built. Deferred, that line found nothing.
+///
+/// Only for frames a player's addon created. The interface's own frames keep
+/// the deferred pass and its anchor test, for the reasons updateVisibility
+/// gives.
+static void fireDescendantScriptNow(lua_State* L, uint32_t parentId, const char* script) {
+    auto* tree = wowee::addons::getWidgetTree(L);
+    if (!tree) return;
+    std::vector<uint32_t> stack;
+    if (const auto* p = tree->get(parentId)) stack = p->children;
+    lua_getglobal(L, "__WoweeFramesByWid");
+    if (!lua_istable(L, -1)) { lua_pop(L, 1); return; }
+    const int byWid = lua_gettop(L);
+    size_t visited = 0;
+    while (!stack.empty() && ++visited < 4096) {
+        const uint32_t id = stack.back();
+        stack.pop_back();
+        auto* c = tree->get(id);
+        if (!c || !c->shown) continue;
+        lua_pushinteger(L, static_cast<lua_Integer>(id));
+        lua_rawget(L, byWid);
+        // Every one of them: the subtree changed with the parent, whatever an
+        // earlier opening left in the flags.
+        if (ownedByUserAddon(L, -1)) fireScriptNow(L, -1, c, script);
+        lua_pop(L, 1);
+        // Re-read: the handler may have created widgets, which can move them.
+        if (auto* again = tree->get(id)) {
+            stack.insert(stack.end(), again->children.begin(), again->children.end());
+        }
+    }
+    lua_pop(L, 1);
 }
 
 int lua_Region_Show(lua_State* L) {
     auto* w = widgetOf(L, 1);
     bool becameShown = false;
+    // A player's addon gets WoW's order outright: OnShow inside Show, for the
+    // frame and every shown frame under it, a Hide just before or not. Its
+    // panels are built that way - ConsolePort hides its config window and
+    // reopens it on another page in one breath, and fills the page from the
+    // page's OnShow - and the deferred pass answers such a pair for the frame
+    // alone, so the page never heard. The interface's own frames keep the
+    // deferred pass; see updateVisibility for what waking them costs.
+    if (w && ownedByUserAddon(L, 1)) {
+        becameShown = !w->shown;
+        if (auto* tree = wowee::addons::getWidgetTree(L)) tree->setShown(w->id, true);
+        lua_pushboolean(L, 1); lua_setfield(L, 1, "__visible");
+        queueAnimFinished(L, 1);
+        if (becameShown && ancestorsShown(L, w)) {
+            fireOnShowNow(L, 1, w);
+            fireDescendantScriptNow(L, w->id, "OnShow");
+        }
+        return 0;
+    }
     if (w) {
         // Counted, not just set. A hide and a show in the same breath leave the
         // flag where it started, and the pass that fires OnShow works by
@@ -3400,6 +3512,22 @@ int lua_Region_Show(lua_State* L) {
     return 0;
 }
 int lua_Region_Hide(lua_State* L) {
+    // A player's addon: OnHide inside Hide, for the frame and the shown frames
+    // under it, as WoW runs it - the counterpart of the same branch in Show.
+    if (auto* w = widgetOf(L, 1); w && ownedByUserAddon(L, 1)) {
+        const bool wasShown = w->shown && ancestorsShown(L, w);
+        if (w->isTooltip) {
+            lua_pushnil(L);
+            lua_setfield(L, 1, "__owner");
+        }
+        if (auto* tree = wowee::addons::getWidgetTree(L)) tree->setShown(w->id, false);
+        lua_pushboolean(L, 0); lua_setfield(L, 1, "__visible");
+        if (wasShown) {
+            fireScriptNow(L, 1, w, "OnHide");
+            fireDescendantScriptNow(L, w->id, "OnHide");
+        }
+        return 0;
+    }
     // No OnHide from here, and it is not the asymmetry with Show it looks
     // like. Running it here is what the real client does and it fixes a real
     // fault - ContainerFrame_GenerateFrame indexes its bag list by a counter
@@ -5280,11 +5408,52 @@ int lua_StatusBar_SetOrientation(lua_State* L) {
     return 0;
 }
 
+/// A name handed to CreateFrame, CreateTexture or CreateFontString with
+/// $parent in front, spelled out with the parent's name - which is what WoW
+/// registers the global under. Addons build whole hierarchies this way
+/// (ConsolePort's config panels are "$parent"..name under a "$parentContainer")
+/// and then reach them through the globals, which were published under the
+/// literal "$parent..." and so found by nothing. A nameless parent lends the
+/// name of its nearest named ancestor.
+static std::string expandParentName(lua_State* L, int parentIndex, const char* name) {
+    if (!name) return {};
+    std::string out = name;
+    if (out.size() < 7) return out;
+    std::string head = out.substr(0, 7);
+    for (char& c : head) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (head != "$parent") return out;
+    std::string parentName;
+    if (parentIndex == 0) return "UIParent" + out.substr(7);  // the default parent
+    if (parentIndex < 0) parentIndex = lua_gettop(L) + parentIndex + 1;
+    if (lua_type(L, parentIndex) == LUA_TSTRING) {
+        parentName = lua_tostring(L, parentIndex);
+    } else if (lua_istable(L, parentIndex)) {
+        lua_pushvalue(L, parentIndex);
+        for (int depth = 0; lua_istable(L, -1) && depth < 64; ++depth) {
+            lua_pushstring(L, "__name");
+            lua_rawget(L, -2);
+            if (lua_type(L, -1) == LUA_TSTRING && lua_objlen(L, -1) > 0) {
+                parentName = lua_tostring(L, -1);
+                lua_pop(L, 1);
+                break;
+            }
+            lua_pop(L, 1);
+            lua_pushstring(L, "__parent");
+            lua_rawget(L, -2);
+            lua_remove(L, -2);
+        }
+        lua_pop(L, 1);
+    }
+    return parentName + out.substr(7);
+}
+
 // Frame method: frame:CreateTexture(name, layer) → a real region
 static int lua_Frame_CreateTexture(lua_State* L) {
     auto* tree = wowee::addons::getWidgetTree(L);
     const uint32_t parent = widgetIdOf(L, 1);
-    const char* name = luaL_optstring(L, 2, "");
+    const std::string expandedName = expandParentName(
+        L, 1, lua_type(L, 2) == LUA_TSTRING ? lua_tostring(L, 2) : "");
+    const char* name = expandedName.c_str();
     const char* layer = luaL_optstring(L, 3, "ARTWORK");
 
     lua_newtable(L);
@@ -5320,7 +5489,9 @@ static int lua_Frame_CreateTexture(lua_State* L) {
 static int lua_Frame_CreateFontString(lua_State* L) {
     auto* tree = wowee::addons::getWidgetTree(L);
     const uint32_t parent = widgetIdOf(L, 1);
-    const char* name = luaL_optstring(L, 2, "");
+    const std::string expandedName = expandParentName(
+        L, 1, lua_type(L, 2) == LUA_TSTRING ? lua_tostring(L, 2) : "");
+    const char* name = expandedName.c_str();
     const char* layer = luaL_optstring(L, 3, "ARTWORK");
 
     lua_newtable(L);
@@ -5471,7 +5642,12 @@ static int lua_RecordMissingApi(lua_State* L) {
 // CreateFrame(frameType, name, parent, template)
 static int lua_CreateFrame(lua_State* L) {
     const char* frameType = luaL_optstring(L, 1, "Frame");
-    const char* name = luaL_optstring(L, 2, nullptr);
+    // Anything but a string is no name: WoW lets CreateFrame("Button", parent)
+    // through, and ConsolePort's binding panel creates its buttons that way.
+    const std::string expandedName = expandParentName(
+        L, lua_istable(L, 3) || lua_type(L, 3) == LUA_TSTRING ? 3 : 0,
+        lua_type(L, 2) == LUA_TSTRING ? lua_tostring(L, 2) : nullptr);
+    const char* name = (lua_type(L, 2) == LUA_TSTRING) ? expandedName.c_str() : nullptr;
     // Which of the per-type methods go on this frame; see where they are set,
     // below the metatable.
     bool createdStatusBar = false;
@@ -6279,6 +6455,7 @@ void LuaEngine::registerCoreAPI() {
         {"SetMotionScriptsWhileDisabled", lua_Frame_SetMotionScriptsWhileDisabled},
         {"GetMotionScriptsWhileDisabled", lua_Frame_GetMotionScriptsWhileDisabled},
         {"IsMouseEnabled",  lua_Frame_IsMouseEnabled},
+        {"IsMouseWheelEnabled", lua_Frame_IsMouseWheelEnabled},
         {"SetNormalFontObject",   lua_Frame_SetNormalFontObject},
         {"SetTextColor",          lua_FontString_SetTextColor},
         // And reading it back. The setter has been on this table since it was
@@ -6489,6 +6666,103 @@ void LuaEngine::registerCoreAPI() {
         "end\n"
     );
 
+    // Override bindings: a frame lays keys over the player's bindings for as
+    // long as it wants them, and ClearOverrideBindings hands them back. This
+    // is the whole of how ConsolePort drives the interface from a pad - every
+    // button press is an override of one key to "CLICK SomeButton:LeftButton"
+    // - and all five setters used to be no-ops, so a press reached nothing.
+    // Priority overrides beat ordinary ones, and among either the one set last
+    // wins, which is WoW's order.
+    bootstrap(
+        "local owners = setmetatable({}, { __mode = 'k' })\n"
+        "local seq = 0\n"
+        "local function setOverride(owner, priority, key, action)\n"
+        "    if type(owner) ~= 'table' or type(key) ~= 'string' or key == '' then return end\n"
+        "    key = key:upper()\n"
+        "    local set = owners[owner]\n"
+        "    if not set then set = {}; owners[owner] = set end\n"
+        "    if action == nil or action == '' then set[key] = nil; return end\n"
+        "    seq = seq + 1\n"
+        "    set[key] = { action = action, priority = priority and true or false, seq = seq }\n"
+        "end\n"
+        "function SetOverrideBinding(owner, priority, key, command)\n"
+        "    setOverride(owner, priority, key, command)\n"
+        "end\n"
+        "function SetOverrideBindingClick(owner, priority, key, name, mouse)\n"
+        "    if type(name) == 'table' and name.GetName then name = name:GetName() end\n"
+        "    setOverride(owner, priority, key, name and ('CLICK ' .. name .. ':' .. (mouse or 'LeftButton')))\n"
+        "end\n"
+        "function SetOverrideBindingSpell(owner, priority, key, spell)\n"
+        "    setOverride(owner, priority, key, spell and ('SPELL ' .. spell))\n"
+        "end\n"
+        "function SetOverrideBindingMacro(owner, priority, key, macro)\n"
+        "    setOverride(owner, priority, key, macro and ('MACRO ' .. macro))\n"
+        "end\n"
+        "function SetOverrideBindingItem(owner, priority, key, item)\n"
+        "    setOverride(owner, priority, key, item and ('ITEM ' .. item))\n"
+        "end\n"
+        "function ClearOverrideBindings(owner)\n"
+        "    if owner then owners[owner] = nil end\n"
+        "end\n"
+        "local function overrideFor(key)\n"
+        "    if type(key) ~= 'string' then return nil end\n"
+        "    key = key:upper()\n"
+        "    local best\n"
+        "    for _, set in pairs(owners) do\n"
+        "        local o = set[key]\n"
+        "        if o and (not best or (o.priority and not best.priority) or\n"
+        "                  (o.priority == best.priority and o.seq > best.seq)) then\n"
+        "            best = o\n"
+        "        end\n"
+        "    end\n"
+        "    return best and best.action\n"
+        "end\n"
+        "__WoweeOverrideFor = overrideFor\n"
+        "local plainAction = GetBindingAction\n"
+        "function GetBindingAction(key, checkOverride)\n"
+        "    if checkOverride then\n"
+        "        local o = overrideFor(key)\n"
+        "        if o then return o end\n"
+        "    end\n"
+        "    return plainAction(key)\n"
+        "end\n"
+        // Whether a CLICK binding's edge is one the button listens for. A key
+        // going down is the button's Down edge and coming up its Up edge; a
+        // button that never called RegisterForClicks takes LeftButtonUp.
+        "local function wantsEdge(frame, mouse, down)\n"
+        "    local set = rawget(frame, '__clicks')\n"
+        "    local edge = down and 'Down' or 'Up'\n"
+        "    if not set then return mouse == 'LeftButton' and not down end\n"
+        "    return set[mouse .. edge] or set['Any' .. edge] or false\n"
+        "end\n"
+        // Runs what an override says for the key, and answers whether one
+        // did. Without a binding for the modified key the bare key's is used,
+        // as WoW does: shift held with a pad button still presses it.
+        "function __WoweeRunOverride(key, down)\n"
+        "    local action = overrideFor(key)\n"
+        "    if not action then\n"
+        "        local bare = key:match('([^-]+)$')\n"
+        "        if bare ~= key and not plainAction(key) then action = overrideFor(bare) end\n"
+        "    end\n"
+        "    if not action then return false end\n"
+        "    local kind, rest = action:match('^(%u+) (.+)$')\n"
+        "    if kind == 'CLICK' then\n"
+        "        local name, mouse = rest:match('^(.-):([^:]*)$')\n"
+        "        name, mouse = name or rest, (mouse and mouse ~= '') and mouse or 'LeftButton'\n"
+        "        local frame = _G[name]\n"
+        "        if type(frame) == 'table' and frame.Click and wantsEdge(frame, mouse, down) then\n"
+        "            if not (frame.IsEnabled and not frame:IsEnabled()) then frame:Click(mouse, down) end\n"
+        "        end\n"
+        "    elseif not down then\n"
+        "    elseif kind == 'SPELL' and CastSpellByName then CastSpellByName(rest)\n"
+        "    elseif kind == 'MACRO' and RunMacro then RunMacro(rest)\n"
+        "    elseif kind == 'ITEM' and UseItemByName then UseItemByName(rest)\n"
+        "    elseif RunBinding then RunBinding(action, 'down')\n"
+        "    end\n"
+        "    return true\n"
+        "end\n"
+    );
+
     // Animations. Written in Lua because it is almost entirely bookkeeping -
     // what is playing, how far through, in what order - and the only thing it
     // cannot do from here is move a frame without disturbing its anchors.
@@ -6520,6 +6794,20 @@ void LuaEngine::registerCoreAPI() {
         "function animMeta:SetScript(k, f) self[k] = f end\n"
         "function animMeta:GetScript(k) return self[k] end\n"
         "function animMeta:HasScript(k) return type(k) == 'string' and string.find(k, '^On%u') ~= nil end\n"
+        // Rotation/Scale/Translation properties the 3.3.5a API has and this
+        // animation model does not drive: kept and answered, so a template
+        // configuring them builds (ConsolePort's ring buttons call SetOrigin
+        // and failed before their border was made).
+        "function animMeta:SetOrigin(point, x, y) self.originPoint, self.originX, self.originY = point, x or 0, y or 0 end\n"
+        "function animMeta:GetOrigin() return self.originPoint or 'CENTER', self.originX or 0, self.originY or 0 end\n"
+        "function animMeta:SetRadians(r) self.radians = r end\n"
+        "function animMeta:GetRadians() return self.radians or 0 end\n"
+        "function animMeta:GetDegrees() return self.degrees or 0 end\n"
+        "function animMeta:GetEndDelay() return self.endDelay or 0 end\n"
+        "function animMeta:SetFromScale(x, y) self.fromScaleX, self.fromScaleY = x, y end\n"
+        "function animMeta:SetToScale(x, y) self.toScaleX, self.toScaleY = x, y end\n"
+        "function animMeta:SetMaxFramerate(f) self.maxFramerate = f end\n"
+        "function animMeta:GetMaxFramerate() return self.maxFramerate or 0 end\n"
         "function animMeta:GetRegionParent() return self.group and self.group.parent end\n"
         "function animMeta:SetOrder(o) self.order = o or 1 end\n"
         "function animMeta:GetOrder() return self.order or 1 end\n"
@@ -6528,6 +6816,7 @@ void LuaEngine::registerCoreAPI() {
         "function animMeta:SetEndDelay(d) self.endDelay = d or 0 end\n"
         "function animMeta:SetSmoothing(s) self.smoothing = s end\n"
         "function animMeta:SetScale(x, y) self.scaleX, self.scaleY = x, y end\n"
+        "function animMeta:GetScale() return self.scaleX or 1, self.scaleY or 1 end\n"
         "function animMeta:SetDegrees(d) self.degrees = d end\n"
         "function animMeta:GetProgress() return self.progress or 0 end\n"
         // The same progress with the animation's own easing applied, which is
@@ -6866,7 +7155,27 @@ void LuaEngine::registerCoreAPI() {
         "    local ok, out = pcall(string.format, fmt, ...)\n"
         "    self:SetText(ok and out or fmt)\n"
         "end\n"
+        // statusbar:GetStatusBarTexture() - a texture standing for the bar's
+        // fill: setting its texture or colour sets the bar's. Hidden, because
+        // the bar draws its own fill; this object is the handle addons style.
+        "function mt:GetStatusBarTexture()\n"
+        "    local t = rawget(self, '__barTextureRegion')\n"
+        "    if t then return t end\n"
+        "    if not self.CreateTexture or not self.SetStatusBarTexture then return nil end\n"
+        "    t = self:CreateTexture(nil, 'ARTWORK')\n"
+        "    t:Hide()\n"
+        "    local bar = self\n"
+        "    t.SetTexture = function(_, path) if type(path) == 'string' then bar:SetStatusBarTexture(path) end end\n"
+        "    t.SetVertexColor = function(_, r, g, b, a) if bar.SetStatusBarColor then bar:SetStatusBarColor(r, g, b, a) end end\n"
+        "    t.Show = function() end\n"
+        "    rawset(self, '__barTextureRegion', t)\n"
+        "    return t\n"
+        "end\n"
         "function mt:SetAttribute(name, value)\n"
+        // An attribute name is a string to the client: a number is taken as
+        // its text, and that text is what OnAttributeChanged receives
+        // (ConsolePort's radial menus key buttons by angle, SetAttribute(45, b)).
+        "    if type(name) == 'number' then name = tostring(name) end\n"
         "    self.__attributes = self.__attributes or {}\n"
         "    self.__attributes[name] = value\n"
         "    local handler = self.__scripts and self.__scripts.OnAttributeChanged\n"
@@ -6891,6 +7200,7 @@ void LuaEngine::registerCoreAPI() {
         // The order is the client's: most specific first, the bare name last.
         "function mt:GetAttribute(a, b, c)\n"
         "    if not self.__attributes then return nil end\n"
+        "    if type(a) == 'number' then a = tostring(a) end\n"
         "    if b == nil then return self.__attributes[a] end\n"
         "    local at = self.__attributes\n"
         "    local p, s = a or '', c or ''\n"
@@ -9059,6 +9369,12 @@ void pushEventArg(lua_State* L, const std::string& arg) {
 }
 }  // namespace
 
+namespace {
+/// Defined with the other pcall helpers further down; declared here because
+/// fireEvent and callFrameScript need it and come first.
+int luaTracebackHandler(lua_State* L);
+}  // namespace
+
 void LuaEngine::fireEvent(const std::string& eventName,
                            const std::vector<std::string>& args) {
     if (!L_) return;
@@ -9188,11 +9504,19 @@ void LuaEngine::fireEvent(const std::string& eventName,
                 if (lua_istable(L_, -1)) {
                     lua_getfield(L_, -1, "OnEvent");
                     if (lua_isfunction(L_, -1)) {
-                        lua_pushvalue(L_, -3);  // self (frame)
+                        // The traceback handler under the function, so an
+                        // error says which call chain reached the line that
+                        // failed, not only the line.
+                        lua_pushcfunction(L_, luaTracebackHandler);
+                        lua_insert(L_, -2);
+                        const int tracer = lua_gettop(L_) - 1;
+                        lua_pushvalue(L_, -4);  // self (frame)
                         lua_pushstring(L_, eventName.c_str());
                         for (const auto& arg : args) pushEventArg(L_, arg);
                         int nargs = 2 + static_cast<int>(args.size());
-                        if (pcallScript(L_, "OnEvent", nargs, 0) != 0) {
+                        const int rc = pcallScript(L_, "OnEvent", nargs, tracer);
+                        lua_remove(L_, tracer);
+                        if (rc != 0) {
                             const char* ferr = lua_tostring(L_, -1);
                             std::string ferrStr = ferr ? ferr : "(unknown)";
                             LOG_ERROR("LuaEngine: frame OnEvent error: event=", eventName,
@@ -9221,11 +9545,6 @@ void LuaEngine::fireEvent(const std::string& eventName,
     lua_pop(L_, 1); // pop __WoweeFrameEvents
 }
 
-namespace {
-/// Defined with the other pcall helpers further down; declared here because
-/// callFrameScript needs it and comes first.
-int luaTracebackHandler(lua_State* L);
-}  // namespace
 
 /// "OnClick on GameMenuFrame" - what a recorded error needs to be actionable.
 ///
@@ -10019,17 +10338,23 @@ static std::string wowKeyName(int sym) {
     return {};
 }
 
-std::string LuaEngine::bindingCommandFor(int sdlKeycode, bool shift, bool ctrl,
-                                         bool alt) {
-    if (!L_) return "";
+// WoW's own spelling of a key with its modifiers, and the order is part of
+// it: ALT before CTRL before SHIFT, because that is how the binding tables are
+// keyed and a prefix in any other order matches nothing at all.
+static std::string modifiedKeyName(int sdlKeycode, bool shift, bool ctrl, bool alt) {
     std::string key = wowKeyName(sdlKeycode);
-    if (key.empty()) return "";
-    // WoW's own spelling, and the order is part of it: ALT before CTRL before
-    // SHIFT, because that is how the binding tables are keyed and a prefix in
-    // any other order matches nothing at all.
+    if (key.empty()) return key;
     if (shift) key = "SHIFT-" + key;
     if (ctrl)  key = "CTRL-"  + key;
     if (alt)   key = "ALT-"   + key;
+    return key;
+}
+
+std::string LuaEngine::bindingCommandFor(int sdlKeycode, bool shift, bool ctrl,
+                                         bool alt) {
+    if (!L_) return "";
+    const std::string key = modifiedKeyName(sdlKeycode, shift, ctrl, alt);
+    if (key.empty()) return "";
 
     // Which command the key runs, and then the command's script - both asked
     // of the interface's own tables rather than restated here. GetBindingAction
@@ -10053,6 +10378,29 @@ std::string LuaEngine::bindingCommandFor(int sdlKeycode, bool shift, bool ctrl,
 bool LuaEngine::dispatchBindingKey(int sdlKeycode, bool shift, bool ctrl,
                                    bool alt, bool down) {
     if (!L_) return false;
+    // Overrides first - they lie over the player's bindings - and on both
+    // edges, since a CLICK override presses on the one its button listens for.
+    const std::string key = modifiedKeyName(sdlKeycode, shift, ctrl, alt);
+    if (!key.empty()) {
+        lua_getglobal(L_, "__WoweeRunOverride");
+        if (lua_isfunction(L_, -1)) {
+            lua_pushstring(L_, key.c_str());
+            lua_pushboolean(L_, down ? 1 : 0);
+            if (lua_pcall(L_, 2, 1, 0) != 0) {
+                LOG_WARNING("Override binding ", key, " failed: ",
+                            luaL_optstring(L_, -1, "?"));
+                lua_pop(L_, 1);
+                return true;
+            }
+            const bool ran = lua_toboolean(L_, -1) != 0;
+            lua_pop(L_, 1);
+            if (ran) return true;
+        } else {
+            lua_pop(L_, 1);
+        }
+    }
+    // An ordinary binding runs on the press only.
+    if (!down) return false;
     const std::string command = bindingCommandFor(sdlKeycode, shift, ctrl, alt);
     if (command.empty()) return false;
     // Left alone if the client performs it. Not "already handled, so skip the
@@ -10476,9 +10824,10 @@ void LuaEngine::reconcileVisibility(uint32_t id) {
     // ancestors, so the change is recorded here without being announced
     // twice. The flag is cleared either way: a frame that was shown and
     // then anchored later arrives here once, and only once.
-    const bool already = w->onShowFired;
+    const bool already = w->visible ? w->onShowFired : w->onHideFired;
     w->onShowFired = false;
-    if (!(already && w->visible)) {
+    w->onHideFired = false;
+    if (!already) {
         callFrameScript(id, w->visible ? "OnShow" : "OnHide");
     }
     // A box that asked for the keyboard takes it as it appears, and gives
@@ -12033,7 +12382,17 @@ void runawayHook(lua_State* L, lua_Debug*) {
 /// chunk leaves - including by error, which is the case that matters.
 struct BudgetGuard {
     lua_State* L;
+    // The guard this one is nested in, if any: a chunk run from inside a
+    // guarded handler (a template applied, a string executed) must hand the
+    // outer deadline back when it ends, not switch the hook off - which left
+    // an addon's event handler looping forever with no guard at all.
+    std::chrono::steady_clock::time_point savedDeadline{};
+    bool outerActive = false;
     explicit BudgetGuard(lua_State* state, unsigned long long ms) : L(state) {
+        if (L) {
+            outerActive = lua_gethook(L) == runawayHook;
+            savedDeadline = gChunkDeadline;
+        }
         if (L && ms > 0) {
             gChunkDeadline = std::chrono::steady_clock::now() +
                              std::chrono::milliseconds(ms);
@@ -12046,10 +12405,24 @@ struct BudgetGuard {
             lua_sethook(L, runawayHook, LUA_MASKCOUNT, 500);
         }
     }
-    ~BudgetGuard() { if (L) lua_sethook(L, nullptr, 0, 0); }
+    ~BudgetGuard() {
+        if (!L) return;
+        if (outerActive) {
+            gChunkDeadline = savedDeadline;
+            lua_sethook(L, runawayHook, LUA_MASKCOUNT, 500);
+        } else {
+            lua_sethook(L, nullptr, 0, 0);
+        }
+    }
 };
 
 } // namespace
+
+void LuaEngine::fireEventGuarded(const std::string& eventName,
+                                 const std::vector<std::string>& args, unsigned long long ms) {
+    BudgetGuard guard(L_, ms);
+    fireEvent(eventName, args);
+}
 
 void LuaEngine::bootstrap(const char* code) {
     if (luaL_dostring(L_, code) == 0) return;

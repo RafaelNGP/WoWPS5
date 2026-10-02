@@ -1901,21 +1901,25 @@ bool clientActsOnBinding(const std::string& command) {
     return false;
 }
 
-// GetBindingKey(command) → key1, key2 (or nil)
+// GetBindingKey(command) → key1, key2 - only the keys that are bound, as in
+// WoW: addons count them with select('#', GetBindingKey(cmd)), and padding
+// with nils had ConsolePort concatenating a nil key for every unbound command.
 static int lua_GetBindingKey(lua_State* L) {
     seedBindingDefaults();
     const std::string command = luaL_checkstring(L, 1);
     if (auto live = liveKeyFor(command)) {
         lua_pushstring(L, live->c_str());
-        lua_pushnil(L);
-        return 2;
+        return 1;
     }
     auto it = bindingKeys().find(command);
-    if (it == bindingKeys().end()) { lua_pushnil(L); lua_pushnil(L); return 2; }
+    if (it == bindingKeys().end()) return 0;
+    int n = 0;
     for (const std::string& key : it->second) {
-        if (key.empty()) lua_pushnil(L); else lua_pushstring(L, key.c_str());
+        if (key.empty()) continue;
+        lua_pushstring(L, key.c_str());
+        ++n;
     }
-    return 2;
+    return n;
 }
 
 // GetBindingAction(key) → command (or nil)
@@ -2057,17 +2061,10 @@ static int lua_RunBinding(lua_State* L) {
     lua_pop(L, 1);
     return 0;
 }
-// The override-binding family, none of which this client implements - only
-// the Click variant was ever *bound*, and the other four raised. They are
-// reached from restrictedframes.lua, the secure-frame machinery behind action
-// buttons and unit frames, so a raise there breaks the frame rather than the
-// binding. Bound alongside it, doing the same nothing.
-static int lua_SetOverrideBindingClick(lua_State* L) { (void)L; return 0; }
-static int lua_SetOverrideBinding(lua_State* L) { (void)L; return 0; }
-static int lua_SetOverrideBindingSpell(lua_State* L) { (void)L; return 0; }
-static int lua_SetOverrideBindingMacro(lua_State* L) { (void)L; return 0; }
-static int lua_SetOverrideBindingItem(lua_State* L) { (void)L; return 0; }
-static int lua_ClearOverrideBindings(lua_State* L) { (void)L; return 0; }
+// The override-binding family (SetOverrideBinding, SetOverrideBindingClick,
+// ...Spell/Macro/Item, ClearOverrideBindings) is written in Lua, in the
+// engine's bootstrap next to Frame:Click - it is bookkeeping over owners and
+// keys, and the key dispatch asks it first.
 
 // Frame methods: SetPoint, SetSize, SetWidth, SetHeight, GetWidth, GetHeight, GetCenter, SetAlpha, GetAlpha
 
@@ -2379,12 +2376,6 @@ void registerActionLuaAPI(lua_State* L) {
                 {"SaveBindings",        lua_SaveBindings},
                 {"LoadBindings",        lua_LoadBindings},
                 {"RunBinding",          lua_RunBinding},
-                {"SetOverrideBindingClick", lua_SetOverrideBindingClick},
-                {"SetOverrideBinding",      lua_SetOverrideBinding},
-                {"SetOverrideBindingSpell", lua_SetOverrideBindingSpell},
-                {"SetOverrideBindingMacro", lua_SetOverrideBindingMacro},
-                {"SetOverrideBindingItem",  lua_SetOverrideBindingItem},
-                {"ClearOverrideBindings", lua_ClearOverrideBindings},
                 // Paging lives here, and the getter with it. Both were
                 // defined twice - this pair against __WoweeActionBarPage and a
                 // bootstrap pair against a local - so whichever won,

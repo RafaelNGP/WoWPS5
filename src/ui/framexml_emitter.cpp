@@ -1417,6 +1417,11 @@ struct Emitter {
             if (const std::string* file = bar->attr("file")) {
                 line(var + ":SetStatusBarTexture(" + quote(*file) + ")");
             }
+            // <BarTexture parentKey="BarTexture"/>: the fill's texture object
+            // as a field of the bar.
+            if (const std::string* pk = bar->attr("parentKey"); pk && !pk->empty()) {
+                line(var + "[" + quote(*pk) + "] = " + var + ":GetStatusBarTexture()");
+            }
         }
         if (const XmlNode* col = node.child("BarColor")) {
             line(var + ":SetStatusBarColor(" +
@@ -1641,20 +1646,36 @@ EmitResult emitFrameXml(const XmlNode& rootIn) {
         e.result.warnings.push_back("root element is <" + root.name + ">, expected <Ui>");
     }
     bool atHead = true;
+    using Step = EmitResult::Step;
     for (const XmlNode& node : root.children) {
+        const size_t mark = e.result.lua.size();
         if (node.name == "Script") {
             if (const std::string* file = node.attr("file")) {
                 e.result.scriptFiles.push_back(*file);
+                e.result.steps.push_back({Step::Script, *file});
                 atHead = false;
             } else if (!node.text.empty()) {
                 if (atHead) e.result.leadingScripts.push_back(node.text);
                 else e.result.lua += node.text + "\n";
+                e.result.steps.push_back({Step::Lua, node.text + "\n"});
             }
             continue;
         }
         atHead = false;
+        // Whatever this element emits is a step of its own, after the steps
+        // before it. Each carries the temporaries table it indexes.
+        struct StepAfter {
+            EmitResult& r; size_t mark;
+            ~StepAfter() {
+                if (r.lua.size() > mark)
+                    r.steps.push_back({Step::Lua, "local __w = {}\n" + r.lua.substr(mark)});
+            }
+        } stepAfter{e.result, mark};
         if (node.name == "Include") {
-            if (const std::string* file = node.attr("file")) e.result.includeFiles.push_back(*file);
+            if (const std::string* file = node.attr("file")) {
+                e.result.includeFiles.push_back(*file);
+                e.result.steps.push_back({Step::Include, *file});
+            }
         } else if (node.name == "Font") {
             e.emitFont(node);
         } else if (isFrameElement(node.name)) {

@@ -338,6 +338,7 @@ private:
     bool devAutoEnterDone_ = false;   // WOWEE_DEV_AUTOENTER, once per run
     float devAutoEnterDelay_ = 0.0f;
     float devScreenshotTimer_ = 0.0f;  // WOWEE_DEV_SCREENSHOT_SECONDS
+    float devLuaTimer_ = 0.0f;
     void localRealmStatus(const std::string& message, bool isError);
     RetainedGuidSet localRealmRemoteGuids_;
     RetainedGuidSet localRealmNpcGuids_;

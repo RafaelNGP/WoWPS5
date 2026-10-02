@@ -1672,6 +1672,18 @@ void Application::run() {
                     }
                 }
             }
+            // A release only matters to an override binding: a CLICK override
+            // presses a button registered for its Up edge when the key lets go.
+            if (event.type == SDL_KEYUP && addonManager_ && addonsLoaded_) {
+                if (auto* engine = addonManager_->getLuaEngine();
+                    engine && !engine->editBoxHasFocus()) {
+                    const SDL_Keymod mods = SDL_GetModState();
+                    engine->dispatchBindingKey(event.key.keysym.sym,
+                                               (mods & KMOD_SHIFT) != 0,
+                                               (mods & KMOD_CTRL) != 0,
+                                               (mods & KMOD_ALT) != 0, false);
+                }
+            }
             if (event.type == SDL_KEYDOWN) {
                 // An addon's edit box takes the keystroke before anything
                 // else looks at it. Otherwise typing into one would also
@@ -4397,6 +4409,29 @@ void Application::update(float deltaTime) {
         if (devScreenshotTimer_ >= devShotEvery) {
             devScreenshotTimer_ = 0.0f;
             renderer->captureScreenshot(platform::ps4::writableRoot() + "/screenshots/dev_latest.png");
+        }
+    }
+    // Development: with the screenshot loop on, a file dropped at
+    // <writable>/config/devlua.lua is run once in the interface's Lua and
+    // removed - a probe from the PC into a running console session. Its
+    // print() lands in the log like any addon's.
+    if (std::getenv("WOWEE_DEV_SCREENSHOT_SECONDS") && addonManager_ && addonsLoaded_) {
+        devLuaTimer_ += deltaTime;
+        if (devLuaTimer_ >= 1.0f) {
+            devLuaTimer_ = 0.0f;
+            const std::string path = platform::ps4::writableRoot() + "/config/devlua.lua";
+            std::ifstream in(path, std::ios::binary);
+            if (in) {
+                std::string code((std::istreambuf_iterator<char>(in)),
+                                 std::istreambuf_iterator<char>());
+                in.close();
+                std::remove(path.c_str());
+                LOG_WARNING("[DEVLUA] running ", code.size(), " bytes");
+                if (auto* engine = addonManager_->getLuaEngine()) {
+                    const bool ok = engine->executeString(code);
+                    LOG_WARNING("[DEVLUA] done ok=", ok ? 1 : 0);
+                }
+            }
         }
     }
 #endif

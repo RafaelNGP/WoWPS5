@@ -157,6 +157,118 @@ float s_relativeOriginX = 0.0f;
 float s_relativeOriginY = 0.0f;
 bool s_restoreCursorPending = false;
 bool s_touchWasDown = false;
+float s_touchNormX = 0.5f;   // first finger, 0..1 across the pad (ConsolePort's split click)
+
+// ---- ConsolePort mode -------------------------------------------------------------
+//
+// With the ConsolePortLK addon, the pad is a keyboard the way a mapper
+// (WoWmapperX/WoWpadX on Windows) makes it one: every button is a key, L1 and
+// L2 are SHIFT and CTRL held, the left stick is W/A/S/D, and the addon does
+// the rest - action bars, interface cursor, menus. Nothing else in the client
+// sees the pad meanwhile (padState() answers a neutral one), so this client's
+// own pad layers and the addon cannot both act on a press.
+// ---- development pad ---------------------------------------------------------------
+//
+// <writable>/config/devpad.txt, uploaded from the PC, is a list of presses
+// played as if the DualSense made them: one per line, "BUTTON millis" (CROSS,
+// CIRCLE, SQUARE, TRIANGLE, UP, DOWN, LEFT, RIGHT, L1, R1, L2, R2, L3, R3,
+// OPTIONS, TOUCHPAD) or "WAIT millis". The file is consumed when read. A test
+// round on the console can then drive the interface with no hand on the pad.
+struct DevPadStep { uint32_t buttons; uint32_t ms; };
+std::deque<DevPadStep> s_devPad;
+uint32_t s_devPadStepEndMs = 0;
+uint32_t s_devPadCheckMs = 0;
+bool s_devPadActive = false;
+uint32_t s_devPadButtons = 0;
+
+uint32_t devPadButton(const std::string& name) {
+    static const std::pair<const char*, uint32_t> kNames[] = {
+        {"CROSS", ORBIS_PAD_BUTTON_CROSS}, {"CIRCLE", ORBIS_PAD_BUTTON_CIRCLE},
+        {"SQUARE", ORBIS_PAD_BUTTON_SQUARE}, {"TRIANGLE", ORBIS_PAD_BUTTON_TRIANGLE},
+        {"UP", ORBIS_PAD_BUTTON_UP}, {"DOWN", ORBIS_PAD_BUTTON_DOWN},
+        {"LEFT", ORBIS_PAD_BUTTON_LEFT}, {"RIGHT", ORBIS_PAD_BUTTON_RIGHT},
+        {"L1", ORBIS_PAD_BUTTON_L1}, {"R1", ORBIS_PAD_BUTTON_R1},
+        {"L2", ORBIS_PAD_BUTTON_L2}, {"R2", ORBIS_PAD_BUTTON_R2},
+        {"L3", ORBIS_PAD_BUTTON_L3}, {"R3", ORBIS_PAD_BUTTON_R3},
+        {"OPTIONS", ORBIS_PAD_BUTTON_OPTIONS}, {"TOUCHPAD", ORBIS_PAD_BUTTON_TOUCH_PAD},
+    };
+    uint32_t mask = 0;
+    size_t start = 0;
+    while (start <= name.size()) {   // "L1+CROSS" holds both
+        const size_t plus = name.find('+', start);
+        const std::string one = name.substr(start, plus == std::string::npos ? std::string::npos : plus - start);
+        for (const auto& [n, b] : kNames) if (one == n) mask |= b;
+        if (plus == std::string::npos) break;
+        start = plus + 1;
+    }
+    return mask;
+}
+
+void pollDevPad(uint32_t now) {
+    if (now < s_devPadCheckMs) return;
+    s_devPadCheckMs = now + 500;
+    const std::string path = writableRoot() + "/config/devpad.txt";
+    std::FILE* f = std::fopen(path.c_str(), "rb");
+    if (!f) return;
+    char line[128];
+    int steps = 0;
+    while (std::fgets(line, sizeof(line), f)) {
+        char name[64] = {0};
+        unsigned ms = 0;
+        if (std::sscanf(line, "%63s %u", name, &ms) < 1 || name[0] == '#') continue;
+        if (ms == 0) ms = 150;
+        const std::string n(name);
+        s_devPad.push_back({n == "WAIT" ? 0u : devPadButton(n), ms});
+        // A release between presses, so two presses of one button are two.
+        if (n != "WAIT") s_devPad.push_back({0u, 120});
+        ++steps;
+    }
+    std::fclose(f);
+    std::remove(path.c_str());
+    LOG_WARNING("[DEVPAD] ", steps, " step(s) queued from ", path);
+}
+
+uint32_t devPadButtonsNow(uint32_t now) {
+    if (!s_devPadActive && !s_devPad.empty()) {
+        s_devPadActive = true;
+        s_devPadButtons = s_devPad.front().buttons;
+        s_devPadStepEndMs = now + s_devPad.front().ms;
+    }
+    if (s_devPadActive && now >= s_devPadStepEndMs) {
+        s_devPad.pop_front();
+        s_devPadActive = false;
+        s_devPadButtons = 0;
+        return devPadButtonsNow(now);
+    }
+    return s_devPadActive ? s_devPadButtons : 0u;
+}
+
+bool s_consolePortMode = false;
+bool s_consolePortAvailable = false;
+uint32_t s_consolePortToggleSinceMs = 0;
+PadState s_neutralPad;
+
+/// The key each button sends, which is also the calibration seeded into the
+/// addon's settings (ConsolePortCalibration in ps4_platform.hpp); the two are
+/// one table so they cannot disagree.
+struct ConsolePortKey { uint32_t button; SDL_Scancode key; };
+constexpr ConsolePortKey kConsolePortKeys[] = {
+    {ORBIS_PAD_BUTTON_TRIANGLE, SDL_SCANCODE_F9},   // CP_R_UP
+    {ORBIS_PAD_BUTTON_CIRCLE,   SDL_SCANCODE_F10},  // CP_R_RIGHT
+    {ORBIS_PAD_BUTTON_CROSS,    SDL_SCANCODE_F11},  // CP_R_DOWN
+    {ORBIS_PAD_BUTTON_SQUARE,   SDL_SCANCODE_F12},  // CP_R_LEFT
+    {ORBIS_PAD_BUTTON_UP,       SDL_SCANCODE_F5},   // CP_L_UP
+    {ORBIS_PAD_BUTTON_RIGHT,    SDL_SCANCODE_F6},   // CP_L_RIGHT
+    {ORBIS_PAD_BUTTON_DOWN,     SDL_SCANCODE_F7},   // CP_L_DOWN
+    {ORBIS_PAD_BUTTON_LEFT,     SDL_SCANCODE_F8},   // CP_L_LEFT
+    {ORBIS_PAD_BUTTON_R1,       SDL_SCANCODE_F1},   // CP_T1 (CP_TR1)
+    {ORBIS_PAD_BUTTON_R2,       SDL_SCANCODE_F2},   // CP_T2 (CP_TR2)
+    {ORBIS_PAD_BUTTON_L3,       SDL_SCANCODE_F3},   // CP_T_L3
+    {ORBIS_PAD_BUTTON_R3,       SDL_SCANCODE_F4},   // CP_T_R3
+    {ORBIS_PAD_BUTTON_OPTIONS,  SDL_SCANCODE_PAGEDOWN}, // CP_X_RIGHT
+};
+constexpr uint32_t kConsolePortToggleButtons = ORBIS_PAD_BUTTON_L3 | ORBIS_PAD_BUTTON_R3;
+constexpr uint32_t kConsolePortToggleHoldMs = 2000;
 int s_wheelDir = 0;               // +1 up, -1 down, 0 idle
 uint32_t s_wheelNextMs = 0;
 float s_wheelThisFrame = 0.0f;
@@ -423,6 +535,7 @@ void readPad(float dt) {
             // Touchpad: the first finger is the cursor, absolutely.
             if (data.touch.fingers > 0) {
                 const OrbisPadTouch& t = data.touch.touch[0];
+                s_touchNormX = clampf(static_cast<float>(t.x) / static_cast<float>(std::max<int>(s_touchResX, 1)), 0.0f, 1.0f);
                 const float nx = static_cast<float>(t.x) / static_cast<float>(std::max<int>(s_touchResX, 1));
                 const float ny = static_cast<float>(t.y) / static_cast<float>(std::max<int>(s_touchResY, 1));
                 const float px = clampf(nx, 0.0f, 1.0f) * static_cast<float>(std::max(s_displayW - 1, 0));
@@ -451,6 +564,12 @@ void readPad(float dt) {
         st.l2 = st.r2 = 0.0f;
     }
 
+    {
+        const uint32_t now = nowMs();
+        pollDevPad(now);
+        const uint32_t dev = devPadButtonsNow(now);
+        if (dev) { st.connected = true; st.buttons |= dev; }
+    }
     st.pressed = st.buttons & ~s_prevButtons;
     st.released = s_prevButtons & ~st.buttons;
     s_prevButtons = st.buttons;
@@ -568,6 +687,42 @@ void applyMouseButtons(bool left, bool right) {
     }
 }
 
+void applyKeys(const std::array<bool, SDL_NUM_SCANCODES>& want);
+
+/// One frame of the pad as ConsolePort's keyboard. See kConsolePortKeys.
+void pumpConsolePort(float dt) {
+    const PadState& st = s_padState;
+    std::array<bool, SDL_NUM_SCANCODES> want{};
+    if (st.connected) {
+        for (const ConsolePortKey& k : kConsolePortKeys)
+            if (st.buttons & k.button) want[static_cast<size_t>(k.key)] = true;
+        // The touchpad click is two buttons, split down the middle: the left
+        // half is the DualSense's missing Create button (CP_X_LEFT), the right
+        // half the guide button (CP_X_CENTER).
+        if (st.buttons & ORBIS_PAD_BUTTON_TOUCH_PAD)
+            want[s_touchNormX < 0.5f ? SDL_SCANCODE_INSERT : SDL_SCANCODE_PAGEUP] = true;
+        // Modifiers, held: L1 is SHIFT (CP_M1 = CP_TL1), L2 is CTRL (CP_M2).
+        if (st.buttons & ORBIS_PAD_BUTTON_L1) want[SDL_SCANCODE_LSHIFT] = true;
+        if ((st.buttons & ORBIS_PAD_BUTTON_L2) || st.l2 > 0.5f) want[SDL_SCANCODE_LCTRL] = true;
+        // Left stick: W/A/S/D, the addon's default radial input (8-way).
+        if (!s_textFocus) {
+            s_walkForward = heldWithHysteresis(-st.ly, kWalkDeadzone, s_walkForward);
+            s_walkBack    = heldWithHysteresis( st.ly, kWalkDeadzone, s_walkBack);
+            s_strafeLeft  = heldWithHysteresis(-st.lx, kStrafeDeadzone, s_strafeLeft);
+            s_strafeRight = heldWithHysteresis( st.lx, kStrafeDeadzone, s_strafeRight);
+            want[SDL_SCANCODE_W] = s_walkForward;
+            want[SDL_SCANCODE_S] = s_walkBack;
+            want[SDL_SCANCODE_A] = s_strafeLeft;
+            want[SDL_SCANCODE_D] = s_strafeRight;
+        }
+    }
+    // The right stick stays the camera (and the cursor off the world).
+    bool right = false;
+    applyRightStick(dt, right);
+    applyKeys(want);
+    applyMouseButtons(false, right);
+}
+
 void applyKeys(const std::array<bool, SDL_NUM_SCANCODES>& want) {
     for (int sc = 0; sc < SDL_NUM_SCANCODES; ++sc) {
         const bool held = s_held[static_cast<size_t>(sc)] != 0;
@@ -678,6 +833,35 @@ void pumpInput() {
     s_wheelThisFrame = 0.0f;
 
     readPad(dt);
+
+    // L3 + R3 held for two seconds switches ConsolePort mode, so the pad can
+    // always get back to this client's own scheme if the addon misbehaves.
+    if (s_consolePortAvailable) {
+        const uint32_t nowTick = nowMs();
+        if ((s_padState.buttons & kConsolePortToggleButtons) == kConsolePortToggleButtons) {
+            if (s_consolePortToggleSinceMs == 0) s_consolePortToggleSinceMs = nowTick;
+            else if (s_consolePortToggleSinceMs != UINT32_MAX &&
+                     nowTick - s_consolePortToggleSinceMs >= kConsolePortToggleHoldMs) {
+                s_consolePortMode = !s_consolePortMode;
+                s_consolePortToggleSinceMs = UINT32_MAX;  // once per hold
+                LOG_WARNING("[CONSOLEPORT] pad mode ", s_consolePortMode ? "on" : "off",
+                            " (L3+R3 held)");
+            }
+        } else {
+            s_consolePortToggleSinceMs = 0;
+        }
+    }
+    if (s_consolePortMode && !s_applicationKeyboardOpen && !s_keyboard.open) {
+        const float prevCX = s_cursorX, prevCY = s_cursorY;
+        pumpConsolePort(dt);
+        s_mouse.x = s_cursorX;
+        s_mouse.y = s_cursorY;
+        s_mouse.dx = s_cursorX - prevCX;
+        s_mouse.dy = s_cursorY - prevCY;
+        s_mouse.wheel = s_wheelThisFrame;
+        s_mouse.relativeMode = s_relativeMode;
+        return;
+    }
 
     const PadState& st = s_padState;
     s_menuSuppressedButtons &= st.buttons;
@@ -911,7 +1095,23 @@ bool takeKeyboardRequest() {
     return r;
 }
 
-const PadState& padState() { return s_padState; }
+const PadState& padState() {
+    if (s_consolePortMode) {
+        s_neutralPad.connected = s_padState.connected;
+        return s_neutralPad;
+    }
+    return s_padState;
+}
+
+void setConsolePortAvailable(bool available) {
+    if (available == s_consolePortAvailable) return;
+    s_consolePortAvailable = available;
+    s_consolePortMode = available;
+    LOG_WARNING("[CONSOLEPORT] addon ", available ? "loaded: pad drives it (hold L3+R3 2s to switch)"
+                                                  : "not loaded: client pad scheme");
+}
+
+bool consolePortMode() { return s_consolePortMode; }
 bool padConnected() { return s_padConnected; }
 
 void pushKeyEvent(SDL_Scancode scancode, bool down) {
