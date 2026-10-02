@@ -64,7 +64,9 @@ static int lua_UnitName(lua_State* L) {
                 lua_pushstring(L, own.empty() ? "Unknown" : own.c_str());
             }
         } else {
-            lua_pushstring(L, "Unknown");
+            // No such unit at all: nil, as WoW answers - `if UnitName("target")`
+            // is how addons ask whether there is one, and "Unknown" said yes.
+            lua_pushnil(L);
         }
     }
     return 1;

@@ -995,8 +995,22 @@ void GameScreen::renderNameplates(game::GameHandler& gameHandler) {
         // in the air and a giant's is not at its knees; 2.3 (a human's head)
         // only while the model has not loaded.
         float topZ = 0.0f;
-        if (core::Application::getInstance().getRenderTopZForGuid(guid, topZ) &&
-            topZ > renderPos.z && topZ < renderPos.z + 40.0f) {
+        const bool haveTop = core::Application::getInstance().getRenderTopZForGuid(guid, topZ);
+        // Development: WOWEE_DEV_NAMEPLATE_TRACE=1 says, for the target, where
+        // the entity is, where its model is drawn and where its top was found.
+        if (isTarget && std::getenv("WOWEE_DEV_NAMEPLATE_TRACE")) {
+            static auto lastTrace = std::chrono::steady_clock::time_point{};
+            const auto now = std::chrono::steady_clock::now();
+            if (now - lastTrace > std::chrono::seconds(2)) {
+                lastTrace = now;
+                const glm::vec3 entityRender = core::coords::canonicalToRender(
+                    glm::vec3(unit->getX(), unit->getY(), unit->getZ()));
+                LOG_WARNING("[NAMEPLATE_TRACE] guid=", guid, " entity=(", entityRender.x, ",",
+                            entityRender.y, ",", entityRender.z, ") model=(", renderPos.x, ",",
+                            renderPos.y, ",", renderPos.z, ") top=", haveTop ? topZ : -1.0f);
+            }
+        }
+        if (haveTop && topZ > renderPos.z && topZ < renderPos.z + 40.0f) {
             renderPos.z = topZ + 0.35f;
         } else {
             renderPos.z += 2.3f;

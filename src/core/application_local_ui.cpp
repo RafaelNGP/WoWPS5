@@ -541,8 +541,22 @@ void Application::renderLocalRealmOverlay() {
             const bool isTarget = npc->guid == localRealmTarget_;
             if (!ui::localNpcPlateVisible(distanceTo(self,*npc), isTarget, npc->dead, npc->lootable) ||
                 (!isTarget && plateCount >= ui::LocalNpcPlateLimit)) continue;
-            const auto canonical = coords::serverToCanonical(glm::vec3(npc->x, npc->y, npc->z + 2.3f));
-            const glm::vec4 clip = camera->getViewProjectionMatrix() * glm::vec4(coords::canonicalToRender(canonical), 1);
+            // Where the model is drawn, not where the authority says the
+            // creature stands: the drawn one is grounded and interpolated, and
+            // the name goes just above the model's own top rather than at a
+            // human's head height. From the server position plus 2.3, names
+            // sat at a boar's feet, in a cat's middle or in the air over a
+            // creature walking a slope - each wrong by a different amount.
+            glm::vec3 renderPos = coords::canonicalToRender(
+                coords::serverToCanonical(glm::vec3(npc->x, npc->y, npc->z)));
+            glm::vec3 drawn;
+            if (getRenderPositionForGuid(npc->guid, drawn)) renderPos = drawn;
+            float topZ = 0.0f;
+            if (getRenderTopZForGuid(npc->guid, topZ) && topZ > renderPos.z && topZ < renderPos.z + 40.0f)
+                renderPos.z = topZ + 0.35f;
+            else
+                renderPos.z += 2.3f;
+            const glm::vec4 clip = camera->getViewProjectionMatrix() * glm::vec4(renderPos, 1);
             if (clip.w <= 0.01f) continue;
             const glm::vec3 ndc = glm::vec3(clip) / clip.w;
             if (std::abs(ndc.x) > 1 || std::abs(ndc.y) > 1 || ndc.z < 0 || ndc.z > 1) continue;
@@ -580,7 +594,12 @@ void Application::renderLocalRealmOverlay() {
             if (other.guid == self.guid || other.mapId != self.mapId || other.instanceId != self.instanceId) continue;
             const float dx=other.x-self.x, dy=other.y-self.y, dz=other.z-self.z;
             if (dx*dx+dy*dy+dz*dz > ui::LocalPlayerNameDistance*ui::LocalPlayerNameDistance) continue;
-            const auto point = coords::canonicalToRender(coords::serverToCanonical(glm::vec3(other.x,other.y,other.z+2.4f)));
+            // Above the drawn model, as the creature plates are.
+            glm::vec3 point = coords::canonicalToRender(coords::serverToCanonical(glm::vec3(other.x,other.y,other.z)));
+            glm::vec3 drawn; float topZ = 0.0f;
+            if (getRenderPositionForGuid(other.guid, drawn)) point = drawn;
+            if (getRenderTopZForGuid(other.guid, topZ) && topZ > point.z && topZ < point.z + 40.0f) point.z = topZ + 0.35f;
+            else point.z += 2.4f;
             const glm::vec4 clip = camera->getViewProjectionMatrix()*glm::vec4(point,1);
             if (clip.w<=.01f) continue;
             const glm::vec3 ndc=glm::vec3(clip)/clip.w;
