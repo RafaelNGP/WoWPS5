@@ -268,10 +268,49 @@ static int lua_Frame_UnregisterEvent(lua_State* L) {
     return 0;
 }
 
+/// A script handler's name in its canonical spelling. WoW matches them without
+/// regard to case - ConsolePort's timer is SetScript("onUpdate", ...) - and here
+/// the name is a table key, so "onUpdate" was stored where nothing looks and
+/// every CPAPI.TimerAfter callback in the addon (its frame tracking, its cursor
+/// refresh) never ran.
+static std::string canonicalScriptName(const char* name) {
+    std::string n = name ? name : "";
+    if (n.size() < 3) return n;
+    if (n[0] == 'O' && n[1] == 'n' && n[2] >= 'A' && n[2] <= 'Z') return n;   // already
+    std::string lower = n;
+    for (char& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    static const char* const kKnown[] = {
+        "OnUpdate", "OnEvent", "OnShow", "OnHide", "OnLoad", "OnClick", "OnDoubleClick",
+        "OnEnter", "OnLeave", "OnMouseDown", "OnMouseUp", "OnMouseWheel", "OnDragStart",
+        "OnDragStop", "OnReceiveDrag", "OnSizeChanged", "OnValueChanged", "OnTextChanged",
+        "OnEnterPressed", "OnEscapePressed", "OnTabPressed", "OnSpacePressed",
+        "OnEditFocusGained", "OnEditFocusLost", "OnChar", "OnKeyDown", "OnKeyUp",
+        "OnAttributeChanged", "OnHyperlinkClick", "OnHyperlinkEnter", "OnHyperlinkLeave",
+        "OnTooltipSetUnit", "OnTooltipSetItem", "OnTooltipSetSpell", "OnTooltipCleared",
+        "OnTooltipAddMoney", "OnMinMaxChanged", "OnCursorChanged", "OnFinished", "OnPlay",
+        "OnStop", "OnLoop", "OnPause", "OnColorSelect", "OnScrollRangeChanged",
+        "OnVerticalScroll", "OnHorizontalScroll", "OnUpdateModel", "OnModelLoaded",
+        "OnAnimFinished", "OnMovieFinished", "OnEnable", "OnDisable", "OnArrowPressed",
+        "OnInputLanguageChanged", "OnTextSet", "OnTooltipSetDefaultAnchor",
+        "PreClick", "PostClick",
+    };
+    for (const char* k : kKnown) {
+        std::string kl = k;
+        for (char& c : kl) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        if (kl == lower) return k;
+    }
+    if (lower[0] == 'o' && lower[1] == 'n') {
+        n[0] = 'O'; n[1] = 'n';
+        n[2] = static_cast<char>(std::toupper(static_cast<unsigned char>(n[2])));
+    }
+    return n;
+}
+
 // Frame method: frame:SetScript("handler", func)
 static int lua_Frame_SetScript(lua_State* L) {
     luaL_checktype(L, 1, LUA_TTABLE);
-    const char* scriptType = luaL_checkstring(L, 2);
+    const std::string scriptName = canonicalScriptName(luaL_checkstring(L, 2));
+    const char* scriptType = scriptName.c_str();
     // arg 3 can be function or nil
     lua_getfield(L, 1, "__scripts");
     if (lua_isnil(L, -1)) {
@@ -319,7 +358,8 @@ static int lua_Frame_SetScript(lua_State* L) {
 // handler is stored the same way here, so any On* name is supported; addons
 // (ConsolePort's mixins) only install scripts the widget says it takes.
 static int lua_Frame_HasScript(lua_State* L) {
-    const char* name = luaL_optstring(L, 2, "");
+    const std::string canonical = canonicalScriptName(luaL_optstring(L, 2, ""));
+    const char* name = canonical.c_str();
     const bool handler = name && name[0] == 'O' && name[1] == 'n' && name[2] >= 'A' && name[2] <= 'Z';
     // A button's click wrappers have no On prefix.
     const bool click = name && (std::strcmp(name, "PreClick") == 0 || std::strcmp(name, "PostClick") == 0);
@@ -345,7 +385,8 @@ static int lua_Frame_IsProtected(lua_State* L) {
 
 static int lua_Frame_GetScript(lua_State* L) {
     luaL_checktype(L, 1, LUA_TTABLE);
-    const char* scriptType = luaL_checkstring(L, 2);
+    const std::string scriptName = canonicalScriptName(luaL_checkstring(L, 2));
+    const char* scriptType = scriptName.c_str();
     lua_getfield(L, 1, "__scripts");
     if (lua_istable(L, -1)) {
         lua_getfield(L, -1, scriptType);
@@ -6052,6 +6093,11 @@ bool LuaEngine::initialize() {
         return 1;
     });
     lua_setglobal(L_, "gcinfo");
+    lua_pushcfunction(L_, [](lua_State* L) -> int {
+        lua_pushstring(L, canonicalScriptName(luaL_checkstring(L, 1)).c_str());
+        return 1;
+    });
+    lua_setglobal(L_, "__WoweeScriptName");
 
     // Publish the widget tree before any API is registered, so a script that
     // runs during registration still finds it.
@@ -7152,6 +7198,7 @@ void LuaEngine::registerCoreAPI() {
         // right-clicking would have stopped opening a menu, with nothing to
         // say why.
         "function mt:HookScript(scriptType, fn)\n"
+        "    scriptType = __WoweeScriptName(scriptType)\n"
         "    local orig = self.__scripts and self.__scripts[scriptType]\n"
         "    if orig then\n"
         "        self:SetScript(scriptType, function(...) orig(...); fn(...) end)\n"

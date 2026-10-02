@@ -2092,6 +2092,24 @@ static SDL_Scancode clientKeyFor(const std::string& command) {
         {"ACTIONBUTTON11", SDL_SCANCODE_MINUS}, {"ACTIONBUTTON12", SDL_SCANCODE_EQUALS},
     };
     for (const auto& [name, sc] : kKeys) if (command == name) return sc;
+    // The panels the client draws itself answer to the key its keybinding
+    // manager has for them. OPENALLBAGS is the bag toggle here: the client's
+    // bag window is the one on screen, not FrameXML's ContainerFrames.
+    const std::string live = command == "OPENALLBAGS" ? "TOGGLEBACKPACK" : command;
+    if (auto key = liveKeyFor(live)) {
+        if (key->find('-') != std::string::npos) return SDL_SCANCODE_UNKNOWN;   // modified
+        const std::string& k = *key;
+        if (k.size() == 1 && k[0] >= 'A' && k[0] <= 'Z')
+            return static_cast<SDL_Scancode>(SDL_SCANCODE_A + (k[0] - 'A'));
+        if (k.size() == 1 && k[0] >= '1' && k[0] <= '9')
+            return static_cast<SDL_Scancode>(SDL_SCANCODE_1 + (k[0] - '1'));
+        if (k == "0") return SDL_SCANCODE_0;
+        if (k.size() >= 2 && k[0] == 'F' && std::isdigit(static_cast<unsigned char>(k[1]))) {
+            const int n = std::atoi(k.c_str() + 1);
+            if (n >= 1 && n <= 12) return static_cast<SDL_Scancode>(SDL_SCANCODE_F1 + (n - 1));
+        }
+        return SDL_SCANCODE_UNKNOWN;
+    }
     return SDL_SCANCODE_UNKNOWN;
 }
 

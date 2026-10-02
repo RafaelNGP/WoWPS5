@@ -172,12 +172,12 @@ float s_touchNormX = 0.5f;   // first finger, 0..1 across the pad (ConsolePort's
 // <writable>/config/devpad.txt, uploaded from the PC, is a list of presses
 // played as if the DualSense made them: one per line, "BUTTON millis" (CROSS,
 // CIRCLE, SQUARE, TRIANGLE, UP, DOWN, LEFT, RIGHT, L1, R1, L2, R2, L3, R3,
-// OPTIONS, TOUCHPAD) or "WAIT millis", or a stick held for a while:
+// OPTIONS, TOUCHPAD; TOUCHL/TOUCHR click one half) or "WAIT millis", or a stick held for a while:
 // "LSTICK x y millis" / "RSTICK x y millis" with x, y in -1..1 (y up is -1, as
 // the pad reports it). The file is consumed when read. A test round on the
 // console can then drive the interface and the character with no hand on the
 // pad.
-struct DevPadStep { uint32_t buttons; uint32_t ms; float lx = 0, ly = 0, rx = 0, ry = 0; };
+struct DevPadStep { uint32_t buttons; uint32_t ms; float lx = 0, ly = 0, rx = 0, ry = 0; float touchX = -1; };
 std::deque<DevPadStep> s_devPad;
 uint32_t s_devPadStepEndMs = 0;
 uint32_t s_devPadCheckMs = 0;
@@ -220,6 +220,14 @@ void pollDevPad(uint32_t now) {
         unsigned ms = 0;
         if (std::sscanf(line, "%63s %u", name, &ms) < 1 || name[0] == '#') continue;
         const std::string n(name);
+        if (n == "TOUCHL" || n == "TOUCHR") {   // a touchpad click on one half
+            DevPadStep step{ORBIS_PAD_BUTTON_TOUCH_PAD, ms ? ms : 150u};
+            step.touchX = n == "TOUCHL" ? 0.25f : 0.75f;
+            s_devPad.push_back(step);
+            s_devPad.push_back({0u, 120});
+            ++steps;
+            continue;
+        }
         if (n == "LSTICK" || n == "RSTICK") {
             float x = 0, y = 0;
             if (std::sscanf(line, "%63s %f %f %u", name, &x, &y, &ms) < 4) continue;
@@ -585,6 +593,7 @@ void readPad(float dt) {
         pollDevPad(now);
         const uint32_t dev = devPadButtonsNow(now);
         if (dev) { st.connected = true; st.buttons |= dev; }
+        if (s_devPadActive && s_devPadStick.touchX >= 0) s_touchNormX = s_devPadStick.touchX;
         if (s_devPadActive && (s_devPadStick.lx != 0 || s_devPadStick.ly != 0 ||
                                s_devPadStick.rx != 0 || s_devPadStick.ry != 0)) {
             st.connected = true;
@@ -728,10 +737,16 @@ void pumpConsolePort(float dt) {
         if ((st.buttons & ORBIS_PAD_BUTTON_L2) || st.l2 > 0.5f) want[SDL_SCANCODE_LCTRL] = true;
         // Left stick: W/A/S/D, the addon's default radial input (8-way).
         if (!s_textFocus) {
+            const int before = s_walkForward | s_walkBack << 1 | s_strafeLeft << 2 | s_strafeRight << 3;
             s_walkForward = heldWithHysteresis(-st.ly, kWalkDeadzone, s_walkForward);
             s_walkBack    = heldWithHysteresis( st.ly, kWalkDeadzone, s_walkBack);
             s_strafeLeft  = heldWithHysteresis(-st.lx, kStrafeDeadzone, s_strafeLeft);
             s_strafeRight = heldWithHysteresis( st.lx, kStrafeDeadzone, s_strafeRight);
+            const int after = s_walkForward | s_walkBack << 1 | s_strafeLeft << 2 | s_strafeRight << 3;
+            if (after != before) {
+                LOG_INFO("[CONSOLEPORT] left stick ", after ? "moving" : "released",
+                         " lx=", st.lx, " ly=", st.ly);
+            }
             want[SDL_SCANCODE_W] = s_walkForward;
             want[SDL_SCANCODE_S] = s_walkBack;
             // Strafe, which is Q/E here - A/D turn the character, and in
