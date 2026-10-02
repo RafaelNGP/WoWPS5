@@ -6761,6 +6761,39 @@ void LuaEngine::registerCoreAPI() {
         "end\n"
     );
 
+    // The macro commands the interface itself relies on, before the rest of a
+    // body goes to the client's slash dispatch: /click presses a named button
+    // (ConsolePort's whole game menu is buttons whose macro is /click on
+    // another one, and the line was being said aloud in chat instead), and
+    // /run and /script run Lua. Conditionals apply as for any secure command.
+    bootstrap(
+        "local runRest = RunMacroText\n"
+        "function RunMacroText(body)\n"
+        "    if type(body) ~= 'string' then return end\n"
+        "    local rest = {}\n"
+        "    for line in body:gmatch('[^\\r\\n]+') do\n"
+        "        local cmd, args = line:match('^%s*(/%a+)%s*(.-)%s*$')\n"
+        "        cmd = cmd and cmd:lower()\n"
+        "        if cmd == '/click' then\n"
+        "            local what = SecureCmdOptionParse(args)\n"
+        "            if what and what ~= '' then\n"
+        "                local name, button = what:match('^(%S+)%s*(%S*)')\n"
+        "                local f = name and _G[name]\n"
+        "                if type(f) == 'table' and f.Click then f:Click(button ~= '' and button or 'LeftButton') end\n"
+        "            end\n"
+        "        elseif cmd == '/run' or cmd == '/script' then\n"
+        "            local fn = loadstring(args)\n"
+        "            if fn then pcall(fn) end\n"
+        "        elseif cmd == '/stopmacro' and SecureCmdOptionParse(args) then\n"
+        "            break\n"
+        "        else\n"
+        "            rest[#rest + 1] = line\n"
+        "        end\n"
+        "    end\n"
+        "    if #rest > 0 and runRest then runRest(table.concat(rest, '\\n')) end\n"
+        "end\n"
+    );
+
     // Override bindings: a frame lays keys over the player's bindings for as
     // long as it wants them, and ClearOverrideBindings hands them back. This
     // is the whole of how ConsolePort drives the interface from a pad - every
