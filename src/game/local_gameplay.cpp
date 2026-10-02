@@ -3986,6 +3986,20 @@ void LocalGameplay::initializePlayer(LocalRealmPlayer& p, bool fresh, uint8_t fo
         if (!validLocalReputations(p)) p.reputations.clear();
         LOG_INFO("[LOCAL_REPUTATION] seeded base standings player=",p.guid," rows=",p.reputations.size());
     }
+    // Development: WOWEE_DEV_RESET_POSITION=1 (config/env.txt) puts an existing
+    // character back at its race and class start once per launch, so a test
+    // round that walked somewhere awkward does not leave the next one there.
+    if (static bool devResetDone = false; !devResetDone && p.gameplayInitialized &&
+        std::getenv("WOWEE_DEV_RESET_POSITION") && c.catalog) {
+        for (const auto& start : c.catalog->starts()) {
+            if (start.race != p.race || start.classId != p.classId) continue;
+            p.mapId = start.mapId; p.instanceId = 0;
+            p.x = start.x; p.y = start.y; p.z = start.z; p.orientation = start.orientation;
+            devResetDone = true;
+            LOG_WARNING("[DEV] WOWEE_DEV_RESET_POSITION: back at the race start, map=", p.mapId);
+            break;
+        }
+    }
     if (!p.gameplayInitialized) {
         if (fresh) {
             p.mapId = c.start.mapId; p.x = c.start.x; p.y = c.start.y; p.z = c.start.z; p.orientation = c.start.orientation;
