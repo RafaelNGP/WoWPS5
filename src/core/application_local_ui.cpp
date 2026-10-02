@@ -6,6 +6,8 @@
 #include "addons/lua_engine.hpp"
 #include "addons/local_vehicle_api.hpp"
 #include "core/coordinates.hpp"
+#include "rendering/minimap.hpp"
+#include "ui/minimap_projection.hpp"
 #include "game/local_realm.hpp"
 #include "game/local_services.hpp"
 #include "game/local_target_selection.hpp"
@@ -1230,12 +1232,67 @@ void Application::renderLocalRealmOverlay() {
         }
         ImGui::End();
     }
+    // Where the body is, while walking back to it: on the minimap where it
+    // lies, or pinned to the rim pointing at it when it is further than the
+    // map shows - WoW's corpse arrow. The client's own marker pass belongs to
+    // GameScreen, which the local realm does not draw, so a ghost had no way
+    // at all to find a body it had not watched fall.
+    float corpseYards = -1.0f;
+    if (self.dead && self.ghost && self.corpseValid && self.corpseMapId == self.mapId) {
+        const float cx = self.corpseX - self.x, cy = self.corpseY - self.y;
+        corpseYards = std::sqrt(cx * cx + cy * cy);
+        auto* minimap = renderer->getMinimap();
+        auto* camera = renderer->getCamera();
+        if (minimap && camera && minimap->hasScreenRect() && minimap->screenRectW() > 0.0f) {
+            const float mapRadius = minimap->screenRectW() * 0.5f;
+            const float centerX = minimap->screenRectX() + mapRadius;
+            const float centerY = minimap->screenRectY() + minimap->screenRectH() * 0.5f;
+            ui::MinimapView view{.viewRadius = minimap->getViewRadius(), .mapRadius = mapRadius};
+            if (minimap->isRotateWithCamera()) {
+                const glm::vec3 fwd = camera->getForward();
+                const float bearing = std::atan2(fwd.y, -fwd.x);
+                view.cosBearing = std::cos(bearing); view.sinBearing = std::sin(bearing);
+            }
+            const glm::vec3 corpse = coords::canonicalToRender(
+                coords::serverToCanonical(glm::vec3(self.corpseX, self.corpseY, self.corpseZ)));
+            const glm::vec3 me = renderer->getCharacterInstanceId() != 0 ? renderer->getCharacterPosition()
+                : coords::canonicalToRender(coords::serverToCanonical(glm::vec3(self.x, self.y, self.z)));
+            glm::vec2 off = ui::renderDeltaToMinimapOffset(corpse.x - me.x, corpse.y - me.y, view);
+            const float len = std::sqrt(off.x * off.x + off.y * off.y);
+            const float rim = mapRadius - 8.0f;
+            const bool onEdge = len > rim;
+            if (onEdge && len > 0.0f) off *= rim / len;
+            const ImVec2 at(centerX + off.x, centerY + off.y);
+            auto* draw = ImGui::GetForegroundDrawList();
+            const float r = 6.0f * scale;
+            if (onEdge && len > 0.0f) {
+                // An arrowhead on the rim, pointing out towards the body.
+                const ImVec2 dir(off.x / rim, off.y / rim), side(-dir.y, dir.x);
+                const ImVec2 tip(at.x + dir.x * r * 1.4f, at.y + dir.y * r * 1.4f);
+                const ImVec2 b1(at.x - dir.x * r + side.x * r, at.y - dir.y * r + side.y * r);
+                const ImVec2 b2(at.x - dir.x * r - side.x * r, at.y - dir.y * r - side.y * r);
+                draw->AddTriangleFilled(tip, b1, b2, IM_COL32(235, 235, 245, 255));
+                draw->AddTriangle(tip, b1, b2, IM_COL32(20, 20, 30, 255), 1.5f);
+            } else {
+                draw->AddCircleFilled(at, r, IM_COL32(20, 20, 30, 230));
+                draw->AddLine(ImVec2(at.x - r * .6f, at.y - r * .6f), ImVec2(at.x + r * .6f, at.y + r * .6f), IM_COL32(235, 235, 245, 255), 2.f);
+                draw->AddLine(ImVec2(at.x - r * .6f, at.y + r * .6f), ImVec2(at.x + r * .6f, at.y - r * .6f), IM_COL32(235, 235, 245, 255), 2.f);
+            }
+        }
+    }
     if (self.dead) {
         // A passive hint must not capture keyboard/gamepad navigation: the
         // released ghost needs to walk back from the graveyard immediately.
+        char ghostHint[160];
         const char* hint = !self.ghost ? "You have died. Releasing your spirit..." :
             localRealm_->canReclaimCorpse() ? "Square / 1: Reclaim your corpse" :
             "Return to your corpse. Press Square / 1 when nearby to revive.";
+        if (self.ghost && !localRealm_->canReclaimCorpse() && corpseYards >= 0.0f) {
+            std::snprintf(ghostHint, sizeof(ghostHint),
+                          "Return to your corpse (%.0f yd, follow the marker on the minimap). "
+                          "Press Square / 1 when nearby to revive.", corpseYards);
+            hint = ghostHint;
+        }
         const ImVec2 size=ImGui::CalcTextSize(hint);
         const ImVec2 at((io.DisplaySize.x-size.x)*.5f,io.DisplaySize.y*.28f);
         auto* draw=ImGui::GetForegroundDrawList();

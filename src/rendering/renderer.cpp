@@ -1781,9 +1781,18 @@ bool Renderer::captureScreenshot(const std::string& outputPath) {
     if (outPath.has_parent_path())
         std::filesystem::create_directories(outPath.parent_path());
 
-    int ok = stbi_write_png(outputPath.c_str(),
+    // Written beside the target and renamed over it, so whoever reads the file
+    // (the dev loop fetches it over FTP while the next one is being taken)
+    // never sees half a picture.
+    const std::string tmpPath = outputPath + ".tmp";
+    int ok = stbi_write_png(tmpPath.c_str(),
                             static_cast<int>(w), static_cast<int>(h),
                             4, pixels, static_cast<int>(w * 4));
+    if (ok) {
+        std::error_code ec;
+        std::filesystem::rename(tmpPath, outputPath, ec);
+        if (ec) ok = 0;
+    }
 
     vmaUnmapMemory(alloc, stagingAlloc);
     vmaDestroyBuffer(alloc, stagingBuf, stagingAlloc);

@@ -2724,6 +2724,25 @@ void CameraController::update(float deltaTime) {
     if (autoFollowMove) autoRunning = true;
     bool nowForward = (!movBlocked && (keyW || mouseAutorun || autoRunning)) || forcedMove;
     bool nowBackward = !movBlocked && keyS;
+    // Once a second while anything asks to move: which keys the controller
+    // sees, what blocks them and where the character is. "It only strafes"
+    // is a report about keys and state no screenshot shows.
+    {
+        static float moveTraceTimer = 0.0f;
+        moveTraceTimer += deltaTime;
+        const bool rawW = input.isKeyPressed(SDL_SCANCODE_W), rawS = input.isKeyPressed(SDL_SCANCODE_S);
+        const bool rawQ = input.isKeyPressed(SDL_SCANCODE_Q), rawE = input.isKeyPressed(SDL_SCANCODE_E);
+        const bool rawA = input.isKeyPressed(SDL_SCANCODE_A), rawD = input.isKeyPressed(SDL_SCANCODE_D);
+        if ((rawW || rawS || rawQ || rawE || rawA || rawD) && moveTraceTimer >= 1.0f) {
+            moveTraceTimer = 0.0f;
+            const glm::vec3* at = followTarget;
+            LOG_INFO("[MOVE_TRACE] raw W", rawW, " S", rawS, " A", rawA, " D", rawD, " Q", rawQ, " E", rawE,
+                     " | ui=", uiWantsKeyboard, " sit=", sitting, " suppressed=", movementSuppressed,
+                     " rooted=", movementRooted_, " forced=", forcedMode_, " autorun=", autoRunning,
+                     " rmb=", rightMouseDown, " third=", thirdPerson,
+                     " pos=", at ? at->x : 0.0f, ",", at ? at->y : 0.0f, ",", at ? at->z : 0.0f);
+        }
+    }
     bool nowStrafeLeft = false;
     bool nowStrafeRight = false;
     bool nowTurnLeft = false;

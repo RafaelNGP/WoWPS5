@@ -2113,11 +2113,42 @@ static SDL_Scancode clientKeyFor(const std::string& command) {
     return SDL_SCANCODE_UNKNOWN;
 }
 
-/// __WoweeClientKey(command, down) -> whether the client performs it; if so the
-/// key it polls for it is held or let go.
+/// WoW's name for a key the client polls, to tell whether an override names
+/// the very key that was pressed.
+static std::string wowNameForScancode(SDL_Scancode sc) {
+    if (sc >= SDL_SCANCODE_A && sc <= SDL_SCANCODE_Z) return std::string(1, char('A' + (sc - SDL_SCANCODE_A)));
+    if (sc >= SDL_SCANCODE_1 && sc <= SDL_SCANCODE_9) return std::string(1, char('1' + (sc - SDL_SCANCODE_1)));
+    if (sc >= SDL_SCANCODE_F1 && sc <= SDL_SCANCODE_F12) return "F" + std::to_string(1 + (sc - SDL_SCANCODE_F1));
+    switch (sc) {
+        case SDL_SCANCODE_0: return "0";
+        case SDL_SCANCODE_SPACE: return "SPACE";
+        case SDL_SCANCODE_TAB: return "TAB";
+        case SDL_SCANCODE_ESCAPE: return "ESCAPE";
+        case SDL_SCANCODE_RETURN: return "ENTER";
+        case SDL_SCANCODE_NUMLOCKCLEAR: return "NUMLOCK";
+        case SDL_SCANCODE_SLASH: return "/";
+        case SDL_SCANCODE_MINUS: return "-";
+        case SDL_SCANCODE_EQUALS: return "=";
+        case SDL_SCANCODE_PRINTSCREEN: return "PRINTSCREEN";
+        default: return {};
+    }
+}
+
+/// __WoweeClientKey(command, down, key) -> whether the client performs it; if
+/// so the key it polls for it is held or let go. Declined when that key is the
+/// one being pressed: ConsolePort lays MOVEFORWARD over W itself, and holding W
+/// on its own behalf meant the release never came - W and S both stuck down,
+/// cancelling out, and the character could only strafe.
 static int lua_WoweeClientKey(lua_State* L) {
     const SDL_Scancode sc = clientKeyFor(luaL_optstring(L, 1, ""));
     if (sc == SDL_SCANCODE_UNKNOWN) { lua_pushboolean(L, 0); return 1; }
+    if (lua_isstring(L, 3)) {
+        std::string pressed = lua_tostring(L, 3);
+        const size_t dash = pressed.rfind('-');
+        if (dash != std::string::npos && dash + 1 < pressed.size()) pressed = pressed.substr(dash + 1);
+        // "self": the key already is the command; let it through untouched.
+        if (pressed == wowNameForScancode(sc)) { lua_pushstring(L, "self"); return 1; }
+    }
 #ifdef WOWEE_PS4
     wowee::platform::ps4::holdSyntheticKey(sc, lua_toboolean(L, 2) != 0);
 #else

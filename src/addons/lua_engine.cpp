@@ -6841,6 +6841,9 @@ void LuaEngine::registerCoreAPI() {
         "    end\n"
         "    if not action then return false end\n"
         "    local kind, rest = action:match('^(%u+) (.+)$')\n"
+        // An override that names the key's own client command (MOVEFORWARD
+        // on W) is no override at all: the key goes on as if unbound.
+        "    if not kind and __WoweeClientKey(action, down, key) == 'self' then return false end\n"
         "    if kind == 'CLICK' then\n"
         "        local name, mouse = rest:match('^(.-):([^:]*)$')\n"
         "        name, mouse = name or rest, (mouse and mouse ~= '') and mouse or 'LeftButton'\n"
