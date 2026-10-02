@@ -120,9 +120,8 @@ void Application::renderLocalRealmOverlay() {
     // targeting button: it cycles to the next creature rather than clearing.
     // The native pad's Triangle below keeps its select/clear toggle.
     if(pressed(ImGuiKey_Tab) && !self.dead){
-        uint64_t next=game::nearestLivingLocalTarget(self,npcs,40.0f,localRealmTarget_);
-        if(!next)next=localRealmTarget_;
-        if(next!=localRealmTarget_){select(next);LOG_INFO("[PAD_TARGET] cycled to the next target");}
+        const uint64_t next=game::cycleLocalTarget(self,npcs,localRealmTarget_);
+        if(next && next!=localRealmTarget_){select(next);LOG_INFO("[PAD_TARGET] cycled to the next target");}
     }
     bool toggleTarget=false;
 #ifdef WOWEE_PS4
