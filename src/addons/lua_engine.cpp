@@ -6803,6 +6803,8 @@ void LuaEngine::registerCoreAPI() {
         "            if h then h(frame, mouse) end\n"
         "            if wantsEdge(frame, mouse, down) then frame:Click(mouse, down) end\n"
         "        end\n"
+        // A command the client performs is pressed for as long as the key is.
+        "    elseif not kind and __WoweeClientKey(action, down) then\n"
         "    elseif not down then\n"
         "    elseif kind == 'SPELL' and CastSpellByName then CastSpellByName(rest)\n"
         "    elseif kind == 'MACRO' and RunMacro then RunMacro(rest)\n"

@@ -220,6 +220,11 @@ bool padConnected();
 /// ImGui backend delivers an on-screen keyboard result through these.
 void pushKeyEvent(SDL_Scancode scancode, bool down);
 
+/// Hold or release a key for as long as an interface binding says: merged into
+/// the emulated keyboard each frame with whatever the pad mapping wants, so a
+/// ConsolePort override of JUMP or MOVEFORWARD reaches the client's own polling.
+void holdSyntheticKey(SDL_Scancode scancode, bool down);
+
 /// Typed text: SDL_TEXTINPUT events, split at UTF-8 boundaries so no event
 /// carries a partial character.
 void pushTextInput(const std::string& utf8);

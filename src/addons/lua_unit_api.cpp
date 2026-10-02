@@ -1251,7 +1251,9 @@ static int lua_IsFalling(lua_State* L) {
     // Check FALLING movement flag
     if (!gh) { return luaReturnFalse(L); }
     const auto& mi = gh->getMovementInfo();
-    lua_pushboolean(L, (mi.flags & 0x2000) != 0); // MOVEFLAG_FALLING = 0x2000
+    // WotLK's FALLING is 0x1000 (0x2000 is TBC's), so the enum, not a literal:
+    // with the TBC value this answered false through every jump.
+    lua_pushboolean(L, mi.hasFlag(game::MovementFlags::FALLING) ? 1 : 0);
     return 1;
 }
 

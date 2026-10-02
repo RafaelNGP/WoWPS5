@@ -172,9 +172,12 @@ float s_touchNormX = 0.5f;   // first finger, 0..1 across the pad (ConsolePort's
 // <writable>/config/devpad.txt, uploaded from the PC, is a list of presses
 // played as if the DualSense made them: one per line, "BUTTON millis" (CROSS,
 // CIRCLE, SQUARE, TRIANGLE, UP, DOWN, LEFT, RIGHT, L1, R1, L2, R2, L3, R3,
-// OPTIONS, TOUCHPAD) or "WAIT millis". The file is consumed when read. A test
-// round on the console can then drive the interface with no hand on the pad.
-struct DevPadStep { uint32_t buttons; uint32_t ms; };
+// OPTIONS, TOUCHPAD) or "WAIT millis", or a stick held for a while:
+// "LSTICK x y millis" / "RSTICK x y millis" with x, y in -1..1 (y up is -1, as
+// the pad reports it). The file is consumed when read. A test round on the
+// console can then drive the interface and the character with no hand on the
+// pad.
+struct DevPadStep { uint32_t buttons; uint32_t ms; float lx = 0, ly = 0, rx = 0, ry = 0; };
 std::deque<DevPadStep> s_devPad;
 uint32_t s_devPadStepEndMs = 0;
 uint32_t s_devPadCheckMs = 0;
@@ -216,8 +219,17 @@ void pollDevPad(uint32_t now) {
         char name[64] = {0};
         unsigned ms = 0;
         if (std::sscanf(line, "%63s %u", name, &ms) < 1 || name[0] == '#') continue;
-        if (ms == 0) ms = 150;
         const std::string n(name);
+        if (n == "LSTICK" || n == "RSTICK") {
+            float x = 0, y = 0;
+            if (std::sscanf(line, "%63s %f %f %u", name, &x, &y, &ms) < 4) continue;
+            DevPadStep step{0u, ms ? ms : 150u};
+            if (n == "LSTICK") { step.lx = x; step.ly = y; } else { step.rx = x; step.ry = y; }
+            s_devPad.push_back(step);
+            ++steps;
+            continue;
+        }
+        if (ms == 0) ms = 150;
         s_devPad.push_back({n == "WAIT" ? 0u : devPadButton(n), ms});
         // A release between presses, so two presses of one button are two.
         if (n != "WAIT") s_devPad.push_back({0u, 120});
@@ -228,16 +240,20 @@ void pollDevPad(uint32_t now) {
     LOG_WARNING("[DEVPAD] ", steps, " step(s) queued from ", path);
 }
 
+DevPadStep s_devPadStick{};   // the sticks of the step being played
+
 uint32_t devPadButtonsNow(uint32_t now) {
     if (!s_devPadActive && !s_devPad.empty()) {
         s_devPadActive = true;
         s_devPadButtons = s_devPad.front().buttons;
+        s_devPadStick = s_devPad.front();
         s_devPadStepEndMs = now + s_devPad.front().ms;
     }
     if (s_devPadActive && now >= s_devPadStepEndMs) {
         s_devPad.pop_front();
         s_devPadActive = false;
         s_devPadButtons = 0;
+        s_devPadStick = {};
         return devPadButtonsNow(now);
     }
     return s_devPadActive ? s_devPadButtons : 0u;
@@ -569,6 +585,12 @@ void readPad(float dt) {
         pollDevPad(now);
         const uint32_t dev = devPadButtonsNow(now);
         if (dev) { st.connected = true; st.buttons |= dev; }
+        if (s_devPadActive && (s_devPadStick.lx != 0 || s_devPadStick.ly != 0 ||
+                               s_devPadStick.rx != 0 || s_devPadStick.ry != 0)) {
+            st.connected = true;
+            st.lx = s_devPadStick.lx; st.ly = s_devPadStick.ly;
+            st.rx = s_devPadStick.rx; st.ry = s_devPadStick.ry;
+        }
     }
     st.pressed = st.buttons & ~s_prevButtons;
     st.released = s_prevButtons & ~st.buttons;
@@ -712,8 +734,10 @@ void pumpConsolePort(float dt) {
             s_strafeRight = heldWithHysteresis( st.lx, kStrafeDeadzone, s_strafeRight);
             want[SDL_SCANCODE_W] = s_walkForward;
             want[SDL_SCANCODE_S] = s_walkBack;
-            want[SDL_SCANCODE_A] = s_strafeLeft;
-            want[SDL_SCANCODE_D] = s_strafeRight;
+            // Strafe, which is Q/E here - A/D turn the character, and in
+            // ConsolePort the right stick does the turning.
+            want[SDL_SCANCODE_Q] = s_strafeLeft;
+            want[SDL_SCANCODE_E] = s_strafeRight;
         }
     }
     // The right stick stays the camera (and the cursor off the world).
@@ -723,12 +747,20 @@ void pumpConsolePort(float dt) {
     applyMouseButtons(false, right);
 }
 
+// Keys an interface binding holds on the client's behalf (holdSyntheticKey):
+// 1 while held, 2 when let go but not yet seen down - a tap shorter than a
+// frame still reaches the client as one frame down.
+std::array<uint8_t, SDL_NUM_SCANCODES> s_synthHeld{};
+
 void applyKeys(const std::array<bool, SDL_NUM_SCANCODES>& want) {
     for (int sc = 0; sc < SDL_NUM_SCANCODES; ++sc) {
-        const bool held = s_held[static_cast<size_t>(sc)] != 0;
-        if (want[static_cast<size_t>(sc)] == held) continue;
-        s_held[static_cast<size_t>(sc)] = want[static_cast<size_t>(sc)] ? 1 : 0;
-        pushKey(static_cast<SDL_Scancode>(sc), want[static_cast<size_t>(sc)]);
+        const size_t i = static_cast<size_t>(sc);
+        const bool on = want[i] || s_synthHeld[i] != 0;
+        if (s_synthHeld[i] == 2 && s_held[i]) s_synthHeld[i] = 0;
+        const bool held = s_held[i] != 0;
+        if (on == held) continue;
+        s_held[i] = on ? 1 : 0;
+        pushKey(static_cast<SDL_Scancode>(sc), on);
     }
 }
 
@@ -1113,6 +1145,13 @@ void setConsolePortAvailable(bool available) {
 
 bool consolePortMode() { return s_consolePortMode; }
 bool padConnected() { return s_padConnected; }
+
+void holdSyntheticKey(SDL_Scancode scancode, bool down) {
+    if (scancode <= SDL_SCANCODE_UNKNOWN || scancode >= SDL_NUM_SCANCODES) return;
+    auto& slot = s_synthHeld[static_cast<size_t>(scancode)];
+    if (down) slot = 1;
+    else if (slot == 1) slot = s_held[static_cast<size_t>(scancode)] ? 0 : 2;
+}
 
 void pushKeyEvent(SDL_Scancode scancode, bool down) {
     if (scancode <= SDL_SCANCODE_UNKNOWN || scancode >= SDL_NUM_SCANCODES) return;

@@ -2358,6 +2358,7 @@ void CameraController::updateFreeFlyCamera(float /*deltaTime*/, FrameInput& f) {
         if (grounded) coyoteTimer = COYOTE_TIME;
 
         if (coyoteTimer > 0.0f && jumpBufferTimer > 0.0f && !mounted_) {
+            LOG_DEBUG("[JUMP] takeoff");
             verticalVelocity = f.jumpVel;
             grounded = false;
             jumpBufferTimer = 0.0f;
@@ -2537,6 +2538,10 @@ void CameraController::update(float deltaTime) {
     bool shiftDown = !uiWantsKeyboard && (input.isKeyPressed(SDL_SCANCODE_LSHIFT) || input.isKeyPressed(SDL_SCANCODE_RSHIFT));
     bool ctrlDown = !uiWantsKeyboard && (input.isKeyPressed(SDL_SCANCODE_LCTRL) || input.isKeyPressed(SDL_SCANCODE_RCTRL));
     bool nowJump = !uiWantsKeyboard && !sitting && !movementSuppressed && input.isKeyJustPressed(SDL_SCANCODE_SPACE);
+    if (input.isKeyJustPressed(SDL_SCANCODE_SPACE)) {
+        LOG_DEBUG("[JUMP] space pressed: uiWantsKeyboard=", uiWantsKeyboard ? 1 : 0,
+                 " sitting=", sitting ? 1 : 0, " suppressed=", movementSuppressed ? 1 : 0);
+    }
     // Swimming needs the held state, not the press edge: on land space is a
     // one-shot jump, but in water it is continuous ascent, and an edge gave a
     // single impulse that then bled away.

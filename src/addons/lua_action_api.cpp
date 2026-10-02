@@ -19,6 +19,10 @@
 #include "imgui.h"
 #include <optional>
 #include <SDL2/SDL_keyboard.h>
+#include <SDL2/SDL_events.h>
+#ifdef WOWEE_PS4
+#include "platform/ps4/input_ps4.hpp"
+#endif
 
 namespace wowee::addons {
 
@@ -2068,7 +2072,51 @@ static int lua_RunBinding(lua_State* L) {
 
 // Frame methods: SetPoint, SetSize, SetWidth, SetHeight, GetWidth, GetHeight, GetCenter, SetAlpha, GetAlpha
 
+/// The key this client polls for a command it performs itself, so an override
+/// binding naming that command (ConsolePort binds the pad's Cross to JUMP) can
+/// press it: the command has no script for RunBinding to run.
+static SDL_Scancode clientKeyFor(const std::string& command) {
+    static const std::pair<const char*, SDL_Scancode> kKeys[] = {
+        {"MOVEFORWARD", SDL_SCANCODE_W}, {"MOVEBACKWARD", SDL_SCANCODE_S},
+        {"TURNLEFT", SDL_SCANCODE_A}, {"TURNRIGHT", SDL_SCANCODE_D},
+        {"STRAFELEFT", SDL_SCANCODE_Q}, {"STRAFERIGHT", SDL_SCANCODE_E},
+        {"JUMP", SDL_SCANCODE_SPACE}, {"TOGGLEAUTORUN", SDL_SCANCODE_NUMLOCKCLEAR},
+        {"TOGGLEGAMEMENU", SDL_SCANCODE_ESCAPE}, {"OPENCHAT", SDL_SCANCODE_RETURN},
+        {"OPENCHATSLASH", SDL_SCANCODE_SLASH}, {"TARGETNEARESTENEMY", SDL_SCANCODE_TAB},
+        {"SCREENSHOT", SDL_SCANCODE_PRINTSCREEN}, {"TOGGLESHEATH", SDL_SCANCODE_Z},
+        {"ACTIONBUTTON1", SDL_SCANCODE_1}, {"ACTIONBUTTON2", SDL_SCANCODE_2},
+        {"ACTIONBUTTON3", SDL_SCANCODE_3}, {"ACTIONBUTTON4", SDL_SCANCODE_4},
+        {"ACTIONBUTTON5", SDL_SCANCODE_5}, {"ACTIONBUTTON6", SDL_SCANCODE_6},
+        {"ACTIONBUTTON7", SDL_SCANCODE_7}, {"ACTIONBUTTON8", SDL_SCANCODE_8},
+        {"ACTIONBUTTON9", SDL_SCANCODE_9}, {"ACTIONBUTTON10", SDL_SCANCODE_0},
+        {"ACTIONBUTTON11", SDL_SCANCODE_MINUS}, {"ACTIONBUTTON12", SDL_SCANCODE_EQUALS},
+    };
+    for (const auto& [name, sc] : kKeys) if (command == name) return sc;
+    return SDL_SCANCODE_UNKNOWN;
+}
+
+/// __WoweeClientKey(command, down) -> whether the client performs it; if so the
+/// key it polls for it is held or let go.
+static int lua_WoweeClientKey(lua_State* L) {
+    const SDL_Scancode sc = clientKeyFor(luaL_optstring(L, 1, ""));
+    if (sc == SDL_SCANCODE_UNKNOWN) { lua_pushboolean(L, 0); return 1; }
+#ifdef WOWEE_PS4
+    wowee::platform::ps4::holdSyntheticKey(sc, lua_toboolean(L, 2) != 0);
+#else
+    SDL_Event e{};
+    e.type = lua_toboolean(L, 2) ? SDL_KEYDOWN : SDL_KEYUP;
+    e.key.state = lua_toboolean(L, 2) ? SDL_PRESSED : SDL_RELEASED;
+    e.key.keysym.scancode = sc;
+    e.key.keysym.sym = SDL_GetKeyFromScancode(sc);
+    SDL_PushEvent(&e);
+#endif
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
 void registerActionLuaAPI(lua_State* L) {
+    lua_pushcfunction(L, lua_WoweeClientKey);
+    lua_setglobal(L, "__WoweeClientKey");
     static const struct { const char* name; lua_CFunction func; } api[] = {
                 {"HasAction",           lua_HasAction},
                 // A macro's name, which only a macro has; ActionButton_Update
