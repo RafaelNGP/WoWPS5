@@ -3131,10 +3131,14 @@ int lua_Tooltip_SetBagItem(lua_State* L) {
     const int bag = static_cast<int>(luaL_optnumber(L, 2, 0));
     const int slot = static_cast<int>(luaL_optnumber(L, 3, 0));
     if (!w || !gh || slot < 1) { lua_pushboolean(L, 0); return 1; }
-    const auto& inv = gh->getInventory();
-    const auto& s = (bag == 0) ? inv.getBackpackSlot(slot - 1)
-                               : inv.getBagSlot(bag - 1, slot - 1);
-    if (s.empty()) { lua_pushboolean(L, 0); return 1; }
+    // Found the way the bag frame and the pickup find it: the local realm keeps
+    // the backpack in its own slots, and every container goes through the
+    // shared numbering (keyring and bank included).
+    const game::ItemSlot* found = gh->isLocalExploration() && bag == 0
+        ? gh->localBagSlot(slot - 1)
+        : wowee::addons::containerItemSlot(gh->getInventory(), bag, slot);
+    if (!found || found->empty()) { lua_pushboolean(L, 0); return 1; }
+    const auto& s = *found;
     // Through the fuller builder, with the slot's own copy of the item as the
     // floor: the slot knows the name and quality even for an entry no
     // GetItemInfo has arrived for, and answering nothing there would be worse
@@ -6098,6 +6102,8 @@ bool LuaEngine::initialize() {
         return 1;
     });
     lua_setglobal(L_, "__WoweeScriptName");
+    lua_pushcfunction(L_, lua_Tooltip_SetBagItem);
+    lua_setglobal(L_, "__WoweeCSetBagItem");
 
     // Publish the widget tree before any API is registered, so a script that
     // runs during registration still finds it.
@@ -8745,15 +8751,23 @@ void LuaEngine::registerCoreAPI() {
         // Two implementations of one method, and the weaker one was winning by
         // load order alone. Found by tools/api_shadowing_check.py, which calls
         // this shape a fault and was right.
+        // Shown and answered true when it finds the item, which is WoW's
+        // contract: ContainerFrameItemButton_OnEnter never calls Show. And when
+        // GetItemInfo has nothing yet - the item cache fills on demand - the C
+        // setter builds it from the bag slot's own copy instead of nothing.
         "function __WoweeFrameMT:SetBagItem(bag, slot)\n"
         "    self:ClearLines()\n"
         "    local tex, count, locked, quality, readable, lootable, link = GetContainerItemInfo(bag, slot)\n"
-        "    if not link then return end\n"
+        "    if not link then return false end\n"
         "    local id = link:match('item:(%d+)')\n"
-        "    if not id then return end\n"
-        "    _WoweePopulateItemTooltip(self, tonumber(id))\n"
+        "    if not id then return false end\n"
+        "    if not _WoweePopulateItemTooltip(self, tonumber(id)) then\n"
+        "        return __WoweeCSetBagItem(self, bag, slot)\n"
+        "    end\n"
         "    self:_WoweeAppendItemEnchants(bag, slot)\n"
         "    if count and count > 1 then self:AddLine('Count: '..count, 0.5, 0.5, 0.5) end\n"
+        "    self:Show()\n"
+        "    return true\n"
         "end\n"
         // The spellbook's tooltip. SpellButton_OnEnter calls this and nothing
         // answered it, so hovering any spell in the book showed nothing -
