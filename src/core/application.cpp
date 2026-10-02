@@ -5941,6 +5941,11 @@ bool Application::getRenderBoundsForGuid(uint64_t guid, glm::vec3& outCenter, fl
     return false;
 }
 
+bool Application::getRenderTopZForGuid(uint64_t guid, float& outTopZ) const {
+    if (entitySpawner_) return entitySpawner_->getRenderTopZForGuid(guid, outTopZ);
+    return false;
+}
+
 bool Application::getRenderFootZForGuid(uint64_t guid, float& outFootZ) const {
     if (entitySpawner_) return entitySpawner_->getRenderFootZForGuid(guid, outFootZ);
     return false;

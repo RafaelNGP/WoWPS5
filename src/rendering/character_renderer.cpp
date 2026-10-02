@@ -4581,6 +4581,19 @@ bool CharacterRenderer::getInstanceBounds(uint32_t instanceId, glm::vec3& outCen
     return true;
 }
 
+bool CharacterRenderer::getInstanceTopZ(uint32_t instanceId, float& outTopZ) const {
+    auto it = instances.find(instanceId);
+    if (it == instances.end()) return false;
+    auto mIt = models.find(it->second.modelId);
+    if (mIt == models.end()) return false;
+    const auto& inst = it->second;
+    float top = mIt->second.visualBoundMax.z;
+    if (mIt->second.visualBoundRadius <= 0.001f) top = mIt->second.data->boundMax.z;
+    if (!std::isfinite(top) || top <= 0.05f) return false;
+    outTopZ = inst.position.z + top * std::max(0.001f, inst.scale);
+    return true;
+}
+
 bool CharacterRenderer::getInstanceFootZ(uint32_t instanceId, float& outFootZ) const {
     auto it = instances.find(instanceId);
     if (it == instances.end()) return false;

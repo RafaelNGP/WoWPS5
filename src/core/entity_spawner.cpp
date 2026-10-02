@@ -1395,6 +1395,13 @@ bool EntitySpawner::getRenderFootZForGuid(uint64_t guid, float& outFootZ) const 
     return renderer_->getCharacterRenderer()->getInstanceFootZ(instanceId, outFootZ);
 }
 
+bool EntitySpawner::getRenderTopZForGuid(uint64_t guid, float& outTopZ) const {
+    if (!renderer_ || !renderer_->getCharacterRenderer()) return false;
+    const uint32_t instanceId = characterInstanceIdForGuid(guid);
+    if (instanceId == 0) return false;
+    return renderer_->getCharacterRenderer()->getInstanceTopZ(instanceId, outTopZ);
+}
+
 bool EntitySpawner::getRenderPositionForGuid(uint64_t guid, glm::vec3& outPos) const {
     if (!renderer_ || !renderer_->getCharacterRenderer()) return false;
     const uint32_t instanceId = characterInstanceIdForGuid(guid);

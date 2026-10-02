@@ -991,7 +991,16 @@ void GameScreen::renderNameplates(game::GameHandler& gameHandler) {
             renderPos = core::coords::canonicalToRender(
                 glm::vec3(unit->getX(), unit->getY(), unit->getZ()));
         }
-        renderPos.z += 2.3f;
+        // Just above the model's own top, so a rabbit's name is not floating
+        // in the air and a giant's is not at its knees; 2.3 (a human's head)
+        // only while the model has not loaded.
+        float topZ = 0.0f;
+        if (core::Application::getInstance().getRenderTopZForGuid(guid, topZ) &&
+            topZ > renderPos.z && topZ < renderPos.z + 40.0f) {
+            renderPos.z = topZ + 0.35f;
+        } else {
+            renderPos.z += 2.3f;
+        }
 
         // Cull distance: the current target stays visible to 60 units so its
         // bar doesn't vanish at combat range; players 40; other NPCs 20.

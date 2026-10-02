@@ -170,6 +170,9 @@ public:
     bool getInstanceModelName(uint32_t instanceId, std::string& modelName) const;
     bool getInstanceBounds(uint32_t instanceId, glm::vec3& outCenter, float& outRadius) const;
     bool getInstanceFootZ(uint32_t instanceId, float& outFootZ) const;
+    /// World Z of the top of the instance's visual bounds (scaled, upright):
+    /// where a name plate belongs, whatever the model's size.
+    bool getInstanceTopZ(uint32_t instanceId, float& outTopZ) const;
     bool getInstancePosition(uint32_t instanceId, glm::vec3& outPos) const;
 
     /** Debug: Log all available animations for an instance */
