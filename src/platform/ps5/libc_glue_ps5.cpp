@@ -20,7 +20,6 @@
 #include <cstring>
 #include <unistd.h>
 
-#include "console_paths.hpp"
 
 extern "C" {
 
@@ -34,14 +33,18 @@ long pathconf(const char* path, int name) {
     }
 }
 
-// The process never changes directory: the app root is its working directory.
+// The process never changes directory: the app root is its working directory
+// (/app0, or where an elevated sandbox reaches the app folder; system_ps4.cpp).
+const char* wowee_console_app_root();
+
 char* getcwd(char* buffer, size_t size) {
-    static const char kCwd[] = WOWEE_CONSOLE_DATA_ROOT;
-    if (!buffer || size < sizeof(kCwd)) {
+    const char* cwd = wowee_console_app_root();
+    const size_t length = std::strlen(cwd) + 1;
+    if (!buffer || size < length) {
         errno = buffer ? ERANGE : EINVAL;
         return nullptr;
     }
-    std::memcpy(buffer, kCwd, sizeof(kCwd));
+    std::memcpy(buffer, cwd, length);
     return buffer;
 }
 

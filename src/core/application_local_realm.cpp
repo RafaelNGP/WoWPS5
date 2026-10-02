@@ -59,7 +59,7 @@ game::Character localCharacter(const game::LocalRealmPlayer& player,
 
 std::string localContentPath() {
 #ifdef WOWEE_PS4
-    const std::string overrideContent = WOWEE_CONSOLE_DATA_ROOT "/realm/world.json";
+    const std::string overrideContent = platform::ps4::writableBase() + "/realm/world.json";
 #else
     const std::string overrideContent = getConfigRoot() + "/realm/world.json";
 #endif
@@ -108,7 +108,7 @@ bool localMapAssetsReady(pipeline::AssetManager& assets, const game::LocalRealmP
 
 std::string localSaveDirectory() {
 #ifdef WOWEE_PS4
-    return WOWEE_CONSOLE_DATA_ROOT "/saves/local_realm";
+    return platform::ps4::writableBase() + "/saves/local_realm";
 #else
     return getConfigRoot() + "/saves/local_realm";
 #endif

@@ -5,12 +5,23 @@
 namespace wowee::rendering::ps4budget {
 // A fixed world working set for the console's flexible CPU heap. Camera
 // rotation never changes residency; only travel crosses these tile rings.
+#if defined(WOWEE_PS5)
+// The PS5's title heap is direct memory (gigabytes, not the PS4's 448 MiB
+// flexible pool): a 5x5 ring and twice the PS4 view distance by default.
+inline constexpr float kDefaultViewDistance = 800.0f;
+inline constexpr float kMinViewDistance = 400.0f;
+inline constexpr float kMaxViewDistance = 1066.0f;
+inline constexpr int kLoadRadius = 2;
+inline constexpr int kUnloadRadius = 3;
+inline constexpr unsigned kMaxResidentTiles = 30;
+#else
 inline constexpr float kDefaultViewDistance = 420.0f;
 inline constexpr float kMinViewDistance = 400.0f;
 inline constexpr float kMaxViewDistance = 533.0f;
 inline constexpr int kLoadRadius = 1;
 inline constexpr int kUnloadRadius = 2;
 inline constexpr unsigned kMaxResidentTiles = 10;
+#endif
 // Square neighborhood includes diagonal collision/terrain at tile corners.
 inline constexpr bool neededTile(int dx, int dy) {
     return dx >= -kLoadRadius && dx <= kLoadRadius && dy >= -kLoadRadius && dy <= kLoadRadius;

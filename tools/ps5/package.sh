@@ -27,6 +27,13 @@ cp "$build/eboot.bin" "$app/eboot.bin"
 cp "$param" "$app/sce_sys/param.json"
 cp "$root/ps5/sce_sys/icon0.png" "$app/sce_sys/icon0.png"
 cp "$vk/runtime/libc.prx" "$app/sce_module/libc.prx"
+# The sandbox elevation helper elfldr runs for the app (ps5/elevation): it
+# accepts this title only, so it is rebuilt against the param.json title.
+grep -q "\"$title\"" "$root/ps5/elevation/helper/main.cpp" ||
+    { echo "error: ps5/elevation/helper/main.cpp does not target $title" >&2; exit 2; }
+make -s -C "$root/ps5/elevation/helper" PS5_PAYLOAD_SDK="$vk/.deps/native/ps5-payload-sdk" \
+    OUTPUT="$build/sandbox-elevator.elf" > /dev/null
+cp "$build/sandbox-elevator.elf" "$app/sandbox-elevator.elf"
 
 cp -r "$root/assets/local_realm" "$app/assets/local_realm"
 cp "$root"/assets/shaders/*.spv "$app/assets/shaders/"

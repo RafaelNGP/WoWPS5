@@ -29,6 +29,11 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 add_compile_definitions(WOWEE_PS4=1)
 if(WOWEE_PS5)
     add_compile_definitions(WOWEE_PS5=1)
+    # The title the app is packaged as (ps5/sce_sys/param.json): the elevated
+    # process finds its app folder under that name.
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/ps5/sce_sys/param.json" _wowee_param)
+    string(JSON WOWEE_PS5_TITLE_ID GET "${_wowee_param}" titleId)
+    add_compile_definitions(WOWEE_PS5_TITLE_ID="${WOWEE_PS5_TITLE_ID}")
 elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
     set(WOWEE_PS4_TOOLS_DIR "${OO_PS4_TOOLCHAIN}/bin/macos")
 else()
@@ -761,6 +766,8 @@ if(WOWEE_PS4)
         file(GLOB WOWEE_PS5_PLATFORM_SOURCES CONFIGURE_DEPENDS
             ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/ps5/*.cpp)
         list(APPEND WOWEE_PS4_PLATFORM_SOURCES ${WOWEE_PS5_PLATFORM_SOURCES})
+        # Sandbox elevation client (ps5-native-app-boilerplate's elfldr protocol).
+        list(APPEND WOWEE_PS4_PLATFORM_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/ps5/elevation/elevation.cpp)
     endif()
     list(APPEND WOWEE_PLATFORM_SOURCES ${WOWEE_PS4_PLATFORM_SOURCES})
     list(APPEND WOWEE_PLATFORM_SOURCES
@@ -865,6 +872,7 @@ if(WOWEE_PS4)
     if(WOWEE_PS5)
         # Last BEFORE wins: the PS5 editions of ps4/compat headers come first.
         target_include_directories(wowee BEFORE PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ps5/compat)
+        target_include_directories(wowee PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ps5/elevation)
     endif()
     target_include_directories(wowee PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_extract)
 endif()

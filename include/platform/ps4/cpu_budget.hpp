@@ -36,8 +36,16 @@ namespace wowee::platform::ps4 {
 // CPU malloc uses flexible memory, whereas Vulkan's direct-memory allocations
 // have their own much larger pool. This is a CPU budgeting ceiling for the
 // supplied title configuration, not a measurement of installed system RAM.
+#if defined(WOWEE_PS5)
+// PS5: the SDK platform heap serves malloc from the 12 GiB direct-memory pool
+// that RADV also allocates device memory from. The title keeps its CPU side to
+// 3 GiB and lets the file cache grow to 256 MiB.
+inline constexpr std::size_t kCpuMemoryBudgetLimit = 3072ull * 1024 * 1024;
+inline constexpr std::size_t kCpuCacheBudgetLimit = 256ull * 1024 * 1024;
+#else
 inline constexpr std::size_t kCpuMemoryBudgetLimit = 448ull * 1024 * 1024;
 inline constexpr std::size_t kCpuCacheBudgetLimit = 32ull * 1024 * 1024;
+#endif
 inline constexpr std::size_t kCpuPressureHeadroom = 32ull * 1024 * 1024;
 inline constexpr std::size_t kCpuSeverePressureHeadroom = 16ull * 1024 * 1024;
 

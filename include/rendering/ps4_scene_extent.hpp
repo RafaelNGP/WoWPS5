@@ -19,7 +19,14 @@ inline uint32_t parsePs4SceneHeight(const char* value) noexcept {
     if (value && (std::strcmp(value, "native") == 0 || std::strcmp(value, "1080") == 0))
         return 0;
     if (value && std::strcmp(value, "900") == 0) return 900;
+#if defined(WOWEE_PS5)
+    // The PS5 holds 60 fps with the world at the full 1080p output; 720 stays
+    // selectable (video options or WOWEE_PS4_SCENE_HEIGHT=720).
+    if (value && std::strcmp(value, "720") == 0) return 720;
+    return 0;
+#else
     return 720;
+#endif
 }
 
 // B39: selectable at runtime.

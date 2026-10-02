@@ -4,6 +4,9 @@
 #include <cstdint>
 #include <cstdlib>
 #include <orbis/libkernel.h>
+#if defined(WOWEE_PS5)
+#include <ps5platform/heap.h>
+#endif
 
 // The budgets, and the decisions taken from them. They moved into their own
 // header because this one cannot be compiled anywhere but the console - the
@@ -21,6 +24,17 @@ struct AvailableCpuMemory {
     bool measured = false;
 };
 
+#if defined(WOWEE_PS5)
+// The title heap (ps5platform/heap.h) maps direct memory as it grows; what is
+// left of the CPU budget is the budget minus what it holds now. Flexible
+// memory is libc's private heap, which the title no longer allocates from.
+inline AvailableCpuMemory queryAvailableCpuMemory() {
+    struct ps5_heap_stats stats{};
+    ::ps5_heap_stats(&stats);
+    const size_t used = stats.mapped_bytes;
+    return {used < kCpuMemoryBudgetLimit ? kCpuMemoryBudgetLimit - used : 0, 0, true};
+}
+#else
 inline AvailableCpuMemory queryAvailableCpuMemory() {
     static_assert(sizeof(size_t) == sizeof(void*) && sizeof(size_t) == 8,
                   "PS4 flexible-memory output is a 64-bit size/pointer");
@@ -46,6 +60,7 @@ inline AvailableCpuMemory queryAvailableCpuMemory() {
     return {available < kCpuMemoryBudgetLimit ? available : kCpuMemoryBudgetLimit,
             status, true};
 }
+#endif
 
 /// The largest of `sizes` the C++ heap will actually hand back right now.
 ///

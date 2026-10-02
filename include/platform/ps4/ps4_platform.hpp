@@ -67,6 +67,9 @@ std::string dataRoot();
 /// Writable directory for settings, logs, caches and saved variables:
 /// /data/wow_ps/wowps (created by initSystem).
 std::string writableRoot();
+/// Parent of writableRoot() and of the local realm's saves: dataRoot() on the
+/// PS4; /data/wow_ps on the PS5 once the sandbox is elevated, else /app0.
+std::string writableBase();
 /// Directory the package was launched from (read-only): /app0
 std::string appRoot();
 

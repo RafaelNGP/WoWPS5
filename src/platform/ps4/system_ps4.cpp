@@ -13,6 +13,9 @@
 #include "platform/ps4/ps4_platform.hpp"
 #include "platform/ps4/signal_context.hpp"
 #include "console_paths.hpp"
+#if defined(WOWEE_PS5)
+#include "elevation.hpp"
+#endif
 #include "ps4_kstat.h"
 #include "ps4_ksignal.h"
 #include <pthread.h>
@@ -41,6 +44,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <cstring>
 #include <csignal>
 #include <cxxabi.h>
@@ -88,11 +92,18 @@ namespace {
 
 // ---- constants -------------------------------------------------------------
 
-constexpr const char* kDataRoot = WOWEE_CONSOLE_DATA_ROOT;
-constexpr const char* kPreferredWritableRoot = WOWEE_CONSOLE_DATA_ROOT "/wowps";
-constexpr const char* kLegacyWritableRoot = WOWEE_CONSOLE_DATA_ROOT "/wowee";
-const char* kWritableRoot = kPreferredWritableRoot;
-constexpr const char* kAppRoot = "/app0";
+// The data root (the user's client under Data/) and the package root. On the
+// PS5 both are the app folder, and an elevated sandbox no longer sees it as
+// /app0: selectWritableBase resolves the path it is reachable under.
+std::string kDataRoot = WOWEE_CONSOLE_DATA_ROOT;
+// Where everything the client writes lives: kDataRoot on the PS4. On the PS5
+// it is /data/wow_ps once the app's sandbox is elevated (selectWritableBase),
+// and the app folder otherwise.
+std::string g_writableBase = kDataRoot;
+std::string kPreferredWritableRoot = g_writableBase + "/wowps";
+std::string kLegacyWritableRoot = g_writableBase + "/wowee";
+std::string kWritableRoot = kPreferredWritableRoot;
+std::string kAppRoot = "/app0";
 
 // Memory the resolver may use for its queries. Sockets do not draw on it
 // (they live in the kernel), so a small pool is plenty.
@@ -225,6 +236,58 @@ bool loadModules() {
 // iterator. OpenOrbis libc's lstat resolves to an ENOSYS fstatat stub in the
 // shipped ELF. Use the already verified kernel stat ABI and native rename.
 // Never merge, overwrite or delete either tree during process bring-up.
+#if defined(WOWEE_PS5)
+// The app's sandbox reaches /data only after elevation: the bundled helper
+// (/app0/sandbox-elevator.elf, accepted by the console's elfldr on loopback
+// port 9021) gives this process the filesystem profile. Then saves, settings
+// and logs live in /data/wow_ps like the PS4 port's, outside the app folder,
+// and survive reinstalling it; the MPQs stay in /app0/Data. Trees an earlier
+// build wrote into the app folder are copied over, never overwriting. Runs before any worker thread.
+// Returns the boot-log line describing the outcome.
+const char* selectWritableBase() {
+    const auto status = elevation::request(elevation::Capability::filesystem);
+    if (status != elevation::Status::ok) return "runtime: sandbox elevation unavailable; writing to /app0";
+    // The elevated process sees the real filesystem: the app folder is the
+    // sandbox's mount of it, or the ShadowMountPlus source folder itself.
+    if (::access("/app0/eboot.bin", F_OK) != 0) {
+        const char* candidates[] = {"/mnt/sandbox/" WOWEE_PS5_TITLE_ID "_000/app0",
+                                    "/data/homebrew/" WOWEE_PS5_TITLE_ID};
+        bool found = false;
+        for (const char* candidate : candidates) {
+            if (::access((std::string(candidate) + "/eboot.bin").c_str(), F_OK) == 0) {
+                kAppRoot = kDataRoot = g_writableBase = candidate;
+                found = true;
+                break;
+            }
+        }
+        if (!found) return "runtime: elevated, but the app folder is not reachable; package resources will fail";
+    }
+    // RADV keeps its pipeline cache in the app folder; it only defaults the
+    // variable (no overwrite), so the resolved path wins.
+    ::setenv("MESA_SHADER_CACHE_DIR", (kAppRoot + "/radv-shader-cache").c_str(), 0);
+    if (::mkdir("/data/wow_ps", 0777) != 0 && errno != EEXIST)
+        return "runtime: elevated, but /data/wow_ps cannot be created; writing to the app folder";
+    g_writableBase = "/data/wow_ps";
+    kPreferredWritableRoot = g_writableBase + "/wowps";
+    kLegacyWritableRoot = g_writableBase + "/wowee";
+    kWritableRoot = kPreferredWritableRoot;
+    bool migrated = false;
+    for (const char* sub : {"wowps", "saves", "realm"}) {
+        const std::filesystem::path from = std::filesystem::path(kDataRoot) / sub;
+        const std::filesystem::path to = std::filesystem::path(g_writableBase) / sub;
+        std::error_code ec;
+        if (!std::filesystem::is_directory(from, ec)) continue;
+        // Never overwrite: a file already in /data/wow_ps is newer than the
+        // app-folder copy of it.
+        std::filesystem::copy(from, to, std::filesystem::copy_options::recursive |
+                                            std::filesystem::copy_options::skip_existing, ec);
+        migrated = migrated || !ec;
+    }
+    return migrated ? "runtime: sandbox elevated; /app0 saves and settings copied to /data/wow_ps"
+                    : "runtime: sandbox elevated; writing to /data/wow_ps";
+}
+#endif
+
 enum class RuntimeMove { Absent, Moved, BothPresent, Failed };
 RuntimeMove moveRuntimeDirectory(const std::string& oldPath, const std::string& newPath) {
     Ps4KernelStat info{};
@@ -240,14 +303,14 @@ RuntimeMove moveRuntimeDirectory(const std::string& oldPath, const std::string& 
 }
 
 bool createDirectories() {
-    if (!makeDirectory(kDataRoot)) return false;
+    if (!makeDirectory(g_writableBase)) return false;
     reportBootStage("runtime: checking legacy directory (kernel stat, no lstat)");
     const RuntimeMove moved = moveRuntimeDirectory(kLegacyWritableRoot, kPreferredWritableRoot);
     if (moved == RuntimeMove::Failed || moved == RuntimeMove::BothPresent) {
         // Both trees may contain settings. Keep using the legacy tree in this
         // recovery build instead of silently choosing a different save/config.
         Ps4KernelStat oldInfo{};
-        if (ps4KernelStat(kLegacyWritableRoot, &oldInfo) == 0 && S_ISDIR(oldInfo.st_mode)) {
+        if (ps4KernelStat(kLegacyWritableRoot.c_str(), &oldInfo) == 0 && S_ISDIR(oldInfo.st_mode)) {
             kWritableRoot = kLegacyWritableRoot;
             reportBootStage("runtime: preserving existing trees; using legacy directory for compatibility");
         } else reportBootStage("runtime: legacy directory unavailable; using WoWPS directory");
@@ -325,7 +388,7 @@ void setEnvironment() {
     loadEnvFile(writable + "/config/env.txt");
     const EnvDefault defaults[] = {
         // ---- paths ---------------------------------------------------------
-        {"WOW_DATA_PATH", kDataRoot,
+        {"WOW_DATA_PATH", kDataRoot.c_str(),
          "Application::initialize/ExpansionRegistry: the extracted client tree "
          "(manifest.json at the root or under expansions/*/); the fallback is "
          "./Data, and the working directory here holds nothing of ours"},
@@ -342,7 +405,7 @@ void setEnvironment() {
         {"WOWEE_CONFIG_ROOT", writable + "/config",
          "core::getConfigRoot: settings and saved variables, and the logger's "
          "fallback directory, under the writable tree"},
-        {"WOWEE_RESOURCE_ROOT", kAppRoot,
+        {"WOWEE_RESOURCE_ROOT", kAppRoot.c_str(),
          "absolute package file resolution; PS4 does not change working directory"},
 
         // ---- logging -------------------------------------------------------
@@ -566,10 +629,17 @@ bool initSystem() {
     // WOWEE_LOG_* from the environment as it does so.
     // Bootstrap log must exist before any migration or optional modules.
     // Keep this fd in the signal reporter if normal log opening fails.
-    if (::mkdir(kDataRoot, 0777) == 0 || errno == EEXIST) {
-        std::rename(WOWEE_CONSOLE_DATA_ROOT "/boot_startup.log", WOWEE_CONSOLE_DATA_ROOT "/boot_startup_previous.log");
-        g_bootFd = ::open(WOWEE_CONSOLE_DATA_ROOT "/boot_startup.log", O_CREAT | O_WRONLY | O_TRUNC | O_APPEND, 0666);
+#if defined(WOWEE_PS5)
+    const char* elevation = selectWritableBase();
+#endif
+    if (::mkdir(g_writableBase.c_str(), 0777) == 0 || errno == EEXIST) {
+        const std::string bootStartup = g_writableBase + "/boot_startup.log";
+        std::rename(bootStartup.c_str(), (g_writableBase + "/boot_startup_previous.log").c_str());
+        g_bootFd = ::open(bootStartup.c_str(), O_CREAT | O_WRONLY | O_TRUNC | O_APPEND, 0666);
     }
+#if defined(WOWEE_PS5)
+    reportBootStage(elevation);
+#endif
     reportBootStage("B25: early startup diagnostics before runtime migration");
     reportCrashReporterState();
     const bool dirsOk = createDirectories();
@@ -602,7 +672,7 @@ bool initSystem() {
     const bool modulesOk = loadModules();
 
     if (!dirsOk) {
-        klog("warning: the writable tree under %s could not be created; the log and settings will not persist", kWritableRoot);
+        klog("warning: the writable tree under %s could not be created; the log and settings will not persist", kWritableRoot.c_str());
     }
     if (!modulesOk) {
         klog("error: a required system module failed to load");
@@ -615,7 +685,7 @@ bool initSystem() {
     // say so in the log whenever it shows, so the next mismatch is found in
     // a log rather than in a week of archive-open failures.
     {
-        const std::string probe = std::string(kAppRoot) + "/eboot.bin";
+        const std::string probe = kAppRoot + "/eboot.bin";
         struct stat toolchainStat{};
         struct Ps4KernelStat kernelStat{};
         long long seekEnd = -1;
@@ -962,7 +1032,7 @@ void showStartupError(const char* message) {
     // error immediately; the timeout also handles an unavailable controller.
     const std::string text = std::string("WoWPS encountered an error.\n") +
         (message ? message : "Initialization failed.") +
-        "\nLogs: " WOWEE_CONSOLE_DATA_ROOT "/wowps/logs/\nReturning to the system in 20 seconds.";
+        "\nLogs: " + kWritableRoot + "/logs/\nReturning to the system in 20 seconds.";
     OrbisMsgDialogUserMessageParam userMessage{};
     userMessage.buttonType = ORBIS_MSG_DIALOG_BUTTON_TYPE_OK;
     userMessage.msg = text.c_str();
@@ -1028,6 +1098,17 @@ std::string dataRoot() {
     return configured && *configured ? configured : kDataRoot;
 }
 std::string writableRoot() { return kWritableRoot; }
+std::string writableBase() { return g_writableBase; }
+} // namespace ps4
+} // namespace platform
+} // namespace wowee
+
+// libc_glue_ps5.cpp's getcwd answers the package root.
+extern "C" const char* wowee_console_app_root() { return wowee::platform::ps4::kAppRoot.c_str(); }
+
+namespace wowee {
+namespace platform {
+namespace ps4 {
 std::string appRoot() { return kAppRoot; }
 
 uint32_t resolveIPv4(const std::string& host) {
