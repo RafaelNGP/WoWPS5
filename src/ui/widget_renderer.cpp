@@ -12,6 +12,10 @@
 #include "ui/framexml_takeover.hpp"
 #include "pipeline/asset_manager.hpp"
 #include "pipeline/blp_loader.hpp"
+#include "core/config_paths.hpp"
+#include "stb_image.h"
+#include <filesystem>
+#include <fstream>
 #include "rendering/vk_context.hpp"
 #include "core/app_clock.hpp"
 #include "ui/interface_fonts.hpp"
@@ -109,9 +113,105 @@ VkDescriptorSet WidgetRenderer::resident(const std::string& path, bool add) cons
     return set ? *set : kMissing;
 }
 
+namespace {
+
+/// One path component of `dir` matched without regard to case, the way the
+/// Windows client finds an addon's art: addons name their files however their
+/// authors typed them, and the console's filesystem is case-sensitive.
+std::filesystem::path matchComponent(const std::filesystem::path& dir, const std::string& name) {
+    std::error_code ec;
+    const std::filesystem::path exact = dir / name;
+    if (std::filesystem::exists(exact, ec)) return exact;
+    std::string want = name;
+    for (char& c : want) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
+        std::string have = entry.path().filename().string();
+        for (char& c : have) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        if (have == want) return entry.path();
+    }
+    return {};
+}
+
+/// Interface\AddOns\<Addon>\<file>, read from the addon directories on
+/// disk: a player's addon ships its own art beside its code, and the archives
+/// know nothing of it. Tries the name as written, then .blp, then .tga.
+std::vector<uint8_t> readAddonArtFromDisk(const std::string& path, std::string& resolvedOut) {
+    static const std::string kPrefix = "interface\\addons\\";
+    std::string lower = path;
+    for (char& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    std::replace(lower.begin(), lower.end(), '/', '\\');
+    if (lower.rfind(kPrefix, 0) != 0) return {};
+    std::string rest = path.substr(kPrefix.size());
+    std::replace(rest.begin(), rest.end(), '/', '\\');
+    std::vector<std::string> parts;
+    for (size_t start = 0; start <= rest.size();) {
+        const size_t sep = rest.find('\\', start);
+        const std::string part = rest.substr(start, sep == std::string::npos ? std::string::npos : sep - start);
+        if (!part.empty()) parts.push_back(part);
+        if (sep == std::string::npos) break;
+        start = sep + 1;
+    }
+    if (parts.empty()) return {};
+    const std::vector<std::filesystem::path> roots = {
+        std::filesystem::path(core::resolveRelativeAssetPath("addons")),
+        std::filesystem::path(core::resolveRelativeAssetPath("Data")) / "Interface" / "AddOns",
+    };
+    const std::string leaf = parts.back();
+    std::string leafLower = leaf;
+    for (char& c : leafLower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    const bool hasExt = leafLower.size() > 4 &&
+        (leafLower.compare(leafLower.size() - 4, 4, ".blp") == 0 ||
+         leafLower.compare(leafLower.size() - 4, 4, ".tga") == 0);
+    for (const auto& root : roots) {
+        std::filesystem::path dir = root;
+        bool found = true;
+        for (size_t i = 0; i + 1 < parts.size() && found; ++i) {
+            dir = matchComponent(dir, parts[i]);
+            found = !dir.empty();
+        }
+        if (!found) continue;
+        for (const std::string& candidate :
+             hasExt ? std::vector<std::string>{leaf}
+                    : std::vector<std::string>{leaf + ".blp", leaf + ".tga", leaf}) {
+            const std::filesystem::path file = matchComponent(dir, candidate);
+            if (file.empty()) continue;
+            std::ifstream in(file, std::ios::binary);
+            std::vector<uint8_t> data((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+            if (data.empty()) continue;
+            resolvedOut = file.string();
+            return data;
+        }
+    }
+    return {};
+}
+
+/// A widget texture's pixels: BLP as the archives hold them, or TGA, which
+/// addons ship (ConsolePort's window art), decoded to RGBA.
+pipeline::BLPImage decodeWidgetTexture(const std::vector<uint8_t>& data, const std::string& resolved) {
+    std::string lower = resolved;
+    for (char& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (lower.size() > 4 && lower.compare(lower.size() - 4, 4, ".tga") == 0) {
+        pipeline::BLPImage image;
+        int w = 0, h = 0, channels = 0;
+        unsigned char* pixels = stbi_load_from_memory(data.data(), static_cast<int>(data.size()),
+                                                      &w, &h, &channels, 4);
+        if (!pixels) return image;
+        image.width = w;
+        image.height = h;
+        image.channels = 4;
+        image.data.assign(pixels, pixels + static_cast<size_t>(w) * h * 4);
+        stbi_image_free(pixels);
+        return image;
+    }
+    return pipeline::BLPLoader::load(data);
+}
+
+}  // namespace
+
 std::vector<uint8_t> WidgetRenderer::readTextureFile(const std::string& path,
                                                      std::string& resolvedOut) {
     if (!assets_ || path.empty()) return {};
+    if (auto disk = readAddonArtFromDisk(path, resolvedOut); !disk.empty()) return disk;
 
     // Addons write "Interface\\Foo\\Bar" without the extension as often as with
     // it, and the real client accepts both.
@@ -175,7 +275,7 @@ VkDescriptorSet WidgetRenderer::texture(const std::string& path, bool add) {
         textures_[key] = kMissing;
         return kMissing;
     }
-    auto image = pipeline::BLPLoader::load(data);
+    auto image = decodeWidgetTexture(data, resolved);
     if (!image.isValid()) {
         LOG_WARNING("Widget texture unreadable: ", resolved);
         textures_[key] = kMissing;
@@ -218,7 +318,7 @@ bool WidgetRenderer::textureSize(const std::string& path, float& w, float& h) {
     std::string resolved;
     auto data = readTextureFile(path, resolved);
     if (data.empty()) { textureSizes_[path] = {0.0f, 0.0f}; return false; }
-    const auto image = pipeline::BLPLoader::load(data);
+    const auto image = decodeWidgetTexture(data, resolved);
     if (!image.isValid() || image.width == 0 || image.height == 0) {
         textureSizes_[path] = {0.0f, 0.0f};
         return false;
