@@ -1919,6 +1919,11 @@ bool Renderer::ensureSkyboxModel() {
     return true;
 }
 
+uint32_t Renderer::getCurrentAreaId() const {
+    const uint32_t zone = getCurrentZoneId();   // refreshes the sticky area too
+    return lastResolvedAreaId_ ? lastResolvedAreaId_ : zone;
+}
+
 bool Renderer::isOnOutdoorPvpObjective() const {
     if (!zoneManager || !terrainManager) return false;
     if (const auto areaId = terrainManager->getAreaIdAt(
@@ -1937,6 +1942,7 @@ uint32_t Renderer::getCurrentZoneId() const {
         if (mapId != lastResolvedZoneMapId_) {
             lastResolvedZoneMapId_ = mapId;
             lastResolvedZoneId_ = 0;
+            lastResolvedAreaId_ = 0;
         }
     }
 
@@ -1944,6 +1950,7 @@ uint32_t Renderer::getCurrentZoneId() const {
     if (zoneManager && terrainManager) {
         if (const auto areaId = terrainManager->getAreaIdAt(
                 characterPosition.x, characterPosition.y)) {
+            if (*areaId != 0) lastResolvedAreaId_ = *areaId;
             lastResolvedZoneId_ = zoneManager->resolveAreaZoneId(*areaId);
             return lastResolvedZoneId_;
         }
@@ -2052,6 +2059,22 @@ void Renderer::update(float deltaTime) {
     lastUpdateStage_ = "lighting / zone";
     const auto* environmentHandler = core::Application::getInstance().getGameHandler();
     const uint32_t resolvedZoneId = getCurrentZoneId();
+    // Walking from one subzone into the next is ZONE_CHANGED, and into another
+    // zone ZONE_CHANGED_NEW_AREA as well - what the minimap's name, the zone
+    // text that fades in over the screen and the map all wait for. Nothing
+    // here said either, so the name over the minimap was the zone entered in.
+    if (auto* gh = core::Application::getInstance().getGameHandler()) {
+        const uint32_t area = lastResolvedAreaId_ ? lastResolvedAreaId_ : resolvedZoneId;
+        if (area && resolvedZoneId && (area != announcedAreaId_ || resolvedZoneId != announcedZoneId_)) {
+            const bool newZone = announcedZoneId_ != 0 && resolvedZoneId != announcedZoneId_;
+            const bool first = announcedAreaId_ == 0;
+            announcedAreaId_ = area; announcedZoneId_ = resolvedZoneId;
+            if (!first) {
+                if (newZone) gh->fireAddonEvent("ZONE_CHANGED_NEW_AREA", {});
+                gh->fireAddonEvent("ZONE_CHANGED", {});
+            }
+        }
+    }
     const bool serverWeather = environmentHandler && environmentHandler->isConnected() &&
                                !environmentHandler->isLocalExploration();
     // Select the forecast before any lighting consumer reads it. A clear

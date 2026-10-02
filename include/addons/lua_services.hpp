@@ -202,6 +202,8 @@ struct LuaServices {
     /// server announced rather than the one being walked through. The real
     /// client works this out locally for exactly that reason.
     std::function<uint32_t()> getLiveZoneId;
+    /// The subzone under the player (AreaTable id), or the zone where there is none.
+    std::function<uint32_t()> getLiveAreaId;
 
     /// Whether the player is standing on a world PvP objective.
     ///

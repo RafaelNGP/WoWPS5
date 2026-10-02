@@ -49,7 +49,7 @@ public:
     [[nodiscard]] bool isEnabled() const { return enabled; }
     void toggle() { enabled = !enabled; }
 
-    void setViewRadius(float radius) { viewRadius = radius; }
+    void setViewRadius(float radius) { viewRadius = std::min(radius, 500.0f); }
     void setRotateWithCamera(bool rotate) { rotateWithCamera = rotate; }
     [[nodiscard]] bool isRotateWithCamera() const { return rotateWithCamera; }
 
@@ -58,7 +58,7 @@ public:
     [[nodiscard]] float getViewRadius() const { return viewRadius; }
 
     void zoomIn() { viewRadius = std::max(100.0f, viewRadius - 50.0f); }
-    void zoomOut() { viewRadius = std::min(800.0f, viewRadius + 50.0f); }
+    void zoomOut() { viewRadius = std::min(500.0f, viewRadius + 50.0f); }  // past ~530 leaves the 3x3 composite
 
     void setOpacity(float opacity) { opacity_ = opacity; }
 

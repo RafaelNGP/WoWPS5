@@ -7379,12 +7379,10 @@ void LuaEngine::registerCoreAPI() {
         // FrameXML makes on it are recorded rather than refused. They do not
         // drive the fill, which is drawn from the path - an honest stand-in
         // rather than a working one, and it is the raise that was the bug.
-        "function mt:GetStatusBarTexture()\n"
-        "    if not self.__barTexture then\n"
-        "        self.__barTexture = self:CreateTexture(nil, 'ARTWORK')\n"
-        "    end\n"
-        "    return self.__barTexture\n"
-        "end\n"
+        // (The region itself is the hidden proxy defined earlier, which drives
+        // the fill. A second definition here, a plain visible texture, was
+        // winning by load order: ConsolePort set its XP art on it and the art
+        // covered the whole bar, whatever the bar's value.)
         "function mt:GetFontString()\n"
         "    if not self.__fontString then\n"
         "        self.__fontString = self:CreateFontString(nil, 'OVERLAY')\n"

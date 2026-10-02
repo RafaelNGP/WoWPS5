@@ -739,6 +739,10 @@ bool Application::initialize() {
             auto* r = renderer.get();
             return r ? r->getCurrentZoneId() : 0u;
         };
+        luaSvc.getLiveAreaId = [this]() -> uint32_t {
+            auto* r = renderer.get();
+            return r ? r->getCurrentAreaId() : 0u;
+        };
         luaSvc.isOnOutdoorPvpObjective = [this]() -> bool {
             auto* r = renderer.get();
             return r && r->isOnOutdoorPvpObjective();
@@ -4845,8 +4849,13 @@ void Application::render() {
                         static int appliedZoom = -1;
                         if (mm->zoomLevel != appliedZoom) {
                             appliedZoom = mm->zoomLevel;
+                            // WoW's outdoor radii - diameters of 466, 400,
+                            // 333, 267 and 200 yards. These were 800 to 200:
+                            // three times too far out at the default zoom,
+                            // and past the 3x3 tiles the map composites, so
+                            // its rim was the edge pixels stretched.
                             static const float kRadius[5] = {
-                                800.0f, 620.0f, 460.0f, 320.0f, 200.0f
+                                233.3f, 200.0f, 166.7f, 133.3f, 100.0f
                             };
                             const int lvl = (mm->zoomLevel < 0) ? 0
                                           : (mm->zoomLevel > 4 ? 4 : mm->zoomLevel);

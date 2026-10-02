@@ -2097,13 +2097,27 @@ static int lua_GetZoneText(lua_State* L) {
     return 1;
 }
 
-// GetSubZoneText() → subzone name (same as zone for now - server doesn't always send subzone)
-static int lua_GetSubZoneText(lua_State* L) {
-    return lua_GetZoneText(L);  // Best-effort: zone and subzone often overlap
+/// The subzone's name, or empty when the player stands in the zone itself.
+static std::string liveSubZoneName(lua_State* L) {
+    auto* gh = getGameHandler(L);
+    auto* svc = getLuaServices(L);
+    if (!gh || !svc || !svc->getLiveAreaId || !svc->getLiveZoneId) return {};
+    const uint32_t area = svc->getLiveAreaId();
+    if (area == 0 || area == svc->getLiveZoneId()) return {};
+    return gh->getWhoAreaName(area);
 }
 
-// GetMinimapZoneText() → zone name displayed near minimap
+// GetSubZoneText() → the subzone, "" in the open zone (WoW's answer there).
+static int lua_GetSubZoneText(lua_State* L) {
+    lua_pushstring(L, liveSubZoneName(L).c_str());
+    return 1;
+}
+
+// GetMinimapZoneText() → what the minimap's title says: the subzone when there
+// is one, the zone otherwise.
 static int lua_GetMinimapZoneText(lua_State* L) {
+    const std::string sub = liveSubZoneName(L);
+    if (!sub.empty()) { lua_pushstring(L, sub.c_str()); return 1; }
     return lua_GetZoneText(L);
 }
 

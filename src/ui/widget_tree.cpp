@@ -1146,7 +1146,28 @@ void WidgetTree::layoutWidgetSelf(uint32_t id, float screenW, float screenH) {
     // anchored child of an unanchored frame has nowhere to be either, because
     // the thing it is anchored to has no position. Deriving this from the
     // chain instead put those children back on screen.
-    w->visible = w->shown && (!parent || parent->visible) && !unanchoredFrame;
+    // Except a child that is not placed by that parent at all: every anchor
+    // names some other frame. ConsolePort hides the game menu exactly this
+    // way - GameMenuFrame sized to nothing and stripped of its points - and
+    // draws its own menu as a child of it anchored to UIParent; WoW draws that
+    // child, and inheriting the parent's "nowhere" hid the whole menu.
+    bool placedElsewhere = false;
+    if (parent && !parent->visible && parent->visibleChain &&
+        parent->kind == WidgetKind::Frame && parent->anchors.empty() && !w->anchors.empty()) {
+        placedElsewhere = true;
+        // Anchored to the parent, or to anything inside it (the menu's own
+        // buttons hang off each other), is still placed by the parent.
+        for (const Anchor& a : w->anchors) {
+            uint32_t at = a.relativeTo == 0 ? w->parent : a.relativeTo;
+            for (int depth = 0; at != 0 && depth < 64; ++depth) {
+                if (at == w->parent) { placedElsewhere = false; break; }
+                const Widget* r = get(at);
+                at = r ? r->parent : 0;
+            }
+            if (!placedElsewhere) break;
+        }
+    }
+    w->visible = w->shown && (!parent || parent->visible || placedElsewhere) && !unanchoredFrame;
     // Clipping is inherited: anything under a scroll frame is bounded by it,
     // however deep, because a scroll child holds frames of its own.
     //
