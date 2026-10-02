@@ -335,6 +335,8 @@ private:
     std::string localHostRealmName_ = "LAN Realm";
     struct LocalSlotCharacter { uint8_t slot; uint64_t guid; std::string name; uint8_t race, classId, gender; };
     std::vector<LocalSlotCharacter> localSlotCharacters_;
+    bool devAutoEnterDone_ = false;   // WOWEE_DEV_AUTOENTER, once per run
+    float devAutoEnterDelay_ = 0.0f;
     void localRealmStatus(const std::string& message, bool isError);
     RetainedGuidSet localRealmRemoteGuids_;
     RetainedGuidSet localRealmNpcGuids_;

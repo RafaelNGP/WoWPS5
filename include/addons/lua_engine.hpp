@@ -350,7 +350,12 @@ public:
     /// ~/.wowps/lua_errors.txt as well now, deduplicated with a count, beside
     /// the missing-API report that is written the same way and for the same
     /// reason.
-    void noteLuaError(const std::string& message);
+    /// `fromUserAddon`: raised by a script of a frame a player's addon made,
+    /// even when the line that failed is in the client's own FrameXML.
+    void noteLuaError(const std::string& message, bool fromUserAddon = false);
+    /// The player's addon whose files are being run, or empty. Frames created
+    /// meanwhile remember it (__ownerAddon).
+    void setLoadingAddon(const std::string& name);
     void writeLuaErrorReport() const;
     /// Errors raised by the client's own interface (FrameXML and the
     /// Blizzard addons in the archives). A player's addon failing is that
@@ -358,6 +363,8 @@ public:
     /// must not take the original UI down with it: this count is what the
     /// interface's validation compares against its baseline.
     [[nodiscard]] uint64_t luaErrorCount() const { return interfaceErrorCount_; }
+    /// The edit box with keyboard focus (widget id), or zero.
+    [[nodiscard]] uint32_t focusedEditWid() const { return focusedWid_; }
 
 private:
     friend class LocalFrameXml; // Controller adapter dispatches the same slider scripts as the mouse.

@@ -1640,11 +1640,20 @@ EmitResult emitFrameXml(const XmlNode& rootIn) {
     if (root.name != "Ui") {
         e.result.warnings.push_back("root element is <" + root.name + ">, expected <Ui>");
     }
+    bool atHead = true;
     for (const XmlNode& node : root.children) {
         if (node.name == "Script") {
-            if (const std::string* file = node.attr("file")) e.result.scriptFiles.push_back(*file);
-            else if (!node.text.empty()) e.result.lua += node.text + "\n";
-        } else if (node.name == "Include") {
+            if (const std::string* file = node.attr("file")) {
+                e.result.scriptFiles.push_back(*file);
+                atHead = false;
+            } else if (!node.text.empty()) {
+                if (atHead) e.result.leadingScripts.push_back(node.text);
+                else e.result.lua += node.text + "\n";
+            }
+            continue;
+        }
+        atHead = false;
+        if (node.name == "Include") {
             if (const std::string* file = node.attr("file")) e.result.includeFiles.push_back(*file);
         } else if (node.name == "Font") {
             e.emitFont(node);

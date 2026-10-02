@@ -4391,6 +4391,18 @@ void Application::update(float deltaTime) {
             if (authHandler) {
                 authHandler->update(deltaTime);
             }
+            // Development: WOWEE_DEV_AUTOENTER=1 (config/env.txt) goes
+            // straight to the standalone realm's first character, so a test
+            // round on the console needs no hand on the controller.
+            if (!devAutoEnterDone_ && std::getenv("WOWEE_DEV_AUTOENTER") &&
+                std::string(std::getenv("WOWEE_DEV_AUTOENTER")) == "1" &&
+                assetManager && assetManager->isInitialized()) {
+                devAutoEnterDelay_ += deltaTime;
+                if (devAutoEnterDelay_ > 2.0f) {
+                    LOG_WARNING("[DEV] WOWEE_DEV_AUTOENTER: opening the standalone realm");
+                    beginLocalCharacterFlow(1, 1, "WoWPS");
+                }
+            }
             break;
 
         case AppState::REALM_SELECTION:
@@ -4411,6 +4423,14 @@ void Application::update(float deltaTime) {
             break;
 
         case AppState::CHARACTER_SELECTION:
+            if (!devAutoEnterDone_ && localCharacterFlow_ && !localSlotCharacters_.empty() &&
+                std::getenv("WOWEE_DEV_AUTOENTER") &&
+                std::string(std::getenv("WOWEE_DEV_AUTOENTER")) == "1") {
+                devAutoEnterDone_ = true;
+                LOG_WARNING("[DEV] WOWEE_DEV_AUTOENTER: entering the world as ",
+                            localSlotCharacters_.front().name);
+                enterLocalCharacter(localSlotCharacters_.front().guid);
+            }
             updateCheckpoint = "char_selection: enter";
             if (gameHandler) {
                 gameHandler->update(deltaTime);

@@ -4430,6 +4430,37 @@ int lua_GetMouseFocus(lua_State* L) {
 ///
 /// Frames only. Textures and font strings are a frame's *regions* in WoW and
 /// come back from GetRegions, which nothing here calls.
+/// Remember a region on the frame that made it (index `frame`), in creation
+/// order: what GetRegions answers. The new region is on top of the stack.
+static void recordRegion(lua_State* L, int frame) {
+    if (!lua_istable(L, frame)) return;
+    lua_getfield(L, frame, "__regions");
+    if (!lua_istable(L, -1)) {
+        lua_pop(L, 1);
+        lua_newtable(L);
+        lua_pushvalue(L, -1);
+        lua_setfield(L, frame, "__regions");
+    }
+    lua_pushvalue(L, -2);
+    lua_rawseti(L, -2, static_cast<int>(lua_objlen(L, -2)) + 1);
+    lua_pop(L, 1);
+}
+
+/// frame:GetRegions() - its textures and font strings, in the order they were
+/// created, which is the client's: a template's inherited regions first, then
+/// the template's own. Addons index into it (ConsolePort takes the sixth
+/// region of ChatConfigCheckButtonTemplate as the label); it was missing.
+int lua_Frame_GetRegions(lua_State* L) {
+    lua_getfield(L, 1, "__regions");
+    if (!lua_istable(L, -1)) return 0;
+    const int list = lua_gettop(L);
+    const int count = static_cast<int>(lua_objlen(L, list));
+    if (!lua_checkstack(L, count + 1)) return 0;
+    for (int i = 1; i <= count; ++i) lua_rawgeti(L, list, i);
+    lua_remove(L, list);
+    return count;
+}
+
 int lua_Frame_GetChildren(lua_State* L) {
     auto* tree = wowee::addons::getWidgetTree(L);
     const uint32_t id = widgetIdOf(L, 1);
@@ -5150,9 +5181,67 @@ int lua_Slider_SetThumbTexture(lua_State* L) {
             // carries a size and no anchors and would otherwise sit centred on
             // the bar forever.
             w->thumbRegion = tid;
+            // GetThumbTexture hands the region back.
+            lua_pushvalue(L, 2);
+            lua_setfield(L, 1, "__thumbTexture");
         }
     }
     return 0;
+}
+
+// slider:GetThumbTexture(): the thumb region. The one SetThumbTexture was
+// given, else FrameXML's <ThumbTexture> ($parentThumbTexture), else a new
+// texture made the slider's thumb - callers style it straight away
+// (ConsolePortKeyboard's scroll bar: GetThumbTexture():SetTexture(...)).
+int lua_Slider_GetThumbTexture(lua_State* L) {
+    lua_settop(L, 1);
+    lua_getfield(L, 1, "__thumbTexture");
+    if (lua_istable(L, -1)) return 1;
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "GetName");
+    if (lua_isfunction(L, -1)) {
+        lua_pushvalue(L, 1);
+        lua_call(L, 1, 1);
+        if (lua_isstring(L, -1)) {
+            const std::string name = std::string(lua_tostring(L, -1)) + "ThumbTexture";
+            lua_pop(L, 1);
+            lua_getglobal(L, name.c_str());
+            if (lua_istable(L, -1)) return 1;
+        }
+    }
+    lua_settop(L, 1);
+    lua_getfield(L, 1, "CreateTexture");
+    if (!lua_isfunction(L, -1)) { lua_pushnil(L); return 1; }
+    lua_pushvalue(L, 1);
+    lua_pushnil(L);
+    lua_pushstring(L, "OVERLAY");
+    lua_call(L, 3, 1);
+    if (!lua_istable(L, -1)) { lua_pushnil(L); return 1; }
+    lua_pushcfunction(L, lua_Slider_SetThumbTexture);
+    lua_pushvalue(L, 1);
+    lua_pushvalue(L, 2);
+    lua_call(L, 2, 0);
+    return 1;
+}
+
+
+// GetCurrentKeyBoardFocus(): the edit box taking keystrokes, or nil.
+int lua_GetCurrentKeyBoardFocus(lua_State* L) {
+    auto* engine = engineFrom(L);
+    const uint32_t wid = engine ? engine->focusedEditWid() : 0;
+    if (wid == 0) { lua_pushnil(L); return 1; }
+    lua_getglobal(L, "__WoweeFramesByWid");
+    if (!lua_istable(L, -1)) { lua_pushnil(L); return 1; }
+    lua_pushinteger(L, static_cast<lua_Integer>(wid));
+    lua_rawget(L, -2);
+    return 1;
+}
+
+// IsMouselooking(): the console's camera is driven by the right stick, never
+// by a held mouse button.
+int lua_IsMouselooking(lua_State* L) {
+    lua_pushboolean(L, 0);
+    return 1;
 }
 
 int lua_StatusBar_GetValue(lua_State* L) {
@@ -5219,6 +5308,7 @@ static int lua_Frame_CreateTexture(lua_State* L) {
     lua_pushvalue(L, 1);
     lua_setfield(L, -2, "__parent");
     installRegionMethods(L, /*isTexture=*/true, /*isFontString=*/false);
+    recordRegion(L, 1);
     if (name && *name) {
         lua_pushvalue(L, -1);
         lua_setglobal(L, name);
@@ -5256,6 +5346,7 @@ static int lua_Frame_CreateFontString(lua_State* L) {
     lua_pushstring(L, "");
     lua_setfield(L, -2, "_text");
     installRegionMethods(L, /*isTexture=*/false, /*isFontString=*/true);
+    recordRegion(L, 1);
     if (name && *name) {
         lua_pushvalue(L, -1);
         lua_setglobal(L, name);
@@ -5388,6 +5479,11 @@ static int lua_CreateFrame(lua_State* L) {
 
     // Create the frame table
     lua_newtable(L);
+    // Made while a player's addon was loading: its scripts' failures are that
+    // addon's (LuaEngine::noteLuaError), not the original interface's.
+    lua_getglobal(L, "__WoweeLoadingAddon");
+    if (lua_isstring(L, -1)) lua_setfield(L, -2, "__ownerAddon");
+    else lua_pop(L, 1);
     // frame[0] is the client's handle to the widget, a userdata in every real
     // frame. Blizzard's secure handlers recognise a frame by it
     // (SecureHandlers.lua IsValidFrame: type(frame[0]) == "userdata"), so
@@ -6237,6 +6333,7 @@ void LuaEngine::registerCoreAPI() {
         {"SetValueStep",          lua_Slider_SetValueStep},
         {"GetValueStep",          lua_Slider_GetValueStep},
         {"SetThumbTexture",       lua_Slider_SetThumbTexture},
+        {"GetThumbTexture",       lua_Slider_GetThumbTexture},
         {"SetColorWheelTexture",      lua_ColorSelect_SetWheelTexture},
         {"SetColorWheelThumbTexture", lua_ColorSelect_SetWheelThumbTexture},
         {"SetColorValueTexture",      lua_ColorSelect_SetValueTexture},
@@ -6283,6 +6380,7 @@ void LuaEngine::registerCoreAPI() {
         {"GetParent",       lua_Region_GetParent},
         {"GetChildren",     lua_Frame_GetChildren},
         {"CreateTexture",   lua_Frame_CreateTexture},
+        {"GetRegions",      lua_Frame_GetRegions},
         {"CreateFontString", lua_Frame_CreateFontString},
         {nullptr, nullptr}
     };
@@ -9099,7 +9197,11 @@ void LuaEngine::fireEvent(const std::string& eventName,
                             std::string ferrStr = ferr ? ferr : "(unknown)";
                             LOG_ERROR("LuaEngine: frame OnEvent error: event=", eventName,
                                       " argc=", args.size(), ": ", ferrStr);
-                            noteLuaError(ferrStr);
+                            // The frame: below its __scripts and the message.
+                            lua_getfield(L_, -3, "__ownerAddon");
+                            const bool userFrame = lua_isstring(L_, -1);
+                            lua_pop(L_, 1);
+                            noteLuaError(ferrStr, userFrame);
         if (luaErrorCallback_) luaErrorCallback_(ferrStr);
                             lua_pop(L_, 1);
                         }
@@ -9306,6 +9408,10 @@ void LuaEngine::installMissingApiFallback() {
     lua_setglobal(L_, "__WoweeRecordMissingApi");
     lua_pushcfunction(L_, lua_CallerIsUserAddon);
     lua_setglobal(L_, "__WoweeCallerIsUserAddon");
+    lua_pushcfunction(L_, lua_IsMouselooking);
+    lua_setglobal(L_, "IsMouselooking");
+    lua_pushcfunction(L_, lua_GetCurrentKeyBoardFocus);
+    lua_setglobal(L_, "GetCurrentKeyBoardFocus");
 
     // Counting functions answer zero rather than nothing.
     //
@@ -9680,7 +9786,14 @@ void LuaEngine::reportMissingApi() const {
     }
 }
 
-void LuaEngine::noteLuaError(const std::string& message) {
+void LuaEngine::setLoadingAddon(const std::string& name) {
+    if (!L_) return;
+    if (name.empty()) lua_pushnil(L_);
+    else lua_pushstring(L_, name.c_str());
+    lua_setglobal(L_, "__WoweeLoadingAddon");
+}
+
+void LuaEngine::noteLuaError(const std::string& message, bool fromUserAddon) {
     if (message.empty()) return;
     auto [it, inserted] = luaErrors_.emplace(message, 0u);
     ++it->second;
@@ -9688,7 +9801,7 @@ void LuaEngine::noteLuaError(const std::string& message) {
     // (the archives' own addons are mpq/interface/addons/...).
     std::string lower = message;
     for (char& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    bool userAddon = false;
+    bool userAddon = fromUserAddon;
     for (size_t at = lower.find("/addons/"); at != std::string::npos; at = lower.find("/addons/", at + 1)) {
         if (at < 13 || lower.compare(at - 13, 13, "mpq/interface") != 0) { userAddon = true; break; }
     }

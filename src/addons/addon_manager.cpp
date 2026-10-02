@@ -1694,6 +1694,15 @@ bool AddonManager::loadXmlFile(const std::string& path, int depth) {
                (name.compare(name.size() - 4, 4, ".lua") == 0 ||
                 name.compare(name.size() - 4, 4, ".LUA") == 0);
     };
+    for (const auto& body : emitted.leadingScripts) {
+        const bool loaded = loadingAddon_.empty()
+            ? luaEngine_.executeSource(body, "@" + path)
+            : luaEngine_.executeAddonSource(body, "@" + path, loadingAddon_);
+        if (!loaded) {
+            if (ok) lastXmlError_ = "script: " + luaEngine_.lastError();
+            ok = false;
+        }
+    }
     for (const auto& inc : emitted.includeFiles) {
         const bool loaded = isLua(inc)
             ? executeSourceFile(sibling(inc).string())
@@ -1748,6 +1757,13 @@ bool AddonManager::loadXmlFile(const std::string& path, int depth) {
     return ok;
 }
 
+// A Blizzard addon shipped in the archives, as opposed to a player's.
+static bool isArchiveAddon(const TocFile& addon) {
+    std::string base = addon.basePath;
+    for (char& c : base) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return base.rfind("mpq/", 0) == 0 || base.find("/mpq/") != std::string::npos;
+}
+
 bool AddonManager::loadAddon(const TocFile& addon) {
     // Load SavedVariables before addon code (so globals are available at load time)
     auto savedVars = addon.getSavedVariables();
@@ -1770,10 +1786,15 @@ bool AddonManager::loadAddon(const TocFile& addon) {
     // <Script file> - belongs to it, until the loop below is done.
     struct AddonScope {
         std::string& slot;
+        LuaEngine& engine;
         std::string saved;
-        AddonScope(std::string& s, const std::string& name) : slot(s), saved(s) { slot = name; }
-        ~AddonScope() { slot = saved; }
-    } scope(loadingAddon_, addon.addonName);
+        AddonScope(std::string& s, LuaEngine& e, const std::string& name, bool user)
+            : slot(s), engine(e), saved(s) {
+            slot = name;
+            engine.setLoadingAddon(user ? name : std::string());
+        }
+        ~AddonScope() { slot = saved; engine.setLoadingAddon(std::string()); }
+    } scope(loadingAddon_, luaEngine_, addon.addonName, !isArchiveAddon(addon));
 
     bool success = true;
     for (const auto& filename : addon.files) {

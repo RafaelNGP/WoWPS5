@@ -27,6 +27,11 @@ struct EmitResult {
     /// order they appeared. The caller loads them; resolving paths is its job,
     /// not the emitter's.
     std::vector<std::string> scriptFiles;
+    /// Inline <Script> bodies at the head of the document, before any other
+    /// element: they run first, in order, as the client reads the file.
+    /// ConsolePort's Plugins.xml defines AddPlugin inline and then names the
+    /// files that call it; folded into `lua`, the body ran after them.
+    std::vector<std::string> leadingScripts;
     std::vector<std::string> includeFiles;
     std::vector<std::string> warnings;
 };
