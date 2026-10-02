@@ -851,6 +851,18 @@ int lua_Region_GetTextHeight(lua_State* L) {
     return 1;
 }
 
+int lua_Region_GetHeight(lua_State* L);
+int lua_Region_GetWidth(lua_State* L);
+
+// region:GetSize() -> width, height. Was absent, so it answered the widget
+// no-op's single nil and `local x, y = self:GetSize()` failed on y.
+int lua_Region_GetSize(lua_State* L) {
+    lua_settop(L, 1);
+    lua_Region_GetWidth(L);   // reads index 1, pushes the width
+    lua_Region_GetHeight(L);  // reads index 1, pushes the height
+    return 2;
+}
+
 int lua_Region_GetWidth(lua_State* L) {
     const auto* w = measuredWidgetOf(L, 1);
     // In the frame's own units, which is what WoW reports: the laid-out rect
@@ -4082,6 +4094,7 @@ void populateRegionMethods(lua_State* L, bool isTexture, bool isFontString) {
     set("SetWidth", lua_Region_SetWidth);
     set("SetHeight", lua_Region_SetHeight);
     set("GetWidth", lua_Region_GetWidth);
+    set("GetSize", lua_Region_GetSize);
     set("GetTextWidth", lua_Region_GetTextWidth);
     set("GetStringWidth", lua_Region_GetTextWidth);
     set("GetTextHeight", lua_Region_GetTextHeight);
@@ -6053,6 +6066,7 @@ void LuaEngine::registerCoreAPI() {
         {"SetMinResize",    lua_Frame_SetMinResize},
         {"SetMaxResize",    lua_Frame_SetMaxResize},
         {"GetWidth",        lua_Region_GetWidth},
+        {"GetSize",         lua_Region_GetSize},
         {"SetScale",        lua_Region_SetScale},
         {"GetScale",        lua_Region_GetScale},
         {"GetEffectiveScale", lua_Region_GetEffectiveScale},
@@ -6407,6 +6421,7 @@ void LuaEngine::registerCoreAPI() {
         // nothing and stayed on screen forever.
         "function animMeta:SetScript(k, f) self[k] = f end\n"
         "function animMeta:GetScript(k) return self[k] end\n"
+        "function animMeta:HasScript(k) return type(k) == 'string' and string.find(k, '^On%u') ~= nil end\n"
         "function animMeta:GetRegionParent() return self.group and self.group.parent end\n"
         "function animMeta:SetOrder(o) self.order = o or 1 end\n"
         "function animMeta:GetOrder() return self.order or 1 end\n"
@@ -6471,6 +6486,7 @@ void LuaEngine::registerCoreAPI() {
         "function animMeta:GetOrder() return self.order or 1 end\n"
         "function animMeta:SetScript(k, f) self[k] = f end\n"
         "function animMeta:GetScript(k) return self[k] end\n"
+        "function animMeta:HasScript(k) return type(k) == 'string' and string.find(k, '^On%u') ~= nil end\n"
 
         "local groupMeta = {}\n"
         "groupMeta.__index = groupMeta\n"
@@ -6488,6 +6504,7 @@ void LuaEngine::registerCoreAPI() {
         "function groupMeta:IsDone() return self.isPlaying ~= true end\n"
         "function groupMeta:SetScript(k, f) self[k] = f end\n"
         "function groupMeta:GetScript(k) return self[k] end\n"
+        "function groupMeta:HasScript(k) return type(k) == 'string' and string.find(k, '^On%u') ~= nil end\n"
         "function groupMeta:HookScript(k, f)\n"
         "    local prev = self[k]\n"
         "    self[k] = function(...) if prev then prev(...) end f(...) end\n"
