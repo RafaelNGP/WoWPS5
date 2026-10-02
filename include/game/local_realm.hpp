@@ -155,6 +155,8 @@ public:
     void setLocalZone(uint32_t zoneId);
     bool reclaimCorpse();
     bool canReclaimCorpse() const;
+    /// A ghost at a Spirit Healer, who revives it there (ReclaimCorpse).
+    bool nearSpiritHealer() const;
     bool setGraveyards(const std::vector<LocalGraveyardSite>& sites);
     bool interact(uint64_t npcGuid);
     bool switchVehicleSeat(uint8_t seat);

@@ -4513,12 +4513,17 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
     if(cmd.action==LocalAction::ReclaimCorpse) {
         if(cmd.target || cmd.id || cmd.bid || cmd.buyout || cmd.durationMinutes || cmd.serviceNpcGuid)
             return reject("Reclaiming your corpse takes no arguments");
-        if(!localCanReclaimCorpse(p))return reject("Move within 10 yards of your corpse");
-        p.x=p.corpseX;p.y=p.corpseY;p.z=p.corpseZ;p.orientation=p.corpseOrientation;
+        // At a Spirit Healer the spirit is revived where it stands, which is
+        // what makes a body that fell somewhere unreachable survivable. WoW
+        // adds Resurrection Sickness above level 10; there is none here yet.
+        const bool atHealer=!localCanReclaimCorpse(p) && localNearSpiritHealer(p,g.npcs);
+        if(!localCanReclaimCorpse(p) && !atHealer)
+            return reject("Move within 10 yards of your corpse, or talk to the Spirit Healer");
+        if(!atHealer){p.x=p.corpseX;p.y=p.corpseY;p.z=p.corpseZ;p.orientation=p.corpseOrientation;}
         p.dead=false;p.ghost=false;p.corpseValid=false;p.deadTimer=0;
         p.attackTarget=0;p.portalCooldown=2;++p.positionRevision;finishLocalTeleport(p);
         stats(p,c,true);p.health=std::max(1u,p.maxHealth/2);p.mana=p.maxMana/2;
-        g.regionTimer=1;result="Returned to your body";return true;
+        g.regionTimer=1;result=atHealer?"The Spirit Healer has returned you to life":"Returned to your body";return true;
     }
     if(cmd.action==LocalAction::Respawn) {
         if(!p.dead)return reject("You are alive");
@@ -6398,7 +6403,29 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
     // deepest instance floors are far above it - so a character at this depth
     // has left the world rather than gone somewhere low.
     for (auto* p : players) {
-        if (!p || p->dead || !std::isfinite(p->z) || p->z > kLocalWorldFloorZ) continue;
+        if (!p || !std::isfinite(p->z) || p->z > kLocalWorldFloorZ) continue;
+        // A ghost that fell out of the world goes back to the graveyard by its
+        // body, where its Spirit Healer is: it was skipped here, and fell for
+        // good. A body lying dead keeps its place for the release that follows.
+        if (p->dead && !p->ghost) continue;
+        if (p->dead && p->ghost) {
+            const uint32_t raceBit=p->race>0&&p->race<=32 ? 1u<<(p->race-1) : 0;
+            const LocalGraveyardSite* best=nullptr;float bestDistance=std::numeric_limits<float>::max();
+            const float ox=p->corpseValid?p->corpseX:p->x, oy=p->corpseValid?p->corpseY:p->y;
+            const uint32_t map=p->corpseValid?p->corpseMapId:p->mapId;
+            for(const auto& site:g.graveyards){
+                if(site.mapId!=map || (site.raceMask && !(site.raceMask&raceBit)))continue;
+                const float dx=site.x-ox,dy=site.y-oy,d=dx*dx+dy*dy;
+                if(d<bestDistance){best=&site;bestDistance=d;}
+            }
+            if(best){
+                p->mapId=best->mapId;p->instanceId=0;p->x=best->x;p->y=best->y;p->z=best->z;p->orientation=best->orientation;
+                ++p->positionRevision;finishLocalTeleport(*p);p->portalCooldown=2;g.regionTimer=1;changed=true;
+                LOG_WARNING("[LOCAL_RESCUE] a ghost fell out of the world; back at the graveyard map=",p->mapId,
+                            " xyz=",p->x,",",p->y,",",p->z);
+                continue;
+            }
+        }
         const bool hadReturn = p->hasInstanceReturn;
         // Where to. An instance return point is the door they came in by; a
         // bound inn is the home they chose; the world start is where every

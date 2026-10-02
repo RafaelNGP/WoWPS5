@@ -4446,6 +4446,7 @@ bool LocalRealm::respawn() { return command({LocalAction::Respawn, 0, 0}); }
 void LocalRealm::setLocalZone(uint32_t zoneId) { if(zoneId<=100000 && !impl_->self.dead)impl_->self.zoneId=zoneId; }
 bool LocalRealm::reclaimCorpse() { return command({LocalAction::ReclaimCorpse}); }
 bool LocalRealm::canReclaimCorpse()const { return ready() && localCanReclaimCorpse(impl_->self); }
+bool LocalRealm::nearSpiritHealer()const { return ready() && localNearSpiritHealer(impl_->self,impl_->gameplay.npcs()); }
 bool LocalRealm::setGraveyards(const std::vector<LocalGraveyardSite>& sites) { return impl_->gameplay.setGraveyards(sites,impl_->error); }
 bool LocalRealm::interact(uint64_t guid) { return command({LocalAction::Interact, guid, 0}); }
 bool LocalRealm::aimVehicle(float yaw,float pitch) {

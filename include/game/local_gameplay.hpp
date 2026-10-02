@@ -2024,6 +2024,24 @@ inline bool localCanReclaimCorpse(const LocalRealmPlayer& p) {
     const float dx=p.x-p.corpseX,dy=p.y-p.corpseY,dz=p.z-p.corpseZ;
     return std::isfinite(dx+dy+dz) && dx*dx+dy*dy+dz*dz <= kLocalCorpseReclaimRadius*kLocalCorpseReclaimRadius;
 }
+/// A ghost standing at a Spirit Healer, which in WoW is the way back when the
+/// body cannot be reached: the angel revives the spirit where it stands.
+/// Spirit Healer is creature 6491; the battleground Spirit Guides are not it.
+inline constexpr float kLocalSpiritHealerRadius = 12.0f;
+template <class Npcs>
+inline bool localNearSpiritHealer(const LocalRealmPlayer& p, const Npcs& npcs) {
+    if (!p.dead || !p.ghost) return false;
+    for (const auto& n : npcs) {
+        if (n.entry != 6491 || n.mapId != p.mapId || n.instanceId != p.instanceId) continue;
+        // Across the ground, with room for height: the angel floats over a
+        // raised dais, well above the spirit standing at its foot.
+        const float dx=p.x-n.x,dy=p.y-n.y,dz=p.z-n.z;
+        if (std::isfinite(dx+dy+dz) && dx*dx+dy*dy <= kLocalSpiritHealerRadius*kLocalSpiritHealerRadius &&
+            std::abs(dz) <= 20.0f)
+            return true;
+    }
+    return false;
+}
 inline void localCaptureCorpse(LocalRealmPlayer& p) {
     if (!p.dead || p.corpseValid) return;
     p.corpseValid=true;p.ghost=false;p.corpseMapId=p.mapId;p.corpseInstanceId=p.instanceId;

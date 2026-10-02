@@ -1287,10 +1287,12 @@ void Application::renderLocalRealmOverlay() {
         const char* hint = !self.ghost ? "You have died. Releasing your spirit..." :
             localRealm_->canReclaimCorpse() ? "Square / 1: Reclaim your corpse" :
             "Return to your corpse. Press Square / 1 when nearby to revive.";
-        if (self.ghost && !localRealm_->canReclaimCorpse() && corpseYards >= 0.0f) {
+        if (self.ghost && !localRealm_->canReclaimCorpse() && localRealm_->nearSpiritHealer()) {
+            hint = "Square / 1: Let the Spirit Healer return you to life here";
+        } else if (self.ghost && !localRealm_->canReclaimCorpse() && corpseYards >= 0.0f) {
             std::snprintf(ghostHint, sizeof(ghostHint),
-                          "Return to your corpse (%.0f yd, follow the marker on the minimap). "
-                          "Press Square / 1 when nearby to revive.", corpseYards);
+                          "Return to your corpse (%.0f yd, follow the marker on the minimap) and press "
+                          "Square / 1, or revive at the Spirit Healer.", corpseYards);
             hint = ghostHint;
         }
         const ImVec2 size=ImGui::CalcTextSize(hint);
