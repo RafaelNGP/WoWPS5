@@ -574,6 +574,37 @@ bool GameHandler::syncLocalRealmPlayer(const LocalRealmPlayer& snapshot, const L
             levelUpCallback_(snapshot.level);
             LOG_INFO("[LOCAL_PRESENTATION] level-up level=", unsigned(snapshot.level));
         }
+        // The interface hears about level and experience as the server's
+        // client would: the level-up played its effect and sound and told
+        // nobody, so the portrait kept the old level and the experience bar
+        // never moved. Gains are against the last snapshot this saw.
+        {
+            static uint32_t lastLevel = 0, lastXp = UINT32_MAX, lastMaxHp = 0, lastMaxMana = 0;
+            static uint64_t lastGuid = 0;
+            if (lastGuid != snapshot.guid) {
+                lastGuid = snapshot.guid; lastLevel = snapshot.level; lastXp = snapshot.xp;
+                lastMaxHp = snapshot.maxHealth; lastMaxMana = snapshot.maxMana;
+            }
+            if (snapshot.level != lastLevel) {
+                if (snapshot.level > lastLevel) {
+                    const auto gain = [](uint32_t now, uint32_t was) {
+                        return std::to_string(now > was ? now - was : 0u);
+                    };
+                    fireAddonEvent("PLAYER_LEVEL_UP", {std::to_string(snapshot.level),
+                        gain(snapshot.maxHealth, lastMaxHp), gain(snapshot.maxMana, lastMaxMana),
+                        snapshot.level >= 10 ? "1" : "0", "0", "0", "0", "0", "0"});
+                }
+                fireAddonEvent("UNIT_LEVEL", {"player"});
+                fireAddonEvent("UNIT_MAXHEALTH", {"player"});
+                fireAddonEvent("UNIT_MAXMANA", {"player"});
+                lastLevel = snapshot.level;
+            }
+            if (snapshot.xp != lastXp) {
+                fireAddonEvent("PLAYER_XP_UPDATE", {"player"});
+                lastXp = snapshot.xp;
+            }
+            lastMaxHp = snapshot.maxHealth; lastMaxMana = snapshot.maxMana;
+        }
         const auto progress = localProgressPresentation_.observe(snapshot);
         if (auto* audio = services_.audioCoordinator) if (auto* ui = audio->getUiSoundManager()) {
             if (progress.questRewarded) ui->playQuestComplete();

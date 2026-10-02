@@ -1280,6 +1280,28 @@ void Application::renderLocalRealmOverlay() {
             }
         }
     }
+    // The controller scheme says when it changes, and warns while the pair
+    // that changes it is held: a switch nobody saw left the pad in this
+    // client's own scheme, which reads as ConsolePort being broken.
+    if (platform::ps4::padConnected()) {
+        char notice[128] = {0};
+        const uint32_t held = platform::ps4::consolePortToggleHeldMs();
+        const uint32_t age = platform::ps4::consolePortModeAgeMs();
+        if (held >= 800) {
+            std::snprintf(notice, sizeof(notice), "Keep holding L3+R3 to switch controller mode... %.0f",
+                          std::ceil((5000.0f - float(held)) / 1000.0f));
+        } else if (age < 4000) {
+            std::snprintf(notice, sizeof(notice), platform::ps4::consolePortMode()
+                ? "ConsolePort controls ON" : "ConsolePort controls OFF - hold L3+R3 for 5 s to turn back on");
+        }
+        if (notice[0]) {
+            auto* d = ImGui::GetForegroundDrawList();
+            const ImVec2 sz = ImGui::CalcTextSize(notice);
+            const ImVec2 at((io.DisplaySize.x - sz.x) * .5f, io.DisplaySize.y * .18f);
+            d->AddRectFilled(ImVec2(at.x - 12, at.y - 8), ImVec2(at.x + sz.x + 12, at.y + sz.y + 8), IM_COL32(10, 14, 22, 220), 6);
+            d->AddText(at, IM_COL32(255, 220, 130, 255), notice);
+        }
+    }
     if (self.dead) {
         // A passive hint must not capture keyboard/gamepad navigation: the
         // released ghost needs to walk back from the graveyard immediately.

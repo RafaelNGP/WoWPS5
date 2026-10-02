@@ -209,6 +209,10 @@ const PadState& padState();
 /// for two seconds switches between that and this client's own scheme.
 void setConsolePortAvailable(bool available);
 bool consolePortMode();
+/// Milliseconds since L3+R3 last switched the mode (UINT32_MAX if never), and
+/// how long the pair has been held towards the next switch (0 if not held).
+uint32_t consolePortModeAgeMs();
+uint32_t consolePortToggleHeldMs();
 
 /// Whether a pad was opened. The ImGui backend advertises a gamepad on it.
 bool padConnected();

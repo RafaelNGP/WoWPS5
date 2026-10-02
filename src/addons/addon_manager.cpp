@@ -1883,6 +1883,18 @@ if type(ConsolePort) == 'table' and type(ConsolePort.LoadSettings) == 'function'
     }
     for button, key in pairs(keys) do s.calibration[button] = key end
     if not s.stickRadialType or s.stickRadialType == 0 then s.stickRadialType = 2 end
+    -- R1 targets, as console players expect, and the hotbar slot it held
+    -- moves to L1+R1 where targeting was. Once per character, on the sets the
+    -- addon has already saved; a set that was rebound by hand is left alone.
+    if type(ConsolePortBindingSet) == 'table' and not s.wowpsR1Target then
+      for _, set in pairs(ConsolePortBindingSet) do
+        local t1 = type(set) == 'table' and set.CP_T1
+        if type(t1) == 'table' and t1['SHIFT-'] == 'TARGETNEARESTENEMY' then
+          t1['SHIFT-'], t1[''] = t1[''], 'TARGETNEARESTENEMY'
+        end
+      end
+      s.wowpsR1Target = true
+    end
     s.skipCP_T3, s.skipCP_T4, s.skipCP_T5, s.skipCP_T6 = true, true, true, true
     return load(self, ...)
   end

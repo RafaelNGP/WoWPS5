@@ -268,6 +268,7 @@ uint32_t devPadButtonsNow(uint32_t now) {
 }
 
 bool s_consolePortMode = false;
+uint32_t s_consolePortModeChangedMs = 0;   // when L3+R3 last switched it, for the notice
 bool s_consolePortAvailable = false;
 uint32_t s_consolePortToggleSinceMs = 0;
 PadState s_neutralPad;
@@ -289,10 +290,13 @@ constexpr ConsolePortKey kConsolePortKeys[] = {
     {ORBIS_PAD_BUTTON_R2,       SDL_SCANCODE_F2},   // CP_T2 (CP_TR2)
     {ORBIS_PAD_BUTTON_L3,       SDL_SCANCODE_F3},   // CP_T_L3
     {ORBIS_PAD_BUTTON_R3,       SDL_SCANCODE_F4},   // CP_T_R3
-    {ORBIS_PAD_BUTTON_OPTIONS,  SDL_SCANCODE_PAGEDOWN}, // CP_X_RIGHT
+    // Options is the game menu, as on every console game: ConsolePort's guide
+    // button (CP_X_CENTER), which a PS5 app cannot have - the system takes
+    // PS. Its own Options slot (CP_X_RIGHT, the map) moves to the touchpad.
+    {ORBIS_PAD_BUTTON_OPTIONS,  SDL_SCANCODE_PAGEUP},   // CP_X_CENTER
 };
 constexpr uint32_t kConsolePortToggleButtons = ORBIS_PAD_BUTTON_L3 | ORBIS_PAD_BUTTON_R3;
-constexpr uint32_t kConsolePortToggleHoldMs = 2000;
+constexpr uint32_t kConsolePortToggleHoldMs = 5000;  // long: L3 and R3 are also the clicks
 int s_wheelDir = 0;               // +1 up, -1 down, 0 idle
 uint32_t s_wheelNextMs = 0;
 float s_wheelThisFrame = 0.0f;
@@ -729,9 +733,10 @@ void pumpConsolePort(float dt) {
             if (st.buttons & k.button) want[static_cast<size_t>(k.key)] = true;
         // The touchpad click is two buttons, split down the middle: the left
         // half is the DualSense's missing Create button (CP_X_LEFT), the right
-        // half the guide button (CP_X_CENTER).
+        // half ConsolePort's Options slot (CP_X_RIGHT, the map), since the real
+        // Options button is the game menu here.
         if (st.buttons & ORBIS_PAD_BUTTON_TOUCH_PAD)
-            want[s_touchNormX < 0.5f ? SDL_SCANCODE_INSERT : SDL_SCANCODE_PAGEUP] = true;
+            want[s_touchNormX < 0.5f ? SDL_SCANCODE_INSERT : SDL_SCANCODE_PAGEDOWN] = true;
         // Modifiers, held: L1 is SHIFT (CP_M1 = CP_TL1), L2 is CTRL (CP_M2).
         if (st.buttons & ORBIS_PAD_BUTTON_L1) want[SDL_SCANCODE_LSHIFT] = true;
         if ((st.buttons & ORBIS_PAD_BUTTON_L2) || st.l2 > 0.5f) want[SDL_SCANCODE_LCTRL] = true;
@@ -898,6 +903,7 @@ void pumpInput() {
             else if (s_consolePortToggleSinceMs != UINT32_MAX &&
                      nowTick - s_consolePortToggleSinceMs >= kConsolePortToggleHoldMs) {
                 s_consolePortMode = !s_consolePortMode;
+                s_consolePortModeChangedMs = nowTick;
                 s_consolePortToggleSinceMs = UINT32_MAX;  // once per hold
                 LOG_WARNING("[CONSOLEPORT] pad mode ", s_consolePortMode ? "on" : "off",
                             " (L3+R3 held)");
@@ -1167,6 +1173,13 @@ void setConsolePortAvailable(bool available) {
 }
 
 bool consolePortMode() { return s_consolePortMode; }
+uint32_t consolePortModeAgeMs() {
+    return s_consolePortModeChangedMs ? nowMs() - s_consolePortModeChangedMs : UINT32_MAX;
+}
+uint32_t consolePortToggleHeldMs() {
+    return (s_consolePortToggleSinceMs && s_consolePortToggleSinceMs != UINT32_MAX)
+        ? nowMs() - s_consolePortToggleSinceMs : 0;
+}
 bool padConnected() { return s_padConnected; }
 
 void holdSyntheticKey(SDL_Scancode scancode, bool down) {
