@@ -164,10 +164,12 @@ std::optional<float> movingEntityFloor(rendering::Renderer* renderer,
     // approximateZ: the standalone realm has no navmesh, so its walkers keep
     // the height of where they started (local_bots.cpp, the creature roam).
     // That Z is only a hint: on a slope the real ground is soon more than a
-    // step away, and the model was drawn sunk into the hill or floating off it.
-    // Search a wider window around it, still taking the floor nearest to it.
-    const float kMaxStepUp = approximateZ ? 6.0f : 1.5f;
-    const float kMaxGroundDrop = approximateZ ? 6.0f : 3.0f;
+    // step away, and the model was drawn sunk into the hill or floating off it
+    // (with its name plate). Bots roam 45 yards from home (local_bots.hpp), so
+    // the window covers a hillside, still taking the floor nearest to the hint
+    // so a roof or a bridge above is not chosen over the ground.
+    const float kMaxStepUp = approximateZ ? 40.0f : 1.5f;
+    const float kMaxGroundDrop = approximateZ ? 40.0f : 3.0f;
     const float probeZ = renderPos.z + kMaxStepUp;
     std::optional<float> best;
 
