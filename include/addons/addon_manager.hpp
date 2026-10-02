@@ -98,6 +98,8 @@ public:
     bool reload();
 
 private:
+    /// The addon whose files are being run (loadAddon), empty otherwise.
+    std::string loadingAddon_;
     std::string originalRecoveryPath_;
     bool originalSessionArmed_ = false;
     uint64_t originalErrorBaseline_ = 0;

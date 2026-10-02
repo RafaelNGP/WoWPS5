@@ -91,6 +91,11 @@ public:
     bool executeFile(const std::string& path);
     bool executeString(const std::string& code);
     bool executeSource(const std::string& code, const std::string& sourceName);
+    /// Run one of an addon's own files the way the 3.3.5a client does: the
+    /// chunk receives `...` = (addonName, addonTable), the table private to
+    /// that addon and shared by all its files (`local name, ns = ...`).
+    bool executeAddonSource(const std::string& code, const std::string& sourceName,
+                            const std::string& addonName);
 
     /// Run a Lua expression and answer whether it came out true.
     ///

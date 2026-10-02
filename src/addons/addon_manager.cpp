@@ -1542,7 +1542,11 @@ bool AddonManager::executeSourceFile(const std::string& path) {
     const auto text = interfaceSource_.read(path);
     if (!text) { LOG_ERROR("[FRAMEXML_SOURCE] missing/oversized: ", path); return false; }
     frameXmlCheckpoint("Lua compile/execute", path.c_str());
-    const bool loaded = luaEngine_.executeSource(*text, "@" + path);
+    // An addon's own files get its (name, private table) as `...`; FrameXML
+    // and the client's own chunks run outside any addon.
+    const bool loaded = loadingAddon_.empty()
+        ? luaEngine_.executeSource(*text, "@" + path)
+        : luaEngine_.executeAddonSource(*text, "@" + path, loadingAddon_);
     frameXmlCheckpoint(loaded ? "Lua complete" : "Lua failed", path.c_str());
     return loaded;
 }
@@ -1739,6 +1743,15 @@ bool AddonManager::loadAddon(const TocFile& addon) {
             LOG_DEBUG("AddonManager: loaded per-character saved variables for '", addon.addonName, "'");
         }
     }
+
+    // Every Lua file this addon runs - from its .toc or through an XML
+    // <Script file> - belongs to it, until the loop below is done.
+    struct AddonScope {
+        std::string& slot;
+        std::string saved;
+        AddonScope(std::string& s, const std::string& name) : slot(s), saved(s) { slot = name; }
+        ~AddonScope() { slot = saved; }
+    } scope(loadingAddon_, addon.addonName);
 
     bool success = true;
     for (const auto& filename : addon.files) {

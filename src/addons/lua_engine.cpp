@@ -314,6 +314,15 @@ static int lua_Frame_SetScript(lua_State* L) {
 }
 
 // Frame method: frame:GetScript("handler")
+// frame:HasScript("OnClick"): whether the widget supports that handler. Every
+// handler is stored the same way here, so any On* name is supported; addons
+// (ConsolePort's mixins) only install scripts the widget says it takes.
+static int lua_Frame_HasScript(lua_State* L) {
+    const char* name = luaL_optstring(L, 2, "");
+    lua_pushboolean(L, name && name[0] == 'O' && name[1] == 'n' && name[2] >= 'A' && name[2] <= 'Z');
+    return 1;
+}
+
 static int lua_Frame_GetScript(lua_State* L) {
     luaL_checktype(L, 1, LUA_TTABLE);
     const char* scriptType = luaL_checkstring(L, 2);
@@ -5309,6 +5318,22 @@ static int lua_GetScreenHeight(lua_State* L) {
 /// Records a global FrameXML or an addon asked for and did not find. Logged
 /// once per name; the set is reported at shutdown so the gap can be read off a
 /// run rather than guessed at.
+/// Whether the code that just indexed _G is a player's addon rather than the
+/// client's own interface: its chunk comes from an AddOns directory on disk,
+/// not from the archives. Level 0 is this function, 1 the __index handler, 2
+/// the code doing the lookup.
+static int lua_CallerIsUserAddon(lua_State* L) {
+    lua_Debug ar;
+    bool user = false;
+    if (lua_getstack(L, 2, &ar) && lua_getinfo(L, "S", &ar) && ar.source && ar.source[0] == '@') {
+        std::string source(ar.source + 1);
+        for (char& c : source) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        user = source.rfind("mpq/", 0) != 0 && source.find("/addons/") != std::string::npos;
+    }
+    lua_pushboolean(L, user);
+    return 1;
+}
+
 static int lua_RecordMissingApi(lua_State* L) {
     const char* name = luaL_optstring(L, 1, "");
     if (name && *name) {
@@ -5962,6 +5987,7 @@ void LuaEngine::registerCoreAPI() {
         {"UnregisterAllEvents", lua_Frame_UnregisterAllEvents},
         {"SetScript",       lua_Frame_SetScript},
         {"GetScript",       lua_Frame_GetScript},
+        {"HasScript",       lua_Frame_HasScript},
         {"GetName",         lua_Frame_GetName},
         {"Show",            lua_Region_Show},
         {"Hide",            lua_Region_Hide},
@@ -6865,6 +6891,7 @@ void LuaEngine::registerCoreAPI() {
     // anything else is data and answers nil, which is what it would be.
     bootstrap(
         "__WoweeWidgetMethods = {\n"
+        "SetGradientAlpha=1,SetGradient=1,\n"
         "AddDoubleLine=1,AddHistoryLine=1,AddLine=1,AddMessage=1,AddTexture=1,\n"
         "AddToAutoHide=1,AllowAttributeChanges=1,Animate=1,\n"
         "CallMethod=1,CanSaveTabardNow=1,ChildUpdate=1,Clear=1,ClearAllPoints=1,\n"
@@ -9233,6 +9260,8 @@ void LuaEngine::installMissingApiFallback() {
 
     lua_pushcfunction(L_, lua_RecordMissingApi);
     lua_setglobal(L_, "__WoweeRecordMissingApi");
+    lua_pushcfunction(L_, lua_CallerIsUserAddon);
+    lua_setglobal(L_, "__WoweeCallerIsUserAddon");
 
     // Counting functions answer zero rather than nothing.
     //
@@ -9298,6 +9327,9 @@ void LuaEngine::installMissingApiFallback() {
     // where a number or a string was wanted turns a missing value into a
     // confusing type error further away. Those stay nil. UpperCamelCase is a
     // function, and gets one that does nothing.
+    // The client puts strtrim on the string table too, so ("x"):trim() works;
+    // addons written against later clients rely on the method form.
+    bootstrap("if strtrim and not string.trim then string.trim = strtrim end\n");
     bootstrap(
         // Callable, and every field of it is a method answering nil.
         //
@@ -9382,6 +9414,14 @@ void LuaEngine::installMissingApiFallback() {
         // to action button eleven - and the answer is nil, not an object that
         // the caller then tries to concatenate. Two files died on that one.
         "  if string.find(k, '[^%w_]') then return nil end\n"
+        // A player's addon gets the real client's answer: a global that does
+        // not exist is nil. Addons written for several client versions
+        // feature-detect on exactly that - `if QuestMapFrame then` - and the
+        // stand-in made a 3.3.5a client look like a later one to them
+        // (ConsolePortLK indexed QuestMapFrame.DetailsFrame and stopped).
+        // The stand-in stays for the client's own FrameXML, which it was
+        // written for.
+        "  if __WoweeCallerIsUserAddon() then return nil end\n"
         "  if not seen[k] then seen[k] = true; __WoweeRecordMissingApi(k) end\n"
         "  return missing\n"
         "end })\n");
@@ -11943,6 +11983,49 @@ bool LuaEngine::evaluateBoolean(const std::string& expression) {
 
 bool LuaEngine::executeString(const std::string& code) {
     return executeSource(code, code);
+}
+
+bool LuaEngine::executeAddonSource(const std::string& code, const std::string& sourceName,
+                                   const std::string& addonName) {
+    if (!L_) return false;
+    BudgetGuard guard(L_, chunkTimeoutMs_);
+    const int base = lua_gettop(L_);
+    lua_pushcfunction(L_, luaTracebackHandler);
+    int err = luaL_loadbuffer(L_, code.c_str(), code.size(), sourceName.c_str());
+    if (err == 0) {
+        // The private table lives in the registry, one per addon name, made on
+        // the addon's first file and handed to every later one.
+        lua_pushstring(L_, addonName.c_str());
+        lua_getfield(L_, LUA_REGISTRYINDEX, "WOWPS_ADDON_TABLES");
+        if (!lua_istable(L_, -1)) {
+            lua_pop(L_, 1);
+            lua_newtable(L_);
+            lua_pushvalue(L_, -1);
+            lua_setfield(L_, LUA_REGISTRYINDEX, "WOWPS_ADDON_TABLES");
+        }
+        lua_getfield(L_, -1, addonName.c_str());
+        if (!lua_istable(L_, -1)) {
+            lua_pop(L_, 1);
+            lua_newtable(L_);
+            lua_pushvalue(L_, -1);
+            lua_setfield(L_, -3, addonName.c_str());
+        }
+        lua_remove(L_, -2);  // the registry's table of tables
+        err = lua_pcall(L_, 2, 0, base + 1);
+    }
+    lua_remove(L_, base + 1);
+    if (err != 0) {
+        const char* errMsg = lua_tostring(L_, -1);
+        std::string msg = errMsg ? errMsg : "(unknown error)";
+        lastError_ = msg;
+        LOG_ERROR("LuaEngine: script error: ", msg);
+        noteLuaError(msg);
+        if (luaErrorCallback_) luaErrorCallback_(msg);
+        lua_settop(L_, base);
+        return false;
+    }
+    lua_settop(L_, base);
+    return true;
 }
 
 bool LuaEngine::executeSource(const std::string& code, const std::string& sourceName) {
