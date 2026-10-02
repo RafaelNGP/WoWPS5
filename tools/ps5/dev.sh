@@ -30,9 +30,11 @@ fi
 
 out=$root/../logs/run-$(date +%H%M%S)
 mkdir -p "$out"
-"$ps5" run "$title" "$app/boot_startup.log" 'WOWPS_DEV_NEVER_MATCHES' "$seconds" "$out/boot_startup.log" || true
+# Logs: /data/wow_ps once the app's sandbox is elevated, else the app folder.
+"$ps5" run "$title" /data/wow_ps/boot_startup.log 'WOWPS_DEV_NEVER_MATCHES' "$seconds" "$out/boot_startup.log" || true
 for f in wowps/logs/boot.log wowps/logs/wowps.log; do
-    "$ps5" get "$app/$f" "$out/${f##*/}" > /dev/null 2>&1 || true
+    "$ps5" get "/data/wow_ps/$f" "$out/${f##*/}" > /dev/null 2>&1 ||
+        "$ps5" get "$app/$f" "$out/${f##*/}" > /dev/null 2>&1 || true
 done
 echo "logs: $out"
 tail -5 "$out/boot.log" 2>/dev/null || tail -5 "$out/boot_startup.log"
