@@ -6400,10 +6400,22 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
             p->x = p->homeX; p->y = p->homeY; p->z = p->homeZ;
             p->orientation = p->homeOrientation;
         } else {
+            // The character's own start - the race and class pair's, as at
+            // creation - and the content-wide one only when the catalog has
+            // none. The content start is Northshire, and a night elf who fell
+            // through Teldrassil came back up among the kobolds of Elwynn.
             const auto& start = g.content->start;
             p->mapId = start.mapId; p->instanceId = 0;
             p->x = start.x; p->y = start.y; p->z = start.z;
             p->orientation = start.orientation;
+            if (g.content->catalog) {
+                for (const auto& own : g.content->catalog->starts()) {
+                    if (own.race != p->race || own.classId != p->classId) continue;
+                    p->mapId = own.mapId; p->x = own.x; p->y = own.y; p->z = own.z;
+                    p->orientation = own.orientation;
+                    break;
+                }
+            }
         }
         // Whatever they were doing is over. A cast or a swing left running
         // against a target on the other side of the world is the second half
