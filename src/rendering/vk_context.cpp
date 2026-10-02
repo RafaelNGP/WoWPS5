@@ -435,6 +435,12 @@ bool VkContext::createInstance(SDL_Window* window) {
     VkInstanceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &applicationInfo;
+#if defined(WOWEE_PS5)
+    // RADV presents through VK_KHR_display on VideoOut.
+    const char* instanceExtensions[] = {VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_DISPLAY_EXTENSION_NAME};
+    createInfo.enabledExtensionCount = 2;
+    createInfo.ppEnabledExtensionNames = instanceExtensions;
+#endif
 
     if (const VkResult result = vkCreateInstance(&createInfo, nullptr, &instance);
         result != VK_SUCCESS || instance == VK_NULL_HANDLE) {
@@ -516,7 +522,51 @@ bool VkContext::createInstance(SDL_Window* window) {
 }
 
 bool VkContext::createSurface(SDL_Window* window) {
-#if defined(__ORBIS__) || defined(PS4) || defined(WOWEE_PS4)
+#if defined(WOWEE_PS5)
+    (void)window;
+    // One GPU, one display (VideoOut), one plane. The display plane surface is
+    // the swapchain's target; its extent is the display mode's.
+    uint32_t count = 1;
+    VkPhysicalDevice gpu = VK_NULL_HANDLE;
+    VkResult result = vkEnumeratePhysicalDevices(instance, &count, &gpu);
+    if ((result != VK_SUCCESS && result != VK_INCOMPLETE) || gpu == VK_NULL_HANDLE) {
+        LOG_ERROR("PS5 surface: no physical device: VkResult=", static_cast<int>(result));
+        return false;
+    }
+    VkDisplayPropertiesKHR display{};
+    count = 1;
+    result = vkGetPhysicalDeviceDisplayPropertiesKHR(gpu, &count, &display);
+    if ((result != VK_SUCCESS && result != VK_INCOMPLETE) || count == 0) {
+        LOG_ERROR("PS5 surface: no display: VkResult=", static_cast<int>(result));
+        return false;
+    }
+    VkDisplayModePropertiesKHR mode{};
+    count = 1;
+    result = vkGetDisplayModePropertiesKHR(gpu, display.display, &count, &mode);
+    if ((result != VK_SUCCESS && result != VK_INCOMPLETE) || count == 0) {
+        LOG_ERROR("PS5 surface: no display mode: VkResult=", static_cast<int>(result));
+        return false;
+    }
+    VkDisplaySurfaceCreateInfoKHR surfaceInfo{};
+    surfaceInfo.sType = VK_STRUCTURE_TYPE_DISPLAY_SURFACE_CREATE_INFO_KHR;
+    surfaceInfo.displayMode = mode.displayMode;
+    surfaceInfo.planeIndex = 0;
+    surfaceInfo.transform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+    surfaceInfo.globalAlpha = 1.0f;
+    surfaceInfo.alphaMode = VK_DISPLAY_PLANE_ALPHA_OPAQUE_BIT_KHR;
+    surfaceInfo.imageExtent = mode.parameters.visibleRegion;
+    result = vkCreateDisplayPlaneSurfaceKHR(instance, &surfaceInfo, nullptr, &surface);
+    if (result != VK_SUCCESS || surface == VK_NULL_HANDLE) {
+        LOG_ERROR("PS5 surface: vkCreateDisplayPlaneSurfaceKHR failed: VkResult=", static_cast<int>(result));
+        surface = VK_NULL_HANDLE;
+        return false;
+    }
+    ps5ScanoutExtent_ = mode.parameters.visibleRegion;
+    LOG_INFO("PS5 VideoOut surface: ", display.displayName ? display.displayName : "display", " ",
+             ps5ScanoutExtent_.width, "x", ps5ScanoutExtent_.height, " at ",
+             mode.parameters.refreshRate / 1000.0, " Hz");
+    return true;
+#elif defined(__ORBIS__) || defined(PS4) || defined(WOWEE_PS4)
     (void)window;
     // ps4_vulkan owns VideoOut in vkCreateSwapchainKHR and explicitly accepts
     // VK_NULL_HANDLE here. There is no SDL/native-window surface on OpenOrbis.
@@ -1243,7 +1293,12 @@ static bool requestIdentityTransform(vkb::SwapchainBuilder& builder,
 static bool ps4DeferredPresentEnabled() {
     static const bool enabled = [] {
         const char* value = std::getenv("WOWEE_VK_DEFER_PRESENT");
+#if defined(WOWEE_PS5)
+        // A GNM/VideoOut-specific pacing trick of the PS4 ICD; opt-in on RADV.
+        return value && *value == '1';
+#else
         return !(value && *value == '0');
+#endif
     }();
     return enabled;
 }
@@ -1279,8 +1334,191 @@ VkResult VkContext::flushDeferredPresent() {
 }
 #endif
 
+#if defined(WOWEE_PS5)
+bool VkContext::ps5CreateProxies(uint32_t count, VkExtent2D extent) {
+    VkPhysicalDeviceMemoryProperties memProps{};
+    vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProps);
+    swapchainImages.assign(count, VK_NULL_HANDLE);
+    swapchainImageViews.assign(count, VK_NULL_HANDLE);
+    ps5ProxyMemory_.assign(count, VK_NULL_HANDLE);
+    ps5ProxyInitialised_.assign(count, false);
+    for (uint32_t index = 0; index < count; ++index) {
+        VkImageCreateInfo imageInfo{};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+        imageInfo.extent = {extent.width, extent.height, 1};
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                          VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        if (vkCreateImage(device, &imageInfo, nullptr, &swapchainImages[index]) != VK_SUCCESS) {
+            LOG_ERROR("PS5 proxy image ", index, " creation failed");
+            return false;
+        }
+        VkMemoryRequirements reqs{};
+        vkGetImageMemoryRequirements(device, swapchainImages[index], &reqs);
+        uint32_t type = UINT32_MAX;
+        for (uint32_t i = 0; i < memProps.memoryTypeCount && type == UINT32_MAX; ++i) {
+            if ((reqs.memoryTypeBits & (1u << i)) &&
+                (memProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+                type = i;
+        }
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = reqs.size;
+        allocInfo.memoryTypeIndex = type;
+        if (type == UINT32_MAX ||
+            vkAllocateMemory(device, &allocInfo, nullptr, &ps5ProxyMemory_[index]) != VK_SUCCESS ||
+            vkBindImageMemory(device, swapchainImages[index], ps5ProxyMemory_[index], 0) != VK_SUCCESS) {
+            LOG_ERROR("PS5 proxy image ", index, " memory failed (", reqs.size, " bytes)");
+            return false;
+        }
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = swapchainImages[index];
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = imageInfo.format;
+        viewInfo.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        if (vkCreateImageView(device, &viewInfo, nullptr, &swapchainImageViews[index]) != VK_SUCCESS) {
+            LOG_ERROR("PS5 proxy image view ", index, " creation failed");
+            return false;
+        }
+    }
+    return true;
+}
+
+void VkContext::ps5DestroyProxies() {
+    for (auto view : swapchainImageViews)
+        if (view) vkDestroyImageView(device, view, nullptr);
+    for (auto image : swapchainImages)
+        if (image) vkDestroyImage(device, image, nullptr);
+    for (auto memory : ps5ProxyMemory_)
+        if (memory) vkFreeMemory(device, memory, nullptr);
+    swapchainImageViews.clear();
+    swapchainImages.clear();
+    ps5ProxyMemory_.clear();
+    ps5ProxyInitialised_.clear();
+    ps5ScanoutImages_.clear();
+}
+
+// Recorded last in the frame's command buffer: the proxy the renderer drew
+// (left in PRESENT_SRC by its passes) is scaled into the acquired scanout image.
+void VkContext::ps5RecordScanoutBlit(VkCommandBuffer cmd, uint32_t imageIndex) {
+    if (imageIndex >= ps5ScanoutImages_.size()) return;
+    VkImage proxy = swapchainImages[imageIndex];
+    VkImage scanout = ps5ScanoutImages_[imageIndex];
+
+    VkImageMemoryBarrier toTransfer[2]{};
+    toTransfer[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    toTransfer[0].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    toTransfer[0].dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    toTransfer[0].oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    toTransfer[0].newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    toTransfer[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toTransfer[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toTransfer[0].image = proxy;
+    toTransfer[0].subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    toTransfer[1] = toTransfer[0];
+    toTransfer[1].srcAccessMask = 0;
+    toTransfer[1].dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    toTransfer[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    toTransfer[1].newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    toTransfer[1].image = scanout;
+    vkCmdPipelineBarrier(cmd,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 2, toTransfer);
+
+    VkImageBlit blit{};
+    blit.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    blit.srcOffsets[1] = {static_cast<int32_t>(swapchainExtent.width),
+                          static_cast<int32_t>(swapchainExtent.height), 1};
+    blit.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    blit.dstOffsets[1] = {static_cast<int32_t>(ps5ScanoutExtent_.width),
+                          static_cast<int32_t>(ps5ScanoutExtent_.height), 1};
+    vkCmdBlitImage(cmd, proxy, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                   scanout, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
+
+    VkImageMemoryBarrier toPresent[2]{};
+    toPresent[0] = toTransfer[0];
+    toPresent[0].srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    toPresent[0].dstAccessMask = 0;
+    toPresent[0].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    toPresent[0].newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    toPresent[1] = toTransfer[1];
+    toPresent[1].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    toPresent[1].dstAccessMask = 0;
+    toPresent[1].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    toPresent[1].newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                         0, 0, nullptr, 0, nullptr, 2, toPresent);
+}
+#endif
+
 bool VkContext::createSwapchain(int width, int height) {
-#if defined(__ORBIS__) || defined(PS4) || defined(WOWEE_PS4)
+#if defined(WOWEE_PS5)
+    if (width <= 0 || height <= 0 || surface == VK_NULL_HANDLE) {
+        LOG_ERROR("PS5 swapchain: invalid extent ", width, "x", height, " or no surface");
+        return false;
+    }
+    if (swapchain != VK_NULL_HANDLE) destroySwapchain();
+
+    VkSurfaceCapabilitiesKHR caps{};
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &caps);
+    VkSwapchainCreateInfoKHR createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    createInfo.surface = surface;
+    createInfo.minImageCount = std::max(3u, caps.minImageCount);
+    if (caps.maxImageCount) createInfo.minImageCount = std::min(createInfo.minImageCount, caps.maxImageCount);
+    createInfo.imageFormat = VK_FORMAT_B8G8R8A8_UNORM;
+    createInfo.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+    createInfo.imageExtent = caps.currentExtent.width ? caps.currentExtent : ps5ScanoutExtent_;
+    createInfo.imageArrayLayers = 1;
+    createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+    createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    createInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+    createInfo.clipped = VK_TRUE;
+    VkResult result = vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapchain);
+    if (result != VK_SUCCESS || swapchain == VK_NULL_HANDLE) {
+        LOG_ERROR("PS5 VideoOut swapchain creation failed: VkResult=", static_cast<int>(result),
+                  " extent=", createInfo.imageExtent.width, "x", createInfo.imageExtent.height);
+        swapchain = VK_NULL_HANDLE;
+        return false;
+    }
+    ps5ScanoutExtent_ = createInfo.imageExtent;
+    uint32_t imageCount = 0;
+    vkGetSwapchainImagesKHR(device, swapchain, &imageCount, nullptr);
+    ps5ScanoutImages_.resize(imageCount);
+    result = vkGetSwapchainImagesKHR(device, swapchain, &imageCount, ps5ScanoutImages_.data());
+    if ((result != VK_SUCCESS && result != VK_INCOMPLETE) || imageCount == 0) {
+        LOG_ERROR("PS5 swapchain image query failed: VkResult=", static_cast<int>(result));
+        destroySwapchain();
+        return false;
+    }
+    ps5ScanoutImages_.resize(imageCount);
+    const VkExtent2D renderExtent{static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
+    if (!ps5CreateProxies(imageCount, renderExtent)) {
+        destroySwapchain();
+        return false;
+    }
+    swapchainFormat = VK_FORMAT_R8G8B8A8_UNORM;
+    swapchainExtent = renderExtent;
+    presentsOffNativeTransform_ = false;
+    swapchainDirty = false;
+    deferredPresentPrimed_ = false;
+    deferredPresentValid_ = false;
+    deferredPresentSemaphore_ = VK_NULL_HANDLE;
+    deferredPresentSwapchain_ = VK_NULL_HANDLE;
+    LOG_INFO("PS5 VideoOut swapchain created: render ", width, "x", height, " -> scanout ",
+             ps5ScanoutExtent_.width, "x", ps5ScanoutExtent_.height, " images=", imageCount);
+    return true;
+#elif defined(__ORBIS__) || defined(PS4) || defined(WOWEE_PS4)
     if (width <= 0 || height <= 0) {
         LOG_ERROR("PS4 swapchain extent is invalid: ", width, "x", height);
         return false;
@@ -1434,6 +1672,9 @@ void VkContext::destroySwapchain() {
         if (fb) vkDestroyFramebuffer(device, fb, nullptr);
     }
     swapchainFramebuffers.clear();
+#if defined(WOWEE_PS5)
+    ps5DestroyProxies();
+#endif
 
     for (auto iv : swapchainImageViews) {
         if (iv) vkDestroyImageView(device, iv, nullptr);
@@ -2692,6 +2933,9 @@ void VkContext::releaseSurface() {
         if (fb) vkDestroyFramebuffer(device, fb, nullptr);
     }
     swapchainFramebuffers.clear();
+#if defined(WOWEE_PS5)
+    ps5DestroyProxies();
+#endif
     for (auto iv : swapchainImageViews) {
         if (iv) vkDestroyImageView(device, iv, nullptr);
     }
@@ -2702,7 +2946,7 @@ void VkContext::releaseSurface() {
         swapchain = VK_NULL_HANDLE;
     }
     if (surface) {
-#if !defined(__ORBIS__) && !defined(PS4) && !defined(WOWEE_PS4)
+#if defined(WOWEE_PS5) || (!defined(__ORBIS__) && !defined(PS4) && !defined(WOWEE_PS4))
         vkDestroySurfaceKHR(instance, surface, nullptr);
 #endif
         surface = VK_NULL_HANDLE;
@@ -3191,6 +3435,23 @@ VkCommandBuffer VkContext::beginFrame(uint32_t& imageIndex) {
         discardUnsubmittedFrame(beginResult);
         return VK_NULL_HANDLE;
     }
+#if defined(WOWEE_PS5)
+    // The renderer's passes take swapchain images in PRESENT_SRC (the overlay
+    // loads them). A new proxy starts UNDEFINED: give it that layout once.
+    if (imageIndex < ps5ProxyInitialised_.size() && !ps5ProxyInitialised_[imageIndex]) {
+        VkImageMemoryBarrier init{};
+        init.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        init.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        init.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        init.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        init.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        init.image = swapchainImages[imageIndex];
+        init.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        vkCmdPipelineBarrier(frame.commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                             VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 1, &init);
+        ps5ProxyInitialised_[imageIndex] = true;
+    }
+#endif
 
     // Reset outside any render pass, which is where this sits, and before the
     // first mark. A pool that is written without being reset returns stale
@@ -3528,6 +3789,9 @@ void VkContext::endFrame(VkCommandBuffer cmd, uint32_t imageIndex) {
     };
     const bool bootTrace = endFrameCounter <= 3 || platform::ps4::frameTraceEnabled();
     if (bootTrace) platform::ps4::reportBootStage("gpu: frame command buffer end begin");
+#endif
+#if defined(WOWEE_PS5)
+    ps5RecordScanoutBlit(cmd, imageIndex);
 #endif
     VkResult endResult = vkEndCommandBuffer(cmd);
     if (endResult != VK_SUCCESS) {

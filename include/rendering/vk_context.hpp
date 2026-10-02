@@ -397,6 +397,18 @@ private:
     std::vector<VkImage> swapchainImages;
     std::vector<VkImageView> swapchainImageViews;
     std::vector<VkFramebuffer> swapchainFramebuffers;
+#if defined(WOWEE_PS5)
+    // RADV's VideoOut WSI scans out 3840x2160 B8G8R8A8 only. The renderer keeps
+    // drawing into 1920x1080 R8G8B8A8 "swapchain" images, which on the PS5 are
+    // these proxies; endFrame blits the acquired one into its scanout image.
+    std::vector<VkImage> ps5ScanoutImages_;
+    std::vector<VkDeviceMemory> ps5ProxyMemory_;
+    std::vector<bool> ps5ProxyInitialised_;
+    VkExtent2D ps5ScanoutExtent_{0, 0};
+    bool ps5CreateProxies(uint32_t count, VkExtent2D extent);
+    void ps5DestroyProxies();
+    void ps5RecordScanoutBlit(VkCommandBuffer cmd, uint32_t imageIndex);
+#endif
     bool swapchainDirty = false;
     bool surfaceLost_ = false;
     // An image acquired for a recording that never reached vkQueueSubmit is

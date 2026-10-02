@@ -12,6 +12,7 @@
 
 #include "platform/ps4/ps4_platform.hpp"
 #include "platform/ps4/signal_context.hpp"
+#include "console_paths.hpp"
 #include "ps4_kstat.h"
 #include "ps4_ksignal.h"
 #include <pthread.h>
@@ -87,9 +88,9 @@ namespace {
 
 // ---- constants -------------------------------------------------------------
 
-constexpr const char* kDataRoot = "/data/wow_ps";
-constexpr const char* kPreferredWritableRoot = "/data/wow_ps/wowps";
-constexpr const char* kLegacyWritableRoot = "/data/wow_ps/wowee";
+constexpr const char* kDataRoot = WOWEE_CONSOLE_DATA_ROOT;
+constexpr const char* kPreferredWritableRoot = WOWEE_CONSOLE_DATA_ROOT "/wowps";
+constexpr const char* kLegacyWritableRoot = WOWEE_CONSOLE_DATA_ROOT "/wowee";
 const char* kWritableRoot = kPreferredWritableRoot;
 constexpr const char* kAppRoot = "/app0";
 
@@ -308,7 +309,7 @@ void loadEnvFile(const std::string& path) {
         while (!key.empty() && (key.back() == ' ' || key.back() == '\t')) key.pop_back();
         // New spelling for user-maintained config; existing tuning keys still work.
         if (key.rfind("WOWPS_",0)==0) key="WOWEE_"+key.substr(6);
-        const std::string legacy="/data/wow_ps/wowee";
+        const std::string legacy=kLegacyWritableRoot;
         if (value.rfind(legacy,0)==0 && (value.size()==legacy.size() || value[legacy.size()]=='/'))
             value=std::string(kWritableRoot)+value.substr(legacy.size());
         if (key=="WOWEE_LOG_FILE" && value=="wowee.log") value="wowps.log";
@@ -566,8 +567,8 @@ bool initSystem() {
     // Bootstrap log must exist before any migration or optional modules.
     // Keep this fd in the signal reporter if normal log opening fails.
     if (::mkdir(kDataRoot, 0777) == 0 || errno == EEXIST) {
-        std::rename("/data/wow_ps/boot_startup.log", "/data/wow_ps/boot_startup_previous.log");
-        g_bootFd = ::open("/data/wow_ps/boot_startup.log", O_CREAT | O_WRONLY | O_TRUNC | O_APPEND, 0666);
+        std::rename(WOWEE_CONSOLE_DATA_ROOT "/boot_startup.log", WOWEE_CONSOLE_DATA_ROOT "/boot_startup_previous.log");
+        g_bootFd = ::open(WOWEE_CONSOLE_DATA_ROOT "/boot_startup.log", O_CREAT | O_WRONLY | O_TRUNC | O_APPEND, 0666);
     }
     reportBootStage("B25: early startup diagnostics before runtime migration");
     reportCrashReporterState();
@@ -840,6 +841,26 @@ void crashSigaction(int signal, siginfo_t* info, void* context) {
         detail.put(" r15="); detail.hex(registers.r15);
         detail.put("\n");
         writeCrashLine(detail);
+        // The words at the interrupted rsp, eboot-relative where they point
+        // into .text: after a call through a NULL import, the first is the
+        // return address of the caller (rip itself is 0 then). The thread's
+        // stack is readable; only its top 16 words are read.
+        const uintptr_t textBase = reinterpret_cast<uintptr_t>(__text_start);
+        const uintptr_t textEnd = reinterpret_cast<uintptr_t>(__eh_frame_start);
+        CrashLine stack;
+        stack.put("[wow_ps stack]");
+        const auto* words = reinterpret_cast<const uint64_t*>(registers.rsp);
+        for (int i = 0; words && i < 16; ++i) {
+            const uint64_t word = words[i];
+            stack.put(" ");
+            if (word >= textBase && word < textEnd) {
+                stack.put("pc+"); stack.hex(word - textBase);
+            } else {
+                stack.hex(word);
+            }
+        }
+        stack.put("\n");
+        writeCrashLine(stack);
     }
     // SA_RESETHAND restored the default disposition: returning re-executes
     // the faulting instruction and the system's own crash report follows.
@@ -941,7 +962,7 @@ void showStartupError(const char* message) {
     // error immediately; the timeout also handles an unavailable controller.
     const std::string text = std::string("WoWPS encountered an error.\n") +
         (message ? message : "Initialization failed.") +
-        "\nLogs: /data/wow_ps/wowps/logs/\nReturning to the system in 20 seconds.";
+        "\nLogs: " WOWEE_CONSOLE_DATA_ROOT "/wowps/logs/\nReturning to the system in 20 seconds.";
     OrbisMsgDialogUserMessageParam userMessage{};
     userMessage.buttonType = ORBIS_MSG_DIALOG_BUTTON_TYPE_OK;
     userMessage.msg = text.c_str();

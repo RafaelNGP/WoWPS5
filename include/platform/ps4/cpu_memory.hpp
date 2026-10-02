@@ -31,8 +31,13 @@ inline AvailableCpuMemory queryAvailableCpuMemory() {
     // Pass its bits through the SDK declaration, avoiding a mismatched function
     // pointer cast. The sentinel detects a successful call that did not write.
     size_t available = static_cast<size_t>(-1);
+#if defined(WOWEE_PS5)
+    // The payload SDK declares the pointer-output ABI directly.
+    const int32_t status = sceKernelAvailableFlexibleMemorySize(&available);
+#else
     const int32_t status = sceKernelAvailableFlexibleMemorySize(
         reinterpret_cast<size_t>(&available));
+#endif
     if (status != 0 || available > 8ull * 1024 * 1024 * 1024) {
         return {0, status, false};
     }

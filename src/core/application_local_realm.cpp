@@ -1,5 +1,6 @@
 #include "core/application.hpp"
 #include "core/presentation_recovery.hpp"
+#include "platform/ps4/console_paths.hpp"
 #include <cstdio>
 #include "core/entity_spawner.hpp"
 #include "core/coordinates.hpp"
@@ -58,7 +59,7 @@ game::Character localCharacter(const game::LocalRealmPlayer& player,
 
 std::string localContentPath() {
 #ifdef WOWEE_PS4
-    const std::string overrideContent = "/data/wow_ps/realm/world.json";
+    const std::string overrideContent = WOWEE_CONSOLE_DATA_ROOT "/realm/world.json";
 #else
     const std::string overrideContent = getConfigRoot() + "/realm/world.json";
 #endif
@@ -107,7 +108,7 @@ bool localMapAssetsReady(pipeline::AssetManager& assets, const game::LocalRealmP
 
 std::string localSaveDirectory() {
 #ifdef WOWEE_PS4
-    return "/data/wow_ps/saves/local_realm";
+    return WOWEE_CONSOLE_DATA_ROOT "/saves/local_realm";
 #else
     return getConfigRoot() + "/saves/local_realm";
 #endif
@@ -189,7 +190,7 @@ void Application::beginLocalCharacterFlow(int mode, size_t playerLimit, const st
     if (mode != 1 && mode != 2) return;
     if (!assetManager || !assetManager->isInitialized()) {
         if (uiManager) uiManager->getAuthScreen().setStatus(
-            "Game data is missing. Copy your WotLK 3.3.5a MPQs to /data/wow_ps/Data and restart.", true);
+            "Game data is missing. Copy your WotLK 3.3.5a MPQs to " WOWEE_CONSOLE_DATA_ROOT "/Data and restart.", true);
         return;
     }
     if (authHandler) authHandler->disconnect();
@@ -481,7 +482,7 @@ void Application::updateLocalRealm(float deltaTime) {
         pendingLocalRealm_.reset();
         if (!assetManager || !assetManager->isInitialized() || !worldLoader_ || !entitySpawner_) {
             localRealmStatus(
-                "Game data is missing. Copy your WotLK 3.3.5a MPQs to /data/wow_ps/Data and restart.", true);
+                "Game data is missing. Copy your WotLK 3.3.5a MPQs to " WOWEE_CONSOLE_DATA_ROOT "/Data and restart.", true);
             return;
         }
         // A remembered external login may have selected Classic/TBC tables.

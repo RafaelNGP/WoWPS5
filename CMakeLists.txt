@@ -1,8 +1,12 @@
 cmake_minimum_required(VERSION 3.20)
 project(wowee VERSION 2.12.0 LANGUAGES C CXX)
 
-if(NOT WOWEE_PS4 OR NOT OO_PS4_TOOLCHAIN)
-    message(FATAL_ERROR "Use tools/ps4/build_ps4_pkg.sh or configure with -DCMAKE_TOOLCHAIN_FILE=cmake/ps4.toolchain.cmake. See README.md.")
+if(WOWEE_PS5)
+    # The PS5 build shares the console code paths of the PS4 port (WOWEE_PS4)
+    # and adds WOWEE_PS5 where the two consoles differ.
+    set(WOWEE_PS4 ON)
+elseif(NOT WOWEE_PS4 OR NOT OO_PS4_TOOLCHAIN)
+    message(FATAL_ERROR "Use tools/ps4/build_ps4_pkg.sh or configure with -DCMAKE_TOOLCHAIN_FILE=cmake/ps4.toolchain.cmake (PS4) or cmake/ps5.toolchain.cmake (PS5). See README.md.")
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
@@ -23,7 +27,9 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # OpenOrbis toolchain and platform configuration.
 add_compile_definitions(WOWEE_PS4=1)
-if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+if(WOWEE_PS5)
+    add_compile_definitions(WOWEE_PS5=1)
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
     set(WOWEE_PS4_TOOLS_DIR "${OO_PS4_TOOLCHAIN}/bin/macos")
 else()
     set(WOWEE_PS4_TOOLS_DIR "${OO_PS4_TOOLCHAIN}/bin/linux")
@@ -54,9 +60,24 @@ if(Python3_Interpreter_FOUND)
 endif()
 
 # Bundled PS4 dependencies.
+if(WOWEE_PS5)
+    get_filename_component(_wowee_oo_default "${CMAKE_CURRENT_SOURCE_DIR}/../deps/OpenOrbis-PS4-Toolchain/include" ABSOLUTE)
+    set(WOWEE_PS5_ORBIS_INCLUDE "${_wowee_oo_default}" CACHE PATH "Directory holding OpenOrbis's orbis/*.h headers")
+    if(NOT EXISTS "${WOWEE_PS5_ORBIS_INCLUDE}/orbis/Pad.h")
+        message(FATAL_ERROR "orbis/*.h not found under WOWEE_PS5_ORBIS_INCLUDE=${WOWEE_PS5_ORBIS_INCLUDE}")
+    endif()
+    # OpenOrbis's libSce* declarations (orbis/*.h), searched after the SDK's own
+    # headers: the PS5 exports the same NIDs for pad, user service, audio out,
+    # dialogs, net and rtc.
+    add_compile_options(-idirafter ${WOWEE_PS5_ORBIS_INCLUDE})
+endif()
 include(cmake/ps4/stormlib.cmake)
 include(cmake/ps4/crypto_shim.cmake)
-include(cmake/ps4/ps4_vulkan.cmake)
+if(WOWEE_PS5)
+    include(cmake/ps5/radv.cmake)
+else()
+    include(cmake/ps4/ps4_vulkan.cmake)
+endif()
 set(Vulkan_FOUND TRUE)
     find_package(Threads QUIET)
     if(NOT TARGET Threads::Threads)
@@ -108,8 +129,11 @@ if(EXISTS ${IMGUI_DIR})
     if(WOWEE_PS4)
         target_include_directories(imgui BEFORE PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/include/platform/ps4
-            ${CMAKE_CURRENT_SOURCE_DIR}/ps4/compat/cxx20
+            $<$<NOT:$<BOOL:${WOWEE_PS5}>>:${CMAKE_CURRENT_SOURCE_DIR}/ps4/compat/cxx20>
             ${CMAKE_CURRENT_SOURCE_DIR}/ps4/compat)
+        if(WOWEE_PS5)
+            target_include_directories(imgui BEFORE PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ps5/compat)
+        endif()
         target_include_directories(imgui PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
         target_link_libraries(imgui PUBLIC Vulkan::Vulkan)
     else()
@@ -125,6 +149,11 @@ if(EXISTS ${VK_BOOTSTRAP_DIR})
         ${VK_BOOTSTRAP_DIR}/src/VkBootstrap.cpp
     )
     target_include_directories(vk-bootstrap SYSTEM PUBLIC ${VK_BOOTSTRAP_DIR}/src)
+    if(WOWEE_PS5)
+        # Only the desktop path uses vk-bootstrap; its POSIX branch is keyed on
+        # __ORBIS__/__linux__, so let it compile as the PS4 port did.
+        target_compile_definitions(vk-bootstrap PRIVATE __ORBIS__=1)
+    endif()
     target_link_libraries(vk-bootstrap PUBLIC Vulkan::Vulkan)
 else()
     message(FATAL_ERROR "vk-bootstrap not found in extern/vk-bootstrap")
@@ -723,6 +752,16 @@ if(WOWEE_PS4)
     file(GLOB WOWEE_PS4_PLATFORM_SOURCES CONFIGURE_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/ps4/*.cpp)
     list(FILTER WOWEE_PS4_PLATFORM_SOURCES EXCLUDE REGEX "imgui_impl_ps4\\.cpp$")
+    if(WOWEE_PS5)
+        # PS4-only libc workarounds: the OpenOrbis realloc shrink bug, its heap
+        # arena growth, libc++ 11's Linux ETIMEDOUT and its Linux
+        # CLOCK_MONOTONIC id. The payload SDK's headers are FreeBSD's. The SDK platform layer
+        # owns the heap on the PS5 (tools/ps5/link.sh wraps malloc & co.).
+        list(FILTER WOWEE_PS4_PLATFORM_SOURCES EXCLUDE REGEX "(realloc_ps4|heap_ps4|condition_variable_ps4|clock_ps4)\\.cpp$")
+        file(GLOB WOWEE_PS5_PLATFORM_SOURCES CONFIGURE_DEPENDS
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/ps5/*.cpp)
+        list(APPEND WOWEE_PS4_PLATFORM_SOURCES ${WOWEE_PS5_PLATFORM_SOURCES})
+    endif()
     list(APPEND WOWEE_PLATFORM_SOURCES ${WOWEE_PS4_PLATFORM_SOURCES})
     list(APPEND WOWEE_PLATFORM_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_extract/extractor.cpp
@@ -758,7 +797,13 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(lua51 PRIVATE -w)
 endif()
 
-add_executable(wowee ${WOWEE_SOURCES} ${WOWEE_HEADERS} ${WOWEE_PLATFORM_SOURCES})
+if(WOWEE_PS5)
+    # Compiled here, linked by tools/ps5/link.sh (RADV + SDK platform layer +
+    # the native-app converter), which takes the archives CMake leaves behind.
+    add_library(wowee STATIC ${WOWEE_SOURCES} ${WOWEE_HEADERS} ${WOWEE_PLATFORM_SOURCES})
+else()
+    add_executable(wowee ${WOWEE_SOURCES} ${WOWEE_HEADERS} ${WOWEE_PLATFORM_SOURCES})
+endif()
 # Check the committed binaries, including their matching source hashes, on
 # every build. Lighting changes must not silently ship an older shader.
 add_custom_target(wowee_shader_verify
@@ -768,7 +813,7 @@ add_custom_target(wowee_shader_verify
 )
 add_dependencies(wowee wowee_shader_verify)
 
-if(WOWEE_PS4)
+if(WOWEE_PS4 AND NOT WOWEE_PS5)
     set_target_properties(wowee PROPERTIES
         OUTPUT_NAME wowee
         SUFFIX .elf
@@ -807,12 +852,20 @@ add_dependencies(wowee wowee_version)
 
 # Include directories and precompiled standard headers.
 if(WOWEE_PS4)
+    if(WOWEE_PS5)
+    else()
+        target_include_directories(wowee BEFORE PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/ps4/third_party/ps4_vulkan/include)
+    endif()
     target_include_directories(wowee BEFORE PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include/platform/ps4
-        ${CMAKE_CURRENT_SOURCE_DIR}/ps4/third_party/ps4_vulkan/include
         ${CMAKE_CURRENT_SOURCE_DIR}/ps4/compat
-        ${CMAKE_CURRENT_SOURCE_DIR}/ps4/compat/cxx20
+        $<$<NOT:$<BOOL:${WOWEE_PS5}>>:${CMAKE_CURRENT_SOURCE_DIR}/ps4/compat/cxx20>
     )
+    if(WOWEE_PS5)
+        # Last BEFORE wins: the PS5 editions of ps4/compat headers come first.
+        target_include_directories(wowee BEFORE PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ps5/compat)
+    endif()
     target_include_directories(wowee PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tools/asset_extract)
 endif()
 target_include_directories(wowee PRIVATE
@@ -862,7 +915,7 @@ target_include_directories(wowee SYSTEM PRIVATE
         -lSceImeDialog
         -lSceCommonDialog
         -lSceMsgDialog
-        -lSceGnmDriver
+        $<$<NOT:$<BOOL:${WOWEE_PS5}>>:-lSceGnmDriver>
         -lSceVideoOut
         -lSceRtc
     )
@@ -902,8 +955,9 @@ if(NOT MSVC)
     target_compile_options(wowee PRIVATE $<$<CONFIG:Release>:-fvisibility=hidden -fvisibility-inlines-hidden>)
 endif()
 
-# Runtime files and installable PS4 package.
-if(WOWEE_PS4)
+# Runtime files and installable PS4 package. The PS5 app folder is staged by
+# tools/ps5/package.sh instead.
+if(WOWEE_PS4 AND NOT WOWEE_PS5)
     file(GLOB WOWEE_PS4_SPV_FILES ${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/*.spv)
     set(WOWEE_PS4_RUNTIME_COMMANDS
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:wowee>/assets/shaders
@@ -972,7 +1026,15 @@ add_custom_target(copy_bundled_addons ALL
     COMMENT "Copying bundled addons")
 add_dependencies(copy_bundled_addons wowee)
 
-message(STATUS "WoWPS: PlayStation 4 / OpenOrbis")
-message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "Toolchain: ${OO_PS4_TOOLCHAIN}")
-message(STATUS "Package target: ps4pkg")
+if(WOWEE_PS5)
+    message(STATUS "WoWPS: PlayStation 5 / payload SDK + RADV")
+    message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+    message(STATUS "SDK: ${PS5_SDK}")
+    message(STATUS "RADV: ${PS5_RADV}")
+    message(STATUS "Link and package: tools/ps5/link.sh, tools/ps5/package.sh")
+else()
+    message(STATUS "WoWPS: PlayStation 4 / OpenOrbis")
+    message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+    message(STATUS "Toolchain: ${OO_PS4_TOOLCHAIN}")
+    message(STATUS "Package target: ps4pkg")
+endif()
