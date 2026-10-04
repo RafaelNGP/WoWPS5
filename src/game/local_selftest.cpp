@@ -285,7 +285,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         for (const auto& m : kLocalAuctionItems) if (m.itemClass == 6 && m.subClass == 2 && m.requiredLevel <= 1 && c.item(m.id)) { arrows = m.id; break; }
         SELFTEST_CHECK(bow && sword2h && arrows);
         // kind: 0 damages the enemy, 1 lands (interrupt, taunt), 2 creates an
-        // item, 3 raises the caster's stats, 4 mounts the caster.
+        // item, 3 raises the caster's stats, 4 mounts the caster, 5 teleports it.
         struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
@@ -294,6 +294,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 6, "Mind Freeze", true}, {1, 8, "Counterspell", true}, {1, 8, "Frostfire Bolt", false}, {11, 7, "Earth Shock", false},
             {1, 9, "Haunt", false}, {4, 3, "Serpent Sting", 0}, {1, 1, "Taunt", 1}, {1, 8, "Conjure Water", 2},
             {1, 5, "Power Word: Fortitude", 3}, {1, 1, "Battle Shout", 3}, {1, 9, "Felsteed", 4},
+            {1, 8, "Arcane Brilliance", 3}, {4, 11, "Gift of the Wild", 3},
+            {1, 9, "Drain Life", 0}, {1, 8, "Arcane Missiles", 0}, {1, 5, "Mind Flay", 0}, {1, 8, "Teleport: Stormwind", 5},
         };
         size_t passed = 0;
         for (const auto& a : abilities) {
@@ -321,6 +323,16 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             for (const auto& stack : std::vector<LocalItemStack>(p.inventory))
                 if (const auto* m = localAuctionMetadata(stack.itemId); m && m->itemClass == 2)
                     arena.execute(p, {LocalAction::EquipItem, 0, stack.itemId}, players, result);
+            // Reagents: refused without them, consumed by the cast.
+            if (const auto* sd = content.spell(spellId); sd && sd->reagentItems[0]) {
+                p.globalCooldownMs = 0; p.mana = p.maxMana;
+                if (arena.execute(p, {LocalAction::CastSpell, p.guid, spellId}, players, result) || result.find("reagent") == std::string::npos) {
+                    out << "FAIL class ability " << a.name << ": cast without its reagent (" << result << ")\n"; return false; }
+                for (size_t r = 0; r < sd->reagentItems.size(); ++r) if (sd->reagentItems[r]) p.inventory.push_back({sd->reagentItems[r], uint16_t(sd->reagentCounts[r] * 2), uint8_t(10 + r)});
+                normalizeLocalInventory(p);
+            }
+            const uint32_t reagentBefore = [&] { const auto* sd = content.spell(spellId); uint32_t n = 0;
+                for (const auto& st : p.inventory) if (sd && st.itemId == sd->reagentItems[0]) n += st.count; return n; }();
             if (a.kind >= 2) {
                 const auto meleeBefore = localMeleeStats(p, content); const auto healthBefore = p.maxHealth; const auto items = p.inventory.size();
                 p.ridingSkill = 150; p.mana = p.maxMana; p.globalCooldownMs = 0;
@@ -332,6 +344,13 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 if (a.kind == 3) ok = ok && (meleeAfter.attackPower > meleeBefore.attackPower || p.maxHealth > healthBefore ||
                                              meleeAfter.attributes[3] > meleeBefore.attributes[3]);
                 if (a.kind == 4) ok = ok && p.mountSpellId == spellId;
+                if (a.kind == 5) { const auto* to = content.spellDestination(spellId);
+                    ok = ok && to && p.mapId == to->mapId && std::hypot(p.x - to->x, p.y - to->y) < 5; }
+                if (const auto* sd = content.spell(spellId); ok && sd && sd->reagentItems[0]) {
+                    uint32_t n = 0; for (const auto& st : p.inventory) if (st.itemId == sd->reagentItems[0]) n += st.count;
+                    ok = n + sd->reagentCounts[0] == reagentBefore;
+                    if (!ok) result = "reagent not consumed";
+                }
                 if (!ok) { out << "FAIL class ability " << a.name << ": " << result << "\n"; return false; }
                 ++passed; continue;
             }
@@ -385,7 +404,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, interrupts, taunts, spells, conjuring, stat buffs, class mounts)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, interrupts, taunts, spells, conjuring, stat buffs, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.

@@ -2646,7 +2646,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         // which range type a spell has, which facings it accepts and which
         // creature types and combat states it may be cast at.
         hash(d.sourceRangeFlags);hash(d.sourceFacingFlags);hash(d.targetCreatureType);
-        hash(uint32_t(d.weaponDamage)|uint32_t(d.normalizedWeapon)<<1|uint32_t(d.interruptCast)<<2|uint32_t(d.taunt)<<3);hash(d.weaponPercent);hash(d.targetMaxHealthPct);hash(d.createItemId);hash(d.createItemCount);
+        hash(uint32_t(d.weaponDamage)|uint32_t(d.normalizedWeapon)<<1|uint32_t(d.interruptCast)<<2|uint32_t(d.taunt)<<3);hash(d.weaponPercent);hash(d.targetMaxHealthPct);hash(d.createItemId);hash(d.createItemCount);hash(uint32_t(d.channel)|uint32_t(d.periodicLeech)<<1|uint32_t(d.soulShardOnKill)<<2|uint32_t(d.teleport)<<3);for(size_t r=0;r<d.reagentItems.size();++r){hash(d.reagentItems[r]);hash(d.reagentCounts[r]);}
         hash(uint32_t(d.classBuff));for(auto v:d.classBuffStats)hash(uint32_t(v));hash(uint32_t(d.classBuffAttackPower));hash(uint32_t(d.classBuffArmor));hash(uint32_t(d.classBuffHealth));
         hash(uint32_t(d.sourceOnlyPeacefulTargets));
         // P05 line of sight : two peers must agree on which casts are
@@ -3392,6 +3392,27 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
                 c->petFamilyAttack[family]=uint8_t(kind+1);
             }
             for(unsigned char b:petText)c->fingerprint=(c->fingerprint^b)*16777619U;
+        }
+        if(j.contains("spellDestinations")) {
+            // spell_target_position for the teleport spells (import_spell_destinations.py).
+            const auto name=label(j,"spellDestinations",128);
+            if(name.empty() || name=="." || name==".." || name.find('/')!=std::string::npos || name.find('\\')!=std::string::npos)
+                throw std::runtime_error("Spell destination companion must be a sibling filename");
+            std::ifstream in(std::filesystem::path(path).parent_path()/name,std::ios::binary|std::ios::ate);
+            if(!in)throw std::runtime_error("Cannot open required spell destination companion");
+            const auto length=in.tellg();
+            if(length<=0||length>1024*1024)throw std::runtime_error("Spell destination companion must be 1 byte to 1 MiB");
+            std::string text(size_t(length),'\0');in.seekg(0);
+            if(!in.read(text.data(),length))throw std::runtime_error("Cannot read spell destination companion");
+            const auto doc=Json::parse(text);
+            if(!doc.is_object()||number(doc,"schemaVersion",0,1)!=1)throw std::runtime_error("Unsupported spell destination schema");
+            for(const auto& v:array(doc,"destinations",4096,true)) {
+                LocalWorldContent::SpellDestination d;d.spellId=number(v,"spellId",0,UINT32_MAX);d.mapId=number(v,"mapId",0,65535);
+                d.x=real(v,"x",0,-100000,100000);d.y=real(v,"y",0,-100000,100000);d.z=real(v,"z",0,-100000,100000);d.orientation=real(v,"orientation",0,-10,10);
+                if(!d.spellId||(!c->spellDestinations.empty()&&c->spellDestinations.back().spellId>=d.spellId))throw std::runtime_error("Spell destinations must be sorted and unique");
+                c->spellDestinations.push_back(d);
+            }
+            for(unsigned char b:text)c->fingerprint=(c->fingerprint^b)*16777619U;
         }
         if(j.contains("creatureTalk")) {
             // Original SmartAI speech companion (compile_creature_talk.py).
@@ -5860,6 +5881,8 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     const auto reject=[&](const std::string& reason){result=reason;if(finishing)clearCast(p,LocalCastStatus::Failed);return false;};
     const auto* d=c.spell(cmd.id);
     if(d&&d->formId&&p.formSpellId==d->id)return reject("This form or stance is already active");
+    // A channel's effect was applied when it began; its natural end is quiet.
+    if(finishing&&d&&d->channel&&p.castingSpellId==d->id){clearCast(p,LocalCastStatus::Finished);result="Channel ended";return true;}
     if(localHunterPetSpell(cmd.id)){std::string why;if(hunterPetSpell(p,cmd,players,result,why,finishing))return true;return reject(why);}
     if(d && d->npcOnly)return reject("NPC spell cannot be cast by a player");
     if(d && d->triggeredOnly)return reject("Triggered spell cannot be cast directly");
@@ -5869,7 +5892,14 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(d&&!localTimedDamageTalentReady(p,c,*d))return reject("Learn the required damage talent first");
     if(!d||std::find(p.knownSpells.begin(),p.knownSpells.end(),cmd.id)==p.knownSpells.end())return reject("Spell is not learned");
     if(p.dead)return reject("Cannot cast while dead");
-    if(d->createItemId){auto probe=p;if(!c.item(d->createItemId)||!addItem(probe,c,d->createItemId,d->createItemCount))return reject("Inventory is full");}
+    for(size_t r=0;r<d->reagentItems.size();++r)if(d->reagentItems[r]&&totalItem(p,d->reagentItems[r])<d->reagentCounts[r]) {
+        const auto* reagent=c.item(d->reagentItems[r]);
+        return reject("Missing reagent: "+(reagent?reagent->name:std::to_string(d->reagentItems[r])));
+    }
+    if(d->teleport&&!c.spellDestination(d->id))return reject("This destination is not available here");
+    if(d->teleport&&(p.flight.active||p.transportEntry))return reject("You can't do that right now");
+    if(d->createItemId){auto probe=p;for(size_t r=0;r<d->reagentItems.size();++r)if(d->reagentItems[r])removeItem(probe,d->reagentItems[r],d->reagentCounts[r]);
+        if(!c.item(d->createItemId)||!addItem(probe,c,d->createItemId,d->createItemCount))return reject("Inventory is full");}
     if(d->mountDisplayId) {
         if((p.classId==11||p.classId==7)&&p.formSpellId)return reject("Leave your current form before mounting");
         if(!finishing && p.mountSpellId==d->id) {p.mountSpellId=0;result="Dismounted";return true;}
@@ -6694,11 +6724,28 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if (!++p.castRevision) ++p.castRevision;
     p.lastCastSpellId=d->id;p.lastCastTarget=healed?healed->guid:cmd.target;
     clearCast(p,LocalCastStatus::Finished);
+    for(size_t r=0;r<d->reagentItems.size();++r)if(d->reagentItems[r])removeItem(p,d->reagentItems[r],d->reagentCounts[r]);
+    // SPELL_EFFECT_TELEPORT_UNITS: the same relocation the hearthstone performs.
+    if(d->teleport)if(const auto* to=c.spellDestination(d->id)) {
+        p.mapId=to->mapId;p.instanceId=0;p.x=to->x;p.y=to->y;p.z=to->z;p.orientation=to->orientation;
+        p.hasInstanceReturn=false;p.transportEntry=0;p.attackTarget=0;p.portalCooldown=2;++p.positionRevision;
+        finishLocalTeleport(p);g.regionTimer=1;
+        LOG_INFO("[LOCAL_TELEPORT] player=",p.guid," spell=",d->id," map=",to->mapId);
+    }
     if(d->createItemId&&addItem(p,c,d->createItemId,d->createItemCount))
         LOG_INFO("[LOCAL_CREATE_ITEM] player=",p.guid," spell=",d->id," item=",d->createItemId," count=",d->createItemCount);
     if(d->taunt)if(auto* victim=g.npc(cmd.target);victim&&!victim->dead) {
         g.tauntNpc(*victim,p.guid);
         LOG_INFO("[LOCAL_TAUNT] player=",p.guid," spell=",d->id," npc=",victim->guid);
+    }
+    // A channel holds the caster for its duration; the periodic effect it
+    // applied is removed if the channel breaks (movement, another cast).
+    if(d->channel&&!finishing&&d->durationMs) {
+        p.castingSpellId=d->id;p.castTarget=cmd.target;p.castRemainingMs=p.castTotalMs=d->durationMs;
+        if(!++p.castSequence)++p.castSequence;
+        p.castPushbackMs=0;p.castPushbackCount=0;
+        p.castOriginX=p.x;p.castOriginY=p.y;p.castOriginZ=p.z;p.castOriginMap=p.mapId;p.castOriginInstance=p.instanceId;
+        p.castStatus=LocalCastStatus::Casting;
     }
     // SPELL_EFFECT_INTERRUPT_CAST: the creature's cast or channel stops.
     if(d->interruptCast)if(auto* victim=g.npc(cmd.target);victim&&!victim->dead&&victim->npcCastingSpellId) {
@@ -7057,8 +7104,16 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                 LOG_INFO("[LOCAL_IMMUNE] tick npc=",target->guid," spell=",aura.spell," school=",spell->schoolMask);
             }
             else if(aura.spell==12654&&(!owner||owner->mapId!=aura.mapId||owner->instanceId!=aura.instanceId))g.orphanIgniteHit(*target,aura.damage,aura.owner,players);
-            else g.damageNpc(*target,*owner,localStackedAuraAmount(aura.damage,aura.stacks),players,spell&&(spell->schoolMask&1)&&!spell->periodicIgnoresArmor,aura.spell,true,
+            else {
+                const auto amount=localStackedAuraAmount(aura.damage,aura.stacks);
+                g.damageNpc(*target,*owner,amount,players,spell&&(spell->schoolMask&1)&&!spell->periodicIgnoresArmor,aura.spell,true,
                              0,nullptr,LocalMeleeOutcome::Hit,false,0,0,false,false,aura.critChanceBasisPoints);
+                // Drain Life: the drained health returns to the caster.
+                if(spell&&spell->periodicLeech&&!owner->dead)owner->health=uint32_t(std::min<uint64_t>(owner->maxHealth,uint64_t(owner->health)+amount));
+                // Drain Soul: a creature that dies under it yields a Soul Shard.
+                if(spell&&spell->soulShardOnKill&&target->dead&&addItem(*owner,content(),6265,1))
+                    LOG_INFO("[LOCAL_SOUL_SHARD] player=",owner->guid," npc=",target->guid);
+            }
             g.stormstrikeEventOffsetMs=0;changed=true;
         }
         aura.next=elapsed<aura.next?aura.next-elapsed:0;
@@ -7298,8 +7353,10 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                std::find(p->knownSpells.begin(),p->knownSpells.end(),p->castingSpellId)==p->knownSpells.end()||
                (casting&&(!localSpellEquipmentReady(*p,content(),*casting)||!localFormEnvironmentReady(*p,*casting)))||p->mapId!=p->castOriginMap||p->instanceId!=p->castOriginInstance||
                ((casting->interruptFlags&1u) &&
-                distance2(p->x,p->y,p->z,p->castOriginX,p->castOriginY,p->castOriginZ)>.01f))
+                distance2(p->x,p->y,p->z,p->castOriginX,p->castOriginY,p->castOriginZ)>.01f)) {
+                if(casting&&casting->channel)std::erase_if(g.periodicDamage,[&](const auto& a){return a.owner==p->guid&&a.spell==casting->id;});
                 clearCast(*p,LocalCastStatus::Interrupted);
+            }
             else if(p->castRemainingMs<=ms) {
                 const LocalRealmCommand command{LocalAction::CastSpell,p->castTarget,p->castingSpellId};
                 std::string outcome;executeCastSpell(*p,command,players,outcome,true);

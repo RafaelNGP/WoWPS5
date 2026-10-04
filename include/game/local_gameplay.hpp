@@ -952,6 +952,16 @@ struct LocalSpellDefinition {
     bool classBuff=false;
     std::array<int32_t,5> classBuffStats{};
     int32_t classBuffAttackPower=0,classBuffArmor=0,classBuffHealth=0;
+    /// A player channel (Mind Flay, Drain Life, Drain Soul): its periodic
+    /// effect runs while the caster keeps channelling; moving ends both.
+    bool channel=false,periodicLeech=false,soulShardOnKill=false;
+    /// Spell reagents (Spell.dbc Reagent/ReagentCount): checked when the cast
+    /// starts and consumed when it completes.
+    std::array<uint32_t,8> reagentItems{};
+    std::array<uint16_t,8> reagentCounts{};
+    /// SPELL_EFFECT_TELEPORT_UNITS (5): the caster goes to the spell's
+    /// spell_target_position destination (mage Teleports).
+    bool teleport=false;
     /// SPELL_EFFECT_CREATE_ITEM (24): conjured food, water, mana gems.
     uint32_t createItemId=0;
     uint16_t createItemCount=0;
@@ -2010,6 +2020,12 @@ struct LocalWorldContent {
     std::vector<LocalConsumable> consumables; // Sorted by itemId.
     std::vector<LocalConsumableSpell> consumableSpells; // Sorted by id.
     std::vector<std::pair<uint32_t,uint8_t>> tameableBeasts; // Creature entry, pet family; sorted.
+    struct SpellDestination { uint32_t spellId=0,mapId=0; float x=0,y=0,z=0,orientation=0; };
+    std::vector<SpellDestination> spellDestinations; // Sorted by spellId.
+    const SpellDestination* spellDestination(uint32_t spellId) const {
+        const auto it=std::lower_bound(spellDestinations.begin(),spellDestinations.end(),spellId,[](const auto& d,uint32_t id){return d.spellId<id;});
+        return it!=spellDestinations.end()&&it->spellId==spellId?&*it:nullptr;
+    }
     /// Hunter pet basic attacks: family -> 0 Bite, 1 Claw, 2 Smack; each kind's
     /// ranks (spell, learn level, damage) ascending by level.
     std::array<uint8_t,256> petFamilyAttack{};

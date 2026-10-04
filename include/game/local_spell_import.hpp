@@ -1180,7 +1180,9 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // is struck at once as a weapon attack; the realm has no swing queue.
     if(u(4)&0x404u){if(creatureCaster)d.npcNextSwing=true;}
     d.sourceNoAttackDodge=(u(11)&0x00800000u)!=0;d.sourceNoAttackParry=(u(11)&0x01000000u)!=0;d.sourceNoAttackMiss=(u(11)&0x02000000u)!=0;
-    if(u(5)&0x44u){if(creatureCaster)d.npcChannel=true;else unavailable("Channeled spells are not implemented");}
+    // A player channel is admitted when its effect is single-target periodic
+    // damage or leech (checked after the effects below).
+    if(u(5)&0x44u){if(creatureCaster)d.npcChannel=true;else d.channel=true;}
     // A form boost's applicability is HandleShapeshiftBoosts's switch, not this
     // column: 21178 and 7381 carry Stances = 0 and are still cast for forms 5/8
     // and form 19. decodeClientFormBoost has already written the switch's mask.
@@ -1196,7 +1198,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         if(i(68)!=2&&i(68)!=4)unavailable("Unsupported spell equipment class");
         else {d.requiredItemClass=int8_t(i(68));d.requiredItemSubclasses=u(69);d.requiredInventoryTypes=u(70);}
     }
-    for(uint32_t reagent=0;reagent<8;++reagent) if(i(52+reagent)>0) unavailable("Spell reagents are not implemented");
+    for(uint32_t reagent=0;reagent<8;++reagent) if(i(52+reagent)>0) {
+        if(creatureCaster||i(60+reagent)<=0||i(60+reagent)>200)unavailable("Spell reagents are not implemented");
+        else {d.reagentItems[reagent]=uint32_t(i(52+reagent));d.reagentCounts[reagent]=uint16_t(i(60+reagent));}
+    }
     if(u(50)||u(51)) unavailable("Totem requirements are not implemented");
     const auto castRow=ClientSpellTables::lookup(t.castIndex,u(28));
     // SpellInfo::CalcCastTime returns 0 for a non-positive base before any
@@ -1232,8 +1237,16 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             d.chainRadius=chainHeal?12.5f:10.0f;
         } else unavailable("Unreviewed chain-target profile is not implemented");
     }
-    const bool arcaneExplosion=d.spellFamily==3&&d.spellFamilyFlags[0]==4096&&!d.spellFamilyFlags[1]&&!d.spellFamilyFlags[2]&&
-        u(71)==2&&!u(72)&&!u(73)&&u(86)==22&&u(89)==15&&!u(104)&&!u(212);
+    bool pbaoeShape=!creatureCaster&&!u(104)&&!u(212),pbaoeDamage=false;
+    for(uint32_t e=0;e<3;++e)if(u(71+e)) {
+        if(u(86+e)!=22||u(89+e)!=15)pbaoeShape=false;
+        if(u(71+e)==2||u(71+e)==58||u(71+e)==121)pbaoeDamage=true;
+    }
+    // Arcane Explosion's reviewed profile, and every other point-blank area
+    // attack in its shape: each effect on the enemies around the caster
+    // (TARGET_SRC_CASTER + TARGET_UNIT_SRC_AREA_ENEMY) with a fixed radius.
+    const bool arcaneExplosion=(d.spellFamily==3&&d.spellFamilyFlags[0]==4096&&!d.spellFamilyFlags[1]&&!d.spellFamilyFlags[2]&&
+        u(71)==2&&!u(72)&&!u(73)&&u(86)==22&&u(89)==15&&!u(104)&&!u(212))||(pbaoeShape&&pbaoeDamage);
     if(arcaneExplosion) {
         const auto radius=ClientSpellTables::lookup(t.radiusIndex,u(92));
         if(!t.radii||radius<0)unavailable("Area radius record missing");
@@ -1263,7 +1276,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     std::vector<std::string> setAside;
     const auto rider=[&](uint32_t effect,const std::string& reason){
         const auto type=u(71+effect);
-        if(!creatureCaster&&u(86+effect)==6&&!u(89+effect)&&(type==6||type==64)){setAside.push_back(reason);return true;}
+        if(!creatureCaster&&((u(86+effect)==6&&!u(89+effect))||(u(86+effect)==22&&u(89+effect)==15))&&(type==6||type==64)){setAside.push_back(reason);return true;}
         return false;
     };
     // A class stat buff: every effect an aura on the caster, a friendly target
@@ -1304,7 +1317,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             continue;
         }
         const auto target=u(86+effect), secondary=u(89+effect);
-        if(!arcaneExplosion && (secondary || (target!=1&&target!=6&&target!=21&&target!=25&&!(chainHeal&&target==45)))) unavailable("Area or scripted targeting is not implemented");
+        if(!arcaneExplosion && !(type==5&&target==1&&secondary==17) && (secondary || (target!=1&&target!=6&&target!=21&&target!=25&&!(chainHeal&&target==45)))) unavailable("Area or scripted targeting is not implemented");
         if(type==6 && (u(95+effect)==3 || u(95+effect)==8) && (u(spell335::ProcFlags)||u(spell335::ProcCharges)||u(116+effect)))
             unavailable("Periodic proc, charge or triggered effects are not implemented");
         if(snare&&(effect==0||(effect==2&&d.snareZeroHealingMarker))){harm=true;continue;}
@@ -1412,7 +1425,29 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 unavailable("Mixed or hostile healing targets are not implemented");
             healingTarget=target;
         }
-        else if(type==6&&u(95+effect)==3&&d.durationMs&&d.durationMs<=600000&&u(98+effect)>0&&u(98+effect)<=d.durationMs&&!d.periodicDamage) {
+        else if(type==6&&d.channel&&(u(95+effect)==23||u(95+effect)==227)&&u(116+effect)&&u(98+effect)>0&&d.durationMs&&
+                u(98+effect)<=d.durationMs&&!d.periodicDamage&&!secondary) {
+            // A periodic-trigger channel (Mind Flay, Arcane Missiles): each
+            // tick casts a child whose school damage is the tick's amount.
+            const auto child=ClientSpellTables::lookup(t.spellIndex,u(116+effect));
+            bool found=false;
+            // PERIODIC_TRIGGER_SPELL_WITH_VALUE (227, Mind Flay): the amount is
+            // this aura's own, handed to the child's school damage.
+            if(u(95+effect)==227&&child>=0&&base>=0&&base<100000) {
+                bool childDamages=false;for(uint32_t ce=0;ce<3;++ce)childDamages|=t.spells->getUInt32(uint32_t(child),71+ce)==2;
+                if(childDamages){d.periodicEffectSlot=uint8_t(effect);d.periodicDamage=low;d.periodicDamageMax=high;d.periodicIntervalMs=u(98+effect);harm=true;found=true;}
+            }
+            if(child>=0&&!found)for(uint32_t ce=0;ce<3&&!found;++ce)if(t.spells->getUInt32(uint32_t(child),71+ce)==2) {
+                const int32_t cb=t.spells->getInt32(uint32_t(child),80+ce),cd=t.spells->getInt32(uint32_t(child),74+ce);
+                if(cb>=0&&cb<100000&&cd>=0&&cd<100000) {
+                    d.periodicEffectSlot=uint8_t(effect);d.periodicDamage=uint32_t(cb+1);d.periodicDamageMax=uint32_t(cb+std::max(1,cd));
+                    d.periodicIntervalMs=u(98+effect);harm=true;found=true;
+                }
+            }
+            if(!found)unavailable("Unsupported periodic trigger channel");
+        }
+        else if(type==6&&(u(95+effect)==3||(d.channel&&u(95+effect)==53))&&d.durationMs&&d.durationMs<=600000&&u(98+effect)>0&&u(98+effect)<=d.durationMs&&!d.periodicDamage) {
+            if(u(95+effect)==53)d.periodicLeech=true; // SPELL_AURA_PERIODIC_LEECH: the damage heals the caster.
             d.periodicEffectSlot=uint8_t(effect);
             if(u(3)==kLocalMechanicBleed||u(83+effect)==kLocalMechanicBleed)d.periodicIgnoresArmor=true;d.periodicDamage=low;d.periodicDamageMax=high;d.periodicDamagePerLevel=scale;d.periodicPerCombo=perCombo;d.periodicIntervalMs=u(98+effect);harm=true;
         } else if(type==6&&u(95+effect)==8&&low>0&&d.durationMs&&d.durationMs<=600000&&u(98+effect)>0&&u(98+effect)<=d.durationMs&&
@@ -1476,6 +1511,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             d.interruptCast=true;harm=true;
         } else if(type==114&&target==6&&!secondary) {
             d.taunt=true;harm=true;
+        } else if(type==5&&!creatureCaster&&(target==1||target==0)&&(secondary==17||!secondary)) {
+            d.teleport=true;
+        } else if(type==77&&!creatureCaster&&d.teleport) {
+            // The Teleport spells' script effect only plays the departure visual.
         } else if(type==24&&!creatureCaster&&(target==1||target==0)&&!secondary&&u(107+effect)) {
             // Spell::EffectCreateItem into the caster's bags.
             if(d.createItemId||low>200)unavailable("Repeated or oversized item creation is not implemented");
@@ -1485,6 +1524,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(!rider(effect,reason))unavailable(reason);
         }
     }
+    if(d.channel&&!creatureCaster) {
+        if(!d.periodicDamage||d.damage||d.weaponDamage||healing||buff)unavailable("Channeled spells are not implemented");
+        else d.soulShardOnKill=d.name=="Drain Soul";
+    }
     if(!setAside.empty()) {
         const bool directHit=(d.damage||d.weaponDamage||d.interruptCast||d.taunt||d.periodicDamage)&&!healing&&!buff&&!d.controlProfile;
         if(!directHit)unavailable(setAside.front());
@@ -1492,7 +1535,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if(harm&&!d.schoolMask&&(!creatureCaster||d.damage||d.periodicDamage))unavailable("Damaging spell has no school");
     if(buff&&(harm||healing)) unavailable("Mixed stat buffs and other effects are not implemented");
     if(harm&&healing) unavailable("Mixed hostile/friendly spells are not implemented");
-    if(!harm&&!healing&&!buff&&!d.formId&&!formBoost&&!formResource&&!summonPet&&!areaAura&&!d.controlProfile&&!d.createItemId) unavailable("No supported direct or periodic damage/healing effect");
+    if(!harm&&!healing&&!buff&&!d.formId&&!formBoost&&!formResource&&!summonPet&&!areaAura&&!d.controlProfile&&!d.createItemId&&!d.teleport) unavailable("No supported direct or periodic damage/healing effect");
+    if(d.teleport&&(harm||healing||buff||d.createItemId))unavailable("Teleport beside other effects is not implemented");
     if(d.createItemId&&(harm||healing||buff))unavailable("Item creation beside other effects is not implemented");
     if(!creatureCaster){d.healingSelfOnly=healingTarget==1;d.buffSelfOnly=d.formId!=0||formBoost||formResource||buffTarget==1;}
     const auto rangeRow=ClientSpellTables::lookup(t.rangeIndex,u(46));
