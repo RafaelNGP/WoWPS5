@@ -1320,6 +1320,13 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             }
             continue;
         }
+        // SPELL_AURA_MOD_DECREASE_SPEED on one hostile target (Hamstring, Wing
+        // Clip, Concussive Shot, Curse of Exhaustion): its slow percentage
+        // through the creature snare the Frost spells use.
+        if(!creatureCaster&&!snare&&type==6&&u(95+effect)==33&&u(86+effect)==6&&!u(89+effect)&&!d.snarePercent&&
+           i(80+effect)<-1&&i(80+effect)>=-100&&d.durationMs&&d.durationMs<=600000&&!u(116+effect)&&u(46)!=1) { // range 1: a talent's triggered daze
+            d.snarePercent=uint8_t(-(i(80+effect)+1));harm=true;continue;
+        }
         if(classBuffSpell) {
             const auto au=u(95+effect),tg=u(86+effect);const int32_t amount=i(80+effect)+1,misc=i(110+effect);
             if(amount>0&&amount<=100000) {
