@@ -1119,7 +1119,17 @@ void Application::updateLocalRealm(float deltaTime) {
         gameHandler->fireAddonEvent("PET_BAR_UPDATE", {});
         gameHandler->fireAddonEvent("UNIT_PET", {"player"});
     }
+    // TargetNearestEnemy, /target and unit-frame clicks from the interface
+    // set the client's target directly; adopt such a choice when it names a
+    // unit this realm has, instead of overwriting it with the pad's target.
+    if (const uint64_t chosen = gameHandler->getTargetGuid(); chosen != localRealmTargetPushed_) {
+        bool known = chosen == 0;
+        for (const auto& n : localRealm_->npcs()) if (!known && n.guid == chosen) known = true;
+        for (const auto& other : localRealm_->players()) if (!known && other.guid == chosen) known = true;
+        if (known) localRealmTarget_ = chosen;
+    }
     gameHandler->setTargetGuidRaw(localRealmTarget_);
+    localRealmTargetPushed_ = localRealmTarget_;
 
     syncLocalRealmTransports(self);
     if(auto* visuals=renderer->getSpellVisualSystem()) {

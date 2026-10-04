@@ -4454,8 +4454,8 @@ void Application::update(float deltaTime) {
             // Development: WOWEE_DEV_AUTOENTER=1 (config/env.txt) goes
             // straight to the standalone realm's first character, so a test
             // round on the console needs no hand on the controller.
-            if (!devAutoEnterDone_ && std::getenv("WOWEE_DEV_AUTOENTER") &&
-                std::string(std::getenv("WOWEE_DEV_AUTOENTER")) == "1" &&
+            if (!devAutoEnterDone_ && std::getenv("WOWEE_DEV_AUTOENTER") && *std::getenv("WOWEE_DEV_AUTOENTER") &&
+                std::string(std::getenv("WOWEE_DEV_AUTOENTER")) != "0" &&
                 assetManager && assetManager->isInitialized()) {
                 devAutoEnterDelay_ += deltaTime;
                 if (devAutoEnterDelay_ > 2.0f) {
@@ -4483,13 +4483,17 @@ void Application::update(float deltaTime) {
             break;
 
         case AppState::CHARACTER_SELECTION:
+            // WOWEE_DEV_AUTOENTER=1 enters the first character; any other
+            // value names the character to enter (falling back to the first).
             if (!devAutoEnterDone_ && localCharacterFlow_ && !localSlotCharacters_.empty() &&
-                std::getenv("WOWEE_DEV_AUTOENTER") &&
-                std::string(std::getenv("WOWEE_DEV_AUTOENTER")) == "1") {
+                std::getenv("WOWEE_DEV_AUTOENTER") && *std::getenv("WOWEE_DEV_AUTOENTER") &&
+                std::string(std::getenv("WOWEE_DEV_AUTOENTER")) != "0") {
                 devAutoEnterDone_ = true;
-                LOG_WARNING("[DEV] WOWEE_DEV_AUTOENTER: entering the world as ",
-                            localSlotCharacters_.front().name);
-                enterLocalCharacter(localSlotCharacters_.front().guid);
+                const std::string wanted = std::getenv("WOWEE_DEV_AUTOENTER");
+                const auto* chosen = &localSlotCharacters_.front();
+                for (const auto& character : localSlotCharacters_) if (character.name == wanted) chosen = &character;
+                LOG_WARNING("[DEV] WOWEE_DEV_AUTOENTER: entering the world as ", chosen->name);
+                enterLocalCharacter(chosen->guid);
             }
             updateCheckpoint = "char_selection: enter";
             if (gameHandler) {

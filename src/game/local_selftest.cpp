@@ -7,6 +7,7 @@
 #include "game/local_auction_catalog.hpp"
 #include "game/local_equipment.hpp"
 #include "game/local_melee.hpp"
+#include "game/local_pet.hpp"
 #include "game/local_world_catalog.hpp"
 #include "game/local_inventory_layout.hpp"
 #include "game/local_quest_marker.hpp"
@@ -157,6 +158,72 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         p.health = 10; SELFTEST_CHECK(game.execute(p, {LocalAction::UseItem, 0, 1251}, players, result));
         SELFTEST_CHECK(!game.execute(p, {LocalAction::UseItem, 0, 1251}, players, result) && count(1251) == 1);
         out << "PASS consumables: " << c.consumables.size() << " items; instant potion, shared cooldown, level gate, food over time, move interrupt, bandage debuff\n";
+    }
+
+    // ---- 2b. Hunter pets: tame a real Shadowglen beast, dismiss, call, refusals.
+    {
+        SELFTEST_CHECK(c.tameableFamily(2031) == 2 && !c.tameableFamily(2079) && c.spell(kLocalTameBeast) && c.spell(kLocalCallPet));
+        LocalGameplay world; SELFTEST_CHECK(world.loadContent(worldPath, error));
+        LocalRealmPlayer p; p.guid = 77; p.race = 4; p.classId = 3; p.name = "Huntress";
+        world.initializePlayer(p, true, 10);
+        for (const uint32_t id : {kLocalTameBeast, kLocalCallPet, kLocalDismissPet, kLocalRevivePet})
+            if (std::find(p.knownSpells.begin(), p.knownSpells.end(), id) == p.knownSpells.end()) p.knownSpells.push_back(id);
+        std::vector<LocalRealmPlayer*> players{&p};
+        const auto livePet = [&]() -> const LocalRealmPet* {
+            for (const auto& v : world.pets()) if (v.ownerGuid == p.guid) return &v; return nullptr; };
+        // Nearest Young Nightsaber spawn to the start, streamed in.
+        const Spawn* spot = nullptr; float best = 1e30f;
+        for (auto [it, end] = spawns.equal_range(2031); it != end; ++it)
+            if (it->second.map == p.mapId) { const float d = std::hypot(it->second.x - p.x, it->second.y - p.y); if (d < best) { best = d; spot = &it->second; } }
+        SELFTEST_CHECK(spot);
+        p.x = spot->x; p.y = spot->y; p.z = spot->z; ++p.positionRevision;
+        const LocalRealmNpc* beast = nullptr;
+        for (int i = 0; i < 200 && !beast; ++i) { world.tick(0.05f, players);
+            for (const auto& n : world.npcs()) if (n.entry == 2031 && !n.dead && std::hypot(n.x - p.x, n.y - p.y) < 25) { beast = &n; break; } }
+        SELFTEST_CHECK(beast);
+        const uint64_t beastGuid = beast->guid;
+        // A warrior cannot tame; a hunter can.
+        { auto warrior = p; warrior.classId = 1; std::vector<LocalRealmPlayer*> w{&warrior};
+          SELFTEST_CHECK(!world.execute(warrior, {LocalAction::CastSpell, beastGuid, kLocalTameBeast}, w, result)); }
+        SELFTEST_CHECK(world.execute(p, {LocalAction::CastSpell, beastGuid, kLocalTameBeast}, players, result));
+        world.tick(0.05f, players);
+        SELFTEST_CHECK(p.hunterPet.entry == 2031 && p.hunterPet.family == 2 && p.hunterPet.active && !p.hunterPet.dead);
+        const auto* pet = livePet();
+        SELFTEST_CHECK(pet && pet->entry == 2031 && pet->summonSpellId == kLocalCallPet && pet->level == p.level && pet->resourceType == 2 && pet->maxHealth > 50);
+        SELFTEST_CHECK(pet->name == "Young Nightsaber");
+        // The tamed beast left the world without loot.
+        for (const auto& n : world.npcs()) if (n.guid == beastGuid) SELFTEST_CHECK(n.dead && !n.lootable);
+        // One pet: a second tame is refused, Revive needs a dead pet.
+        SELFTEST_CHECK(!world.execute(p, {LocalAction::CastSpell, beastGuid, kLocalTameBeast}, players, result));
+        SELFTEST_CHECK(!world.execute(p, {LocalAction::CastSpell, 0, kLocalRevivePet}, players, result));
+        SELFTEST_CHECK(world.execute(p, {LocalAction::CastSpell, 0, kLocalDismissPet}, players, result));
+        world.tick(0.05f, players);
+        SELFTEST_CHECK(!livePet() && !p.hunterPet.active && p.hunterPet.entry == 2031);
+        SELFTEST_CHECK(world.execute(p, {LocalAction::CastSpell, 0, kLocalCallPet}, players, result));
+        world.tick(0.05f, players);
+        SELFTEST_CHECK(livePet() && p.hunterPet.active);
+        // Out of the world and back (a travel retire): it returns on its own.
+        p.flight.active = true; world.tick(0.05f, players); p.flight.active = false;
+        for (int i = 0; i < 4; ++i) world.tick(0.05f, players);
+        SELFTEST_CHECK(livePet() && livePet()->entry == 2031);
+        // The pet fights beside its hunter: the owner attacks a boar, the pet joins and damages it.
+        {
+            const LocalRealmNpc* boar = nullptr;
+            for (int i = 0; i < 200 && !boar; ++i) { world.tick(0.05f, players);
+                for (const auto& n : world.npcs()) if ((n.entry == 1984 || n.entry == 2031) && !n.dead && std::hypot(n.x - p.x, n.y - p.y) < 60) { boar = &n; break; } }
+            SELFTEST_CHECK(boar);
+            const uint64_t boarGuid = boar->guid; const uint32_t before = boar->maxHealth;
+            p.x = boar->x + 1; p.y = boar->y; p.z = boar->z; ++p.positionRevision;
+            world.execute(p, {LocalAction::Attack, boarGuid, 0}, players, result);
+            bool petEngaged = false, boarHurt = false;
+            for (int i = 0; i < 400 && !(petEngaged && boarHurt); ++i) {
+                p.health = p.maxHealth; world.tick(0.05f, players);
+                if (const auto* v = livePet(); v && v->targetGuid == boarGuid) petEngaged = true;
+                for (const auto& n : world.npcs()) if (n.guid == boarGuid && (n.dead || n.health < before)) boarHurt = true;
+            }
+            SELFTEST_CHECK(petEngaged && boarHurt);
+        }
+        out << "PASS hunter pets: " << c.tameableBeasts.size() << " tameable beasts; tame Young Nightsaber, one-pet rule, dismiss, call, return after travel, fights beside the hunter\n";
     }
 
     if (!quests) { out << "SKIP start-zone quests\n"; return true; }

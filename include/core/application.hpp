@@ -373,6 +373,7 @@ private:
     bool localRealmWmoOnly_ = false;
     std::string localRealmTravelNotice_;
     uint64_t localRealmTarget_ = 0;
+    uint64_t localRealmTargetPushed_ = 0; // What the interface was last told; a different value is the interface's own choice.
     uint8_t localVehicleAbilitySlot_ = 0;
     ui::LocalVehicleAimInput localVehicleAim_;
     std::unordered_map<uint32_t, std::string> localRealmSpellIconPaths_;

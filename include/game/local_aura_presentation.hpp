@@ -176,6 +176,7 @@ inline bool validLocalHealingAuraViews(const LocalRealmPlayer& p){
 inline uint64_t localSpellCommandTarget(const LocalSpellDefinition& s,const LocalRealmPlayer& self,
         uint64_t selected,const std::vector<LocalRealmPlayer>& players){
     if(s.damage||s.periodicDamage||s.snarePercent)return selected;
+    if(s.id==kLocalTameBeast)return selected; // Tame Beast is cast at the beast.
     const bool friendly=((s.heal||s.periodicHeal)&&!s.healingSelfOnly)||
         ((s.buffHealth||s.buffArmor||s.buffAbsorb||s.proc.effect!=LocalProcEffect::None)&&!s.buffSelfOnly);
     if(friendly&&std::any_of(players.begin(),players.end(),[&](const auto& p){return p.guid==selected;}))return selected;

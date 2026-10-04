@@ -622,6 +622,10 @@ const LocalConsumableSpell* LocalWorldContent::consumableSpell(uint32_t spellId)
     const auto it=std::lower_bound(consumableSpells.begin(),consumableSpells.end(),spellId,[](const auto& c,uint32_t id){return c.id<id;});
     return it!=consumableSpells.end()&&it->id==spellId?&*it:nullptr;
 }
+uint8_t LocalWorldContent::tameableFamily(uint32_t entry) const {
+    const auto it=std::lower_bound(tameableBeasts.begin(),tameableBeasts.end(),entry,[](const auto& b,uint32_t id){return b.first<id;});
+    return it!=tameableBeasts.end()&&it->first==entry?it->second:0;
+}
 const LocalNpcDefinition* LocalWorldContent::npc(uint32_t id) const {
     if (const auto* d = definition(npcs, id)) return d;
     const auto found = npcCache.find(id); if (found != npcCache.end()) return &found->second;
@@ -1821,7 +1825,9 @@ struct LocalGameplay::Impl {
         const auto* tmpl=localPetTemplate(summon.entry);
         const auto* def=content->npc(summon.entry);
         if(tmpl)summon.attackPeriodMs=tmpl->baseAttackTimeMs;
-        const auto* row=localPetLevelStats(summon.entry,level);
+        // Pet::InitStatsForLevel's HUNTER_PET arm reads the generic hunter
+        // pet row (pet_levelstats creature_entry 1), not the tamed creature's.
+        const auto* row=localPetLevelStats(summon.summonSpellId==kLocalCallPet?1u:summon.entry,level);
         const auto previousMax=summon.maxHealth;
         // GetPetLevelInfo returning null is a real arm of the reference
         // (Pet.cpp:1147-1172): it falls back to CreatureBaseStats and five
@@ -1857,6 +1863,9 @@ struct LocalGameplay::Impl {
     /// damage (Pet.cpp:1184-1188). Zero-zero when the row has no damage, which
     /// is the generic hunter row and never a pet this build creates.
     std::pair<uint32_t,uint32_t> petWeaponDamage(const LocalRealmPet& summon)const {
+        // HUNTER_PET (Pet.cpp InitStatsForLevel): petlevel -/+ petlevel/4.
+        if(summon.summonSpellId==kLocalCallPet)
+            return {std::max(1u,uint32_t(summon.level-summon.level/4)),uint32_t(summon.level+summon.level/4)};
         if(const auto* row=localPetLevelStats(summon.entry,summon.level))
             return {row->minDamage(),row->maxDamage()};
         // No row: the world catalog's single derived damage value, which is
@@ -1925,6 +1934,54 @@ struct LocalGameplay::Impl {
             " name=",pets.back().name," health=",pets.back().maxHealth,
             " power=",pets.back().power,"/",pets.back().maxPower);
         return true;
+    }
+    /// The hunter's kept beast, brought out (Call Pet, Tame Beast, Revive Pet
+    /// at `healthPct`). Pet::CreateBaseAtCreature: the creature's own model and
+    /// a focus pool, the owner's level, stats from the hunter pet row.
+    bool spawnHunterPet(LocalRealmPlayer& owner,uint32_t healthPct,const std::vector<LocalRealmPlayer*>& players) {
+        auto& h=owner.hunterPet;
+        if(!h.entry||!h.displayId)return false;
+        if(auto* existing=controlledPetOf(owner.guid)) {
+            if(existing->summonSpellId==kLocalCallPet&&!existing->dead&&existing->entry==h.entry){
+                existing->x=owner.x;existing->y=owner.y;existing->z=owner.z;return true;
+            }
+            retirePet(existing->guid,"replaced",players);
+        }
+        if(pets.size()>=kLocalMaxPets)return false;
+        LocalRealmPet summon;
+        summon.guid=kLocalPetGuidPrefix|(uint64_t(owner.instanceId)<<32)|uint32_t(++nextPetSerial);
+        summon.ownerGuid=owner.guid;summon.summonEpoch=allocateSummonEpoch();
+        summon.entry=h.entry;summon.displayId=h.displayId;summon.mapId=owner.mapId;summon.instanceId=owner.instanceId;
+        summon.summonSpellId=kLocalCallPet;summon.kind=LocalPetKind::Controlled;
+        summon.resourceType=2;summon.maxPower=kLocalPetMaxFocus;summon.power=kLocalPetMaxFocus;
+        summon.attackPeriodMs=2000;
+        applyPetLevelStats(summon,owner.level);
+        summon.health=std::max(1u,uint32_t(uint64_t(summon.maxHealth)*std::clamp(healthPct,1u,100u)/100));
+        summon.name=h.name.empty()?"Pet":h.name;
+        summon.command=kLocalPetDefaultCommand;summon.react=kLocalPetDefaultReact;
+        summon.x=owner.x;summon.y=owner.y;summon.z=owner.z;summon.orientation=owner.orientation;
+        if(!validLocalPet(summon))return false;
+        pets.push_back(std::move(summon));
+        h.active=true;h.dead=false;
+        LOG_INFO("[LOCAL_HUNTER_PET] owner=",owner.guid," pet=",pets.back().guid," entry=",h.entry," family=",unsigned(h.family),
+            " action=out level=",unsigned(pets.back().level)," health=",pets.back().health,"/",pets.back().maxHealth," name=",h.name);
+        return true;
+    }
+    /// Keeps the kept record in step with the beast in the world: a beast that
+    /// died stays dead until Revive Pet, an active one comes back after travel
+    /// or a reload, as Player::LoadPet resummons the current pet.
+    bool syncHunterPet(LocalRealmPlayer& owner,const std::vector<LocalRealmPlayer*>& players) {
+        auto& h=owner.hunterPet;
+        if(owner.classId!=3||!h.entry)return false;
+        auto* live=controlledPetOf(owner.guid);
+        if(live&&live->summonSpellId==kLocalCallPet) {
+            if(!live->dead)return false;
+            h.dead=true;h.active=false;
+            LOG_INFO("[LOCAL_HUNTER_PET] owner=",owner.guid," entry=",h.entry," action=died");
+            retirePet(live->guid,"died",players);return true;
+        }
+        if(live||!h.active||h.dead||owner.dead||!owner.health||owner.ghost||owner.flight.active||owner.transportEntry)return false;
+        return spawnHunterPet(owner,100,players);
     }
     /// Pet::SynchronizeLevelWithOwner's SUMMON_PET arm (Pet.cpp:2394-2397):
     /// always the owner's level. Returns whether anything moved.
@@ -2588,6 +2645,10 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         }
         for(float value:{d.range,d.minRange,d.chainRadius,d.areaRadius,d.periodicDamagePerLevel,d.damagePerLevel,d.healPerLevel,d.periodicHealPerLevel,d.proc.amountPerLevel,d.proc.range,d.proc.ppm,d.passiveAttackPowerPerLevel}) {uint32_t bits;std::memcpy(&bits,&value,4);hash(bits);}
         const auto existing=std::find_if(c.spells.begin(),c.spells.end(),[&](const auto& old){return old.id==d.id;});
+        // The hunter pet spells belong to the hunter_pets.json rules; the
+        // generic importer has no channel/summon support for them and would
+        // replace a working definition with an unsupported one.
+        if(existing!=c.spells.end()&&localHunterPetSpell(d.id))continue;
         if(existing==c.spells.end())c.spells.push_back(d);else *existing=d;
     }
     std::sort(c.spells.begin(),c.spells.end(),[](const auto& a,const auto& b){return a.id<b.id;});
@@ -3233,6 +3294,40 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
                 c->consumableSpells.push_back(std::move(sp));
             }
             for(unsigned char b:useText)c->fingerprint=(c->fingerprint^b)*16777619U;
+        }
+        if(j.contains("hunterPets")) {
+            // Tameable beasts and the hunter pet spells (import_hunter_pets.py).
+            const auto name=label(j,"hunterPets",128);
+            if(name.empty() || name=="." || name==".." || name.find('/')!=std::string::npos || name.find('\\')!=std::string::npos)
+                throw std::runtime_error("Hunter pet companion must be a sibling filename");
+            const auto petPath=std::filesystem::path(path).parent_path()/name;
+            std::ifstream petInput(petPath,std::ios::binary|std::ios::ate);
+            if(!petInput)throw std::runtime_error("Cannot open required hunter pet companion "+petPath.string());
+            const auto petLength=petInput.tellg();
+            if(petLength<=0 || petLength>2*1024*1024)throw std::runtime_error("Hunter pet companion must be 1 byte to 2 MiB");
+            std::string petText(size_t(petLength),'\0');petInput.seekg(0);
+            if(!petInput.read(petText.data(),petLength))throw std::runtime_error("Cannot read hunter pet companion");
+            const auto pets=Json::parse(petText);
+            if(!pets.is_object() || number(pets,"schemaVersion",0,1)!=1)throw std::runtime_error("Unsupported hunter pet schema");
+            for(const auto& v:array(pets,"beasts",20000,true)) {
+                const auto entry=number(v,"entry",0,UINT32_MAX);const auto family=number(v,"family",0,255);
+                if(!entry||!family||(!c->tameableBeasts.empty()&&c->tameableBeasts.back().first>=entry))throw std::runtime_error("Invalid tameable beast row");
+                c->tameableBeasts.emplace_back(entry,uint8_t(family));
+            }
+            for(const auto& v:array(pets,"spells",16,true)) {
+                // Owned by the hunter pet rules in executeCastSpell, never by
+                // the generic spell pipeline; the definition gives the
+                // spellbook, trainer and action bar a name, icon and level.
+                LocalSpellDefinition d;d.id=number(v,"id",0,UINT32_MAX);
+                if(!localHunterPetSpell(d.id))throw std::runtime_error("Unknown hunter pet spell");
+                d.name=label(v,"name",64);d.iconPath=label(v,"icon",128,false);
+                d.clientSpell=true;d.allowableClasses=1u<<2;d.spellLevel=uint16_t(number(v,"level",1,80));d.baseLevel=d.spellLevel;
+                d.castTimeMs=number(v,"castMs",0,60000);d.cooldownMs=number(v,"cooldownMs",0,3600000);d.range=30;
+                if(std::any_of(c->spells.begin(),c->spells.end(),[&](const auto& o){return o.id==d.id;}))throw std::runtime_error("Duplicate hunter pet spell");
+                c->spells.push_back(std::move(d));
+            }
+            std::sort(c->spells.begin(),c->spells.end(),[](const auto& a,const auto& b){return a.id<b.id;});
+            for(unsigned char b:petText)c->fingerprint=(c->fingerprint^b)*16777619U;
         }
         if(j.contains("creatureTalk")) {
             // Original SmartAI speech companion (compile_creature_talk.py).
@@ -4584,6 +4679,10 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
                     // non-hunter corpse on its very next pass. Retiring the
                     // summon here is that same two-step collapsed into one, and
                     // it is what LocalAction::DismissPet has always done.
+                    if(summon->summonSpellId==kLocalCallPet){
+                        LOG_INFO("[LOCAL_HUNTER_PET] owner=",p.guid," entry=",p.hunterPet.entry," action=abandon");
+                        p.hunterPet={};
+                    }
                     g.retirePet(summon->guid,"abandoned",players);
                     result="Summon dismissed";return true;
             }
@@ -5583,12 +5682,76 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
     return reject("Unsupported local action");
 }
 
+bool LocalGameplay::hunterPetSpell(LocalRealmPlayer& p,const LocalRealmCommand& cmd,
+        const std::vector<LocalRealmPlayer*>& players,std::string& result,std::string& why) {
+    auto& g=*impl_;const auto& c=content();
+    const auto fail=[&](const char* reason){why=reason;return false;};
+    if(p.classId!=3)return fail("Only hunters can do that");
+    if(std::find(p.knownSpells.begin(),p.knownSpells.end(),cmd.id)==p.knownSpells.end())return fail("Spell is not learned");
+    if(p.dead||p.ghost)return fail("Cannot cast while dead");
+    if(p.flight.active||p.transportEntry)return fail("You can't do that right now");
+    if(p.castingSpellId)return fail("A spell is already being cast");
+    auto& h=p.hunterPet;
+    auto* live=g.controlledPetOf(p.guid);
+    const bool hunterLive=live&&live->summonSpellId==kLocalCallPet;
+    switch(cmd.id) {
+        case kLocalTameBeast: {
+            // Spell::CheckCast for SPELL_EFFECT_TAME_CREATURE: no current pet,
+            // a living tameable beast at or below the hunter's level. The
+            // beast leaves the world (it does not drop loot or reward) and
+            // becomes the hunter's pet.
+            if(h.entry)return fail("You already have a pet; abandon it before taming another");
+            if(live)return fail("You already control a summoned creature");
+            auto* n=g.npc(cmd.target);
+            if(!n||n->dead||!n->health||n->npcDespawned||n->npcSummonType||n->mapId!=p.mapId||n->instanceId!=p.instanceId) {
+                LOG_INFO("[LOCAL_HUNTER_PET] owner=",p.guid," tame refused target=",cmd.target," known=",n?1:0,
+                    " dead=",n&&n->dead?1:0," despawned=",n&&n->npcDespawned?1:0," summon=",n?unsigned(n->npcSummonType):0u);
+                return fail("Target a living beast to tame");
+            }
+            const auto family=c.tameableFamily(n->entry);
+            if(!family)return fail("That creature is not tameable");
+            if(n->level>p.level)return fail("That creature is too high level to tame");
+            if(distance2(p,*n)>30.f*30.f)return fail("Out of range");
+            const auto* def=c.npc(n->entry);
+            const LocalHunterPet previous=h;
+            h={};h.entry=n->entry;h.displayId=n->displayId?n->displayId:def?def->displayId:0;h.family=family;
+            h.name=n->name.substr(0,96);
+            if(!g.spawnHunterPet(p,100,players)){h=previous;return fail("The beast could not be tamed");}
+            if(p.attackTarget==n->guid)p.attackTarget=0;
+            LOG_INFO("[LOCAL_HUNTER_PET] owner=",p.guid," action=tame npc=",n->guid," entry=",n->entry," family=",unsigned(family)," level=",unsigned(n->level));
+            g.npcForceDespawn(*n,players);
+            result="Tamed "+h.name;return true;
+        }
+        case kLocalCallPet:
+            if(!h.entry)return fail("You do not have a pet");
+            if(h.dead)return fail("Your pet is dead; revive it first");
+            if(hunterLive)return fail("Your pet is already out");
+            if(live)return fail("You already control a summoned creature");
+            if(!g.spawnHunterPet(p,100,players))return fail("Your pet could not be called");
+            result="Called "+h.name;return true;
+        case kLocalDismissPet:
+            if(!hunterLive)return fail("You do not have a pet out");
+            h.active=false;g.retirePet(live->guid,"dismissed",players);
+            LOG_INFO("[LOCAL_HUNTER_PET] owner=",p.guid," entry=",h.entry," action=dismiss");
+            result="Dismissed "+h.name;return true;
+        case kLocalRevivePet:
+            // Revive Pet returns the beast at 15% of its health.
+            if(!h.entry)return fail("You do not have a pet");
+            if(!h.dead)return fail("Your pet is not dead");
+            if(live&&!hunterLive)return fail("You already control a summoned creature");
+            if(!g.spawnHunterPet(p,15,players))return fail("Your pet could not be revived");
+            result="Revived "+h.name;return true;
+    }
+    return fail("Unknown pet spell");
+}
+
 bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand& cmd,
         const std::vector<LocalRealmPlayer*>& players,std::string& result,bool finishing) {
     auto& g=*impl_;const auto& c=content();
     const auto reject=[&](const std::string& reason){result=reason;if(finishing)clearCast(p,LocalCastStatus::Failed);return false;};
     const auto* d=c.spell(cmd.id);
     if(d&&d->formId&&p.formSpellId==d->id)return reject("This form or stance is already active");
+    if(localHunterPetSpell(cmd.id)){std::string why;if(hunterPetSpell(p,cmd,players,result,why))return true;return reject(why);}
     if(d && d->npcOnly)return reject("NPC spell cannot be cast by a player");
     if(d && d->triggeredOnly)return reject("Triggered spell cannot be cast directly");
     if(d && d->passive)return reject("Passive talents cannot be cast");
@@ -6935,6 +7098,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
         changed=advanceLocalRunes(p->runeCooldownMs,ms)||changed;
         changed=advanceLocalRegeneration(*p,elapsedMs,localCombatActive(*p,g.npcs),localRegenerationRates(*p,content()))||changed;
         changed=advanceLocalConsumables(*p,elapsedMs)||changed;
+        changed=g.syncHunterPet(*p,players)||changed;
         // A flight owns the character's position for its duration. Combat,
         // casting and NPC aggro are all suppressed by the same rule that
         // suppresses them for a dead player: nothing else runs for them below.

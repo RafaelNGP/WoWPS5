@@ -256,6 +256,19 @@ inline constexpr uint32_t kLocalItemCooldownFamily=1000;
 inline constexpr size_t kLocalMaxConsumableRegens=4;
 /// Food, drink or bandage in progress. Authority-only and never saved: a
 /// reload, death or teleport simply ends the meal.
+/// A hunter's own beast, kept with the character while it is not summoned
+/// (Save46/LAN110). `active` is whether it should be out: Call Pet and Tame
+/// Beast set it, Dismiss Pet and death clear it; abandoning forgets the beast.
+struct LocalHunterPet {
+    uint32_t entry=0,displayId=0;
+    uint8_t family=0;
+    bool dead=false,active=false;
+    std::string name;
+    bool operator==(const LocalHunterPet&) const = default;
+};
+/// The four spells a level 10 hunter owns a pet with (hunter_pets.json).
+inline constexpr uint32_t kLocalTameBeast=1515,kLocalCallPet=883,kLocalDismissPet=2641,kLocalRevivePet=982;
+inline constexpr bool localHunterPetSpell(uint32_t id){return id==kLocalTameBeast||id==kLocalCallPet||id==kLocalDismissPet||id==kLocalRevivePet;}
 /// Name and icon of a consumable's buff, for the interface (Spell.dbc/SpellIcon.dbc).
 struct LocalConsumableSpell { uint32_t id=0; std::string name,iconPath; };
 struct LocalConsumableRegen {
@@ -581,6 +594,7 @@ struct LocalRealmPlayer {
     std::vector<LocalCooldown> cooldowns;
     std::vector<LocalCategoryCooldown> categoryCooldowns;
     std::vector<LocalConsumableRegen> consumableRegens; // Session-only meals/bandages.
+    LocalHunterPet hunterPet; // Save46/LAN110: the hunter's beast while it is not out.
     bool migrateLegacyCooldowns=false; // Preserved until imported category metadata is available.
     // Six independent base-rune timers, authority-owned; save format 9.
     LocalRuneCooldowns runeCooldownMs{};
@@ -1963,6 +1977,7 @@ struct LocalWorldContent {
     std::vector<LocalQuestDefinition> quests;
     std::vector<LocalConsumable> consumables; // Sorted by itemId.
     std::vector<LocalConsumableSpell> consumableSpells; // Sorted by id.
+    std::vector<std::pair<uint32_t,uint8_t>> tameableBeasts; // Creature entry, pet family; sorted.
     bool questChainCatalogRequired = false;
     std::map<uint32_t, LocalQuestChainGate> questChainGates;
     // Authored state/phase transitions keyed by quest ID or NPC entry. They are
@@ -2021,6 +2036,8 @@ struct LocalWorldContent {
     const LocalQuestDefinition* quest(uint32_t id) const;
     const LocalConsumable* consumable(uint32_t itemId) const;
     const LocalConsumableSpell* consumableSpell(uint32_t spellId) const;
+    /// Pet family of a tameable, non-exotic beast; zero when it cannot be tamed.
+    uint8_t tameableFamily(uint32_t entry) const;
     const LocalNpcDefinition* npc(uint32_t id) const;
     std::vector<LocalQuestDefinition> questsForNpc(uint32_t entry) const;
 };
@@ -2379,6 +2396,10 @@ private:
     bool damageVehicleArea(LocalRealmNpc& primary,LocalRealmNpc& hull,LocalRealmPlayer& owner,
         uint32_t raw,uint32_t spell,uint8_t schoolMask,float centerX,float centerY,float centerZ,
         float radius,const std::vector<LocalRealmPlayer*>& players);
+    /// Tame Beast, Call Pet, Dismiss Pet and Revive Pet for a hunter; `why`
+    /// is the refusal shown to the player.
+    bool hunterPetSpell(LocalRealmPlayer& player, const LocalRealmCommand& command,
+                        const std::vector<LocalRealmPlayer*>& players, std::string& result, std::string& why);
     bool executeCastSpell(LocalRealmPlayer& player, const LocalRealmCommand& command,
         const std::vector<LocalRealmPlayer*>& players, std::string& result, bool finishing);
     struct Impl;
