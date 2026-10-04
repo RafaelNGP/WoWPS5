@@ -970,6 +970,7 @@ bool Application::initialize() {
                     if (gameHandler && gameHandler->isLocalExploration()) {
                         if (spellId == 6603) return "Interface\\Icons\\INV_Sword_04";
                         if (localRealm_) if (const auto* spell=localRealm_->content().spell(spellId)) return spell->iconPath;
+                        if (localRealm_) if (const auto* use=localRealm_->content().consumableSpell(spellId)) return use->iconPath;
                         return {};
                     }
                     (*ensureLoaded)();

@@ -25,7 +25,7 @@ HERE = Path(__file__).resolve().parent
 CATEGORY, ATTRIBUTES, RECOVERY, CATEGORY_RECOVERY = 1, 4, 29, 30
 AURA_INTERRUPT, CHANNEL_INTERRUPT, DURATION_INDEX = 32, 33, 40
 EFFECT, DIE_SIDES, BASE_POINTS, AURA, AMPLITUDE, MISC, TRIGGER = 71, 74, 80, 95, 98, 110, 116
-NAME = 136
+NAME, ICON = 136, 133
 ATTR0_CANT_USE_IN_COMBAT = 0x10000000
 INTERRUPT_DAMAGE, INTERRUPT_MOVE, INTERRUPT_TURN, INTERRUPT_NOT_SEATED = 0x2, 0x8, 0x10, 0x40000
 RECENTLY_BANDAGED_MS = 60000  # Spell 11196, applied by every First Aid bandage.
@@ -51,6 +51,7 @@ def main():
     args = ap.parse_args()
     spells, string = dbc(args.dbc_dir / 'Spell.dbc')
     durations = {k: v[1][1] for k, v in dbc(args.dbc_dir / 'SpellDuration.dbc')[0].items()}
+    icons, icon_string = dbc(args.dbc_dir / 'SpellIcon.dbc')
     with tempfile.TemporaryDirectory() as tmp, tarfile.open(args.sources) as tar:
         tar.extract('item_template.sql', tmp, filter='data')
         items = list(sql_rows(Path(tmp) / 'item_template.sql', 'item_template'))
@@ -65,14 +66,14 @@ def main():
             elif u[EFFECT + e]:
                 yield u, s, e
 
-    out, report = [], collections.Counter()
+    out, report, buff_spells = [], collections.Counter(), {}
     for item in items:
         if item['class'] != 0: continue
         report['consumables'] += 1
         entry = {'itemId': item['entry'], 'instantHealth': 0, 'instantMana': 0, 'regenHealth': 0, 'regenMana': 0,
                  'durationMs': 0, 'cooldownMs': 0, 'category': 0, 'categoryCooldownMs': 0,
                  'requiredLevel': max(0, item['requiredlevel']), 'noCombat': False,
-                 'cancelOnMove': False, 'cancelOnDamage': False}
+                 'cancelOnMove': False, 'cancelOnDamage': False, 'spellId': 0}
         for slot in range(1, 6):
             spell_id = item[f'spellid_{slot}']
             if not spell_id or item[f'spelltrigger_{slot}'] != 0 or spell_id not in spells: continue
@@ -100,6 +101,7 @@ def main():
                     elif aura == 24 and misc == 0 and eu[AMPLITUDE + e]: kind, total = 'regenMana', amount * (duration // eu[AMPLITUDE + e])
                     if kind:
                         entry[kind] += total; entry['durationMs'] = max(entry['durationMs'], duration)
+                        entry['spellId'] = entry['spellId'] or spell_id
                         entry['cancelOnMove'] |= bool(interrupts & (INTERRUPT_MOVE | INTERRUPT_TURN | INTERRUPT_NOT_SEATED))
                         entry['cancelOnDamage'] |= bool(interrupts & INTERRUPT_DAMAGE)
             # Drinks carry their mana-per-5 in a periodic dummy (226) beside an
@@ -109,6 +111,7 @@ def main():
                 u2 = spells[spell][0]; duration = max(0, durations.get(u2[DURATION_INDEX], 0))
                 if amount and duration:
                     entry['regenMana'] += amount * duration // 5000; entry['durationMs'] = max(entry['durationMs'], duration)
+                    entry['spellId'] = entry['spellId'] or spell_id
                     interrupts = u2[AURA_INTERRUPT] | u2[CHANNEL_INTERRUPT]
                     entry['cancelOnMove'] |= bool(interrupts & (INTERRUPT_MOVE | INTERRUPT_TURN | INTERRUPT_NOT_SEATED))
                     entry['cancelOnDamage'] |= bool(interrupts & INTERRUPT_DAMAGE)
@@ -116,14 +119,20 @@ def main():
             entry['category'], entry['categoryCooldownMs'] = 11196, max(entry['categoryCooldownMs'], RECENTLY_BANDAGED_MS)
         if not any(entry[k] for k in ('instantHealth', 'instantMana', 'regenHealth', 'regenMana')):
             report['unsupported'] += 1; continue
-        if not (entry['regenHealth'] or entry['regenMana']): entry['durationMs'] = 0
+        if not (entry['regenHealth'] or entry['regenMana']): entry['durationMs'] = 0; entry['spellId'] = 0
+        if entry['spellId']:
+            # The buff the player sees while eating: the on-use spell's own name and icon.
+            u = spells[entry['spellId']][0]
+            icon = icon_string(icons[u[ICON]][0][1]) if u[ICON] in icons else ''
+            buff_spells[entry['spellId']] = {'id': entry['spellId'], 'name': string(u[NAME])[:64], 'icon': icon[:128]}
         for k in ('instantHealth', 'instantMana', 'regenHealth', 'regenMana'): entry[k] = min(entry[k], 1000000)
         entry['cooldownMs'] = min(entry['cooldownMs'], 3600000); entry['categoryCooldownMs'] = min(entry['categoryCooldownMs'], 3600000)
         report['supported'] += 1
         out.append(entry)
     out.sort(key=lambda e: e['itemId'])
     doc = {'schemaVersion': 1, 'sourceCommit': PINNED_COMMIT, 'clientBuild': 12340,
-           'report': dict(sorted(report.items())), 'items': out}
+           'report': dict(sorted(report.items())), 'items': out,
+           'spells': [buff_spells[k] for k in sorted(buff_spells)]}
     args.output.write_text(json.dumps(doc, separators=(',', ':'), sort_keys=True) + '\n')
     print(json.dumps(doc['report']))
 

@@ -18,6 +18,9 @@ std::unordered_map<uint32_t,Entry> localUiSpellMetadata(const LocalWorldContent&
         entry.categoryRecoveryMs=spell.globalCooldownMs;
         result.emplace(spell.id,std::move(entry));
     }
+    for(const auto& spell:content.consumableSpells)if(!result.count(spell.id)) {
+        Entry entry;entry.name=spell.name;result.emplace(spell.id,std::move(entry));
+    }
     if(!result.count(6603)) { Entry attack;attack.name="Attack";
         attack.maxRange=5.0f;attack.schoolMask=1;result.emplace(6603,std::move(attack)); }
     return result;

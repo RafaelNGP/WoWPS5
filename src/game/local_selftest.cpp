@@ -80,6 +80,17 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         }
         ++checked;
     }
+    // The refusal says why, in the original client's words.
+    {
+        const auto reason = [&](uint8_t cls, uint8_t level, uint32_t item, uint64_t target) {
+            LocalRealmPlayer p; p.guid = 1; p.race = 1; p.classId = cls; p.level = level; p.gameplayInitialized = true;
+            p.inventory = {{item, 1, 0}}; std::vector<LocalRealmPlayer*> players{&p};
+            game.execute(p, {LocalAction::EquipItem, target, item}, players, result); return result;
+        };
+        SELFTEST_CHECK(reason(8, 80, plate, 0).find("proficiency") != std::string::npos);
+        SELFTEST_CHECK(reason(1, 39, plate, 0).find("proficiency") != std::string::npos);
+        SELFTEST_CHECK(reason(8, 80, dagger, 17).find("dual wield") != std::string::npos);
+    }
     // A one-hand weapon offered to a class without Dual Wield lands in the main hand.
     {
         LocalRealmPlayer p; p.guid = 1; p.race = 1; p.classId = 8; p.level = 80; p.gameplayInitialized = true;
@@ -129,7 +140,11 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         SELFTEST_CHECK(!game.execute(p, {LocalAction::UseItem, 0, 33447}, players, result) && count(33447) == 1);
         // Food: spread over 18 s, interrupted by moving.
         p.health = 10; SELFTEST_CHECK(game.execute(p, {LocalAction::UseItem, 0, 4536}, players, result) && p.health == 10 && count(4536) == 1);
-        for (int i = 0; i < 90; ++i) game.tick(0.1f, players);
+        game.tick(0.1f, players);
+        // The meal shows as the player's Food buff, named and iconed for the interface.
+        SELFTEST_CHECK(std::any_of(p.healingAuras.begin(), p.healingAuras.end(), [](const auto& a) { return a.spellId == 433 && a.durationMs == 18000; }));
+        SELFTEST_CHECK(c.consumableSpell(433) && c.consumableSpell(433)->name == "Food" && !c.consumableSpell(433)->iconPath.empty());
+        for (int i = 0; i < 89; ++i) game.tick(0.1f, players);
         SELFTEST_CHECK(p.consumableRegens.size() == 1 && p.consumableRegens[0].givenHealth >= 29 && p.consumableRegens[0].givenHealth <= 32);
         p.x += 3; game.tick(0.1f, players); p.x -= 3;
         SELFTEST_CHECK(p.consumableRegens.empty()); // Standing up ends the meal.

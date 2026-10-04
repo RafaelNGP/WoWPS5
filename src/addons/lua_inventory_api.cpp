@@ -6,6 +6,10 @@
 #include "game/inventory_slots.hpp"
 #include "game/game_utils.hpp"
 #include "game/auction_filters.hpp"
+#include "game/local_auction_catalog.hpp"
+#include "game/local_equipment.hpp"
+#include "game/local_realm.hpp"
+#include "game/world_packets.hpp"
 #include "ui/framexml_takeover.hpp"
 #include "core/logger.hpp"
 #include "core/config_paths.hpp"
@@ -2057,6 +2061,33 @@ bool auctionLess(game::GameHandler* gh, const std::string& column,
 
 }  // namespace
 
+// _WoweeItemUsable(itemId) -> classCanUse, levelReached, subclassName. In the standalone
+// realm these are the rules EquipItem/UseItem enforce (WotLK proficiencies,
+// required level), so the tooltip turns the line red exactly when the realm
+// would refuse. Connected realms answer true: their server owns the rules.
+static int lua_WoweeItemUsable(lua_State* L) {
+    auto* gh = getGameHandler(L);
+    const uint32_t itemId = static_cast<uint32_t>(luaL_checknumber(L, 1));
+    bool classOk = true, levelOk = true;
+    std::string subclassName;
+    const auto* realm = gh ? gh->localServiceRealm() : nullptr;
+    if (const auto* p = realm ? realm->localPlayer() : nullptr) {
+        if (const auto* m = game::localAuctionMetadata(itemId)) {
+            // Local items carry no query response, so the tooltip's "Plate" /
+            // "Axe" column comes from the same metadata.
+            if (m->itemClass == 2 || m->itemClass == 4)
+                if (const char* n = game::getItemSubclassName(m->itemClass, m->subClass)) subclassName = n;
+            classOk = game::localClassCanUseItem(p->classId, p->level, m->itemClass, m->subClass) &&
+                (!m->allowableClasses || !p->classId || p->classId > 32 || (m->allowableClasses & (1u << (p->classId - 1))));
+            levelOk = p->level >= m->requiredLevel;
+        }
+    }
+    lua_pushboolean(L, classOk);
+    lua_pushboolean(L, levelOk);
+    lua_pushstring(L, subclassName.c_str());
+    return 3;
+}
+
 // _GetItemTooltipData(itemId) → table with armor, bind, stats, damage, description
 // Returns a Lua table with detailed item info for tooltip building
 static int lua_GetItemTooltipData(lua_State* L) {
@@ -3487,6 +3518,7 @@ void registerInventoryLuaAPI(lua_State* L) {
                 {"IsDressableItem",   lua_IsDressableItem},
                 {"GetItemQualityColor", lua_GetItemQualityColor},
                 {"_GetItemTooltipData", lua_GetItemTooltipData},
+                {"_WoweeItemUsable", lua_WoweeItemUsable},
                 // GetItemSpell(item) → spellName, spellRank
                 //
                 // The "Use:" spell on an item, which is what /use and the chat

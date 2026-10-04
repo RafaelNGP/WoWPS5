@@ -333,15 +333,18 @@ bool validEquipment(const LocalRealmPlayer& p, const LocalWorldContent& c) {
 
 // Explicit target is slot+1, zero asks for an empty compatible slot followed
 // by deterministic replacement. Build a candidate before changing any stats.
-bool equipItem(LocalRealmPlayer& p, const LocalWorldContent& c, uint32_t id, uint64_t target) {
+bool equipItem(LocalRealmPlayer& p, const LocalWorldContent& c, uint32_t id, uint64_t target, const char** why = nullptr) {
     const auto* item = c.item(id);
     const uint32_t owned = totalItem(p, id);
     if (!item || !owned || target > kLocalEquipmentSlotCount || !validEquipment(p, c)) return false;
     if(const auto* meta=localAuctionMetadata(id)){
-        if(p.level<meta->requiredLevel || !p.classId || p.classId>32 || !p.race || p.race>32 ||
-           (meta->allowableClasses && !(meta->allowableClasses&(1u<<(p.classId-1)))) ||
-           (meta->allowableRaces && !(meta->allowableRaces&(1u<<(p.race-1)))))return false;
-        if(!localClassCanUseItem(p.classId,p.level,meta->itemClass,meta->subClass))return false;
+        const auto refuse=[&](const char* reason){if(why)*why=reason;return false;};
+        if(!p.classId || p.classId>32 || !p.race || p.race>32)return false;
+        if(p.level<meta->requiredLevel)return refuse("You must reach a higher level to equip that item");
+        if((meta->allowableClasses && !(meta->allowableClasses&(1u<<(p.classId-1)))) ||
+           (meta->allowableRaces && !(meta->allowableRaces&(1u<<(p.race-1)))))return refuse("You can't equip that item");
+        if(!localClassCanUseItem(p.classId,p.level,meta->itemClass,meta->subClass))
+            return refuse("You do not have the required proficiency for that item");
     }
     const auto* useMeta=localAuctionMetadata(id);
     const bool offHandWeapon=useMeta&&useMeta->itemClass==2;
@@ -356,7 +359,10 @@ bool equipItem(LocalRealmPlayer& p, const LocalWorldContent& c, uint32_t id, uin
         return (mask & localEquipmentSlotBit(candidate)) &&
             !(candidate == offSlot && ((main && main->inventoryType == 17) || !canDualWield));
     };
-    if (target && !usable(slot)) return false;
+    if (target && !usable(slot)) {
+        if (why && slot == offSlot && !canDualWield && (mask & localEquipmentSlotBit(offSlot))) *why = "You cannot dual wield";
+        return false;
+    }
     if (!target) {
         const auto equipped = uint32_t(std::count(p.equipment.begin(), p.equipment.end(), id));
         if (owned <= equipped) return true; // All owned copies already worn.
@@ -611,6 +617,10 @@ const LocalQuestDefinition* LocalWorldContent::quest(uint32_t id) const {
 const LocalConsumable* LocalWorldContent::consumable(uint32_t itemId) const {
     const auto it=std::lower_bound(consumables.begin(),consumables.end(),itemId,[](const auto& c,uint32_t id){return c.itemId<id;});
     return it!=consumables.end()&&it->itemId==itemId?&*it:nullptr;
+}
+const LocalConsumableSpell* LocalWorldContent::consumableSpell(uint32_t spellId) const {
+    const auto it=std::lower_bound(consumableSpells.begin(),consumableSpells.end(),spellId,[](const auto& c,uint32_t id){return c.id<id;});
+    return it!=consumableSpells.end()&&it->id==spellId?&*it:nullptr;
 }
 const LocalNpcDefinition* LocalWorldContent::npc(uint32_t id) const {
     if (const auto* d = definition(npcs, id)) return d;
@@ -903,6 +913,10 @@ struct LocalGameplay::Impl {
             const auto* d=content->spell(a.spell);if(!d||target->healingAuras.size()>=kLocalMaxHealingAuraViews)continue;
             target->healingAuras.push_back({a.spell,a.remaining,d->durationMs,a.owner,a.stacks});
         }
+        // Eating, drinking and bandaging show as the player's own timed buff.
+        for(auto* p:players)if(p)for(const auto& r:p->consumableRegens)
+            if(r.spellId&&r.durationMs>r.elapsedMs&&p->healingAuras.size()<kLocalMaxHealingAuraViews)
+                p->healingAuras.push_back({r.spellId,r.durationMs-r.elapsedMs,r.durationMs,p->guid,1});
     }
     std::unordered_map<std::string,std::vector<size_t>> grid;
     std::unordered_map<uint64_t,double> respawnAt;
@@ -3206,12 +3220,17 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
                 d.regenHealth=number(v,"regenHealth",0,1000000);d.regenMana=number(v,"regenMana",0,1000000);
                 d.durationMs=number(v,"durationMs",0,3600000);d.cooldownMs=number(v,"cooldownMs",0,3600000);
                 d.category=number(v,"category",0,100000);d.categoryCooldownMs=number(v,"categoryCooldownMs",0,3600000);
-                d.requiredLevel=uint8_t(number(v,"requiredLevel",0,255));
+                d.requiredLevel=uint8_t(number(v,"requiredLevel",0,255));d.spellId=number(v,"spellId",0,UINT32_MAX);
                 d.noCombat=flag(v,"noCombat");d.cancelOnMove=flag(v,"cancelOnMove");d.cancelOnDamage=flag(v,"cancelOnDamage");
                 if(!d.instantHealth&&!d.instantMana&&!d.regenHealth&&!d.regenMana)throw std::runtime_error("Consumable restores nothing");
                 if((d.regenHealth||d.regenMana)!=(d.durationMs!=0))throw std::runtime_error("Consumable regeneration needs a duration");
                 if(!c->consumables.empty()&&c->consumables.back().itemId>=d.itemId)throw std::runtime_error("Consumables must be sorted and unique");
                 c->consumables.push_back(d);
+            }
+            for(const auto& v:array(uses,"spells",4096)) {
+                LocalConsumableSpell sp;sp.id=number(v,"id",0,UINT32_MAX);sp.name=label(v,"name",64);sp.iconPath=label(v,"icon",128,false);
+                if(!sp.id||(!c->consumableSpells.empty()&&c->consumableSpells.back().id>=sp.id))throw std::runtime_error("Consumable spells must be sorted and unique");
+                c->consumableSpells.push_back(std::move(sp));
             }
             for(unsigned char b:useText)c->fingerprint=(c->fingerprint^b)*16777619U;
         }
@@ -5338,7 +5357,8 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         if(inCombat() || p.castingSpellId || p.flight.active || p.transportEntry)return reject("Cannot change equipment now");
         const auto* equipDef = c.item(cmd.id);
         if (equipDef && !localMeetsReputation(p, equipDef->requiredReputationFaction, equipDef->requiredReputationRank)) return reject("Requires higher reputation");
-        if (!equipItem(p, c, cmd.id, cmd.target)) return reject("Item cannot be equipped in that slot");
+        const char* why = nullptr;
+        if (!equipItem(p, c, cmd.id, cmd.target, &why)) return reject(why ? why : "Item cannot be equipped in that slot");
         stats(p,c,false);result="Equipped "+c.item(cmd.id)->name;return true;
     }
     if (cmd.action == LocalAction::UnequipItem) {
@@ -5395,7 +5415,7 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
                 // One meal per category: a second bread restarts eating, a drink runs beside it.
                 std::erase_if(candidate.consumableRegens,[&](const auto& r){return r.category==use->category;});
                 if(candidate.consumableRegens.size()>=kLocalMaxConsumableRegens)candidate.consumableRegens.erase(candidate.consumableRegens.begin());
-                LocalConsumableRegen r;r.itemId=use->itemId;r.category=use->category;r.durationMs=use->durationMs;
+                LocalConsumableRegen r;r.spellId=use->spellId;r.itemId=use->itemId;r.category=use->category;r.durationMs=use->durationMs;
                 r.health=use->regenHealth;r.mana=mana?use->regenMana:0;r.lastHealth=candidate.health;
                 r.x=candidate.x;r.y=candidate.y;r.cancelOnMove=use->cancelOnMove;r.cancelOnDamage=use->cancelOnDamage;
                 candidate.consumableRegens.push_back(r);

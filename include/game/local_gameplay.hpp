@@ -247,6 +247,7 @@ struct LocalCategoryCooldown { uint32_t category=0,family=0,remainingMs=0; };
 struct LocalConsumable {
     uint32_t itemId=0,instantHealth=0,instantMana=0,regenHealth=0,regenMana=0,durationMs=0;
     uint32_t cooldownMs=0,category=0,categoryCooldownMs=0;
+    uint32_t spellId=0; // The buff shown while it regenerates (Food, Drink, First Aid).
     uint8_t requiredLevel=0;
     bool noCombat=false,cancelOnMove=false,cancelOnDamage=false;
 };
@@ -255,8 +256,10 @@ inline constexpr uint32_t kLocalItemCooldownFamily=1000;
 inline constexpr size_t kLocalMaxConsumableRegens=4;
 /// Food, drink or bandage in progress. Authority-only and never saved: a
 /// reload, death or teleport simply ends the meal.
+/// Name and icon of a consumable's buff, for the interface (Spell.dbc/SpellIcon.dbc).
+struct LocalConsumableSpell { uint32_t id=0; std::string name,iconPath; };
 struct LocalConsumableRegen {
-    uint32_t itemId=0,category=0,durationMs=0,elapsedMs=0,health=0,mana=0,givenHealth=0,givenMana=0,lastHealth=0;
+    uint32_t spellId=0,itemId=0,category=0,durationMs=0,elapsedMs=0,health=0,mana=0,givenHealth=0,givenMana=0,lastHealth=0;
     float x=0,y=0;
     bool cancelOnMove=false,cancelOnDamage=false;
 };
@@ -1959,6 +1962,7 @@ struct LocalWorldContent {
     std::vector<LocalRecipe> recipes;
     std::vector<LocalQuestDefinition> quests;
     std::vector<LocalConsumable> consumables; // Sorted by itemId.
+    std::vector<LocalConsumableSpell> consumableSpells; // Sorted by id.
     bool questChainCatalogRequired = false;
     std::map<uint32_t, LocalQuestChainGate> questChainGates;
     // Authored state/phase transitions keyed by quest ID or NPC entry. They are
@@ -2016,6 +2020,7 @@ struct LocalWorldContent {
     const LocalRecipe* recipe(uint32_t spellId) const;
     const LocalQuestDefinition* quest(uint32_t id) const;
     const LocalConsumable* consumable(uint32_t itemId) const;
+    const LocalConsumableSpell* consumableSpell(uint32_t spellId) const;
     const LocalNpcDefinition* npc(uint32_t id) const;
     std::vector<LocalQuestDefinition> questsForNpc(uint32_t entry) const;
 };

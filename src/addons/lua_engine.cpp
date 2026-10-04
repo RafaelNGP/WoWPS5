@@ -8653,6 +8653,13 @@ void LuaEngine::registerCoreAPI() {
         // Read here rather than below the class line, because what a bag says
         // about itself takes the place of that line.
         "    local data = _GetItemTooltipData(itemId)\n"
+        // Red, as the original client draws them, when the standalone realm
+        // would refuse the item: a type the class cannot use, or a level not
+        // yet reached.
+        "    local classOk, levelOk, localSubclass = true, true, nil\n"
+        "    if _WoweeItemUsable then classOk, levelOk, localSubclass = _WoweeItemUsable(itemId) end\n"
+        "    local subR, subG, subB = 1, 1, 1\n"
+        "    if not classOk then subR, subG, subB = 1, 0.125, 0.125 end\n"
         "    -- Equip slot and subclass on same line\n"
         "    if equipSlot and equipSlot ~= '' then\n"
         "        local slotNames = {INVTYPE_HEAD='Head',INVTYPE_NECK='Neck',INVTYPE_SHOULDER='Shoulder',\n"
@@ -8663,9 +8670,10 @@ void LuaEngine::registerCoreAPI() {
         "            INVTYPE_WEAPONMAINHAND='Main Hand',INVTYPE_WEAPONOFFHAND='Off Hand',\n"
         "            INVTYPE_HOLDABLE='Held In Off-Hand',INVTYPE_TABARD='Tabard',INVTYPE_ROBE='Chest'}\n"
         "        local slotText = slotNames[equipSlot] or ''\n"
-        "        local subText = (subclass and subclass ~= '') and subclass or ''\n"
+        "        local subText = (subclass and subclass ~= '') and subclass or (localSubclass or '')\n"
+        "        if subText == 'Miscellaneous' or subText == 'Cloth' and equipSlot == 'INVTYPE_CLOAK' then subText = '' end\n"
         "        if slotText ~= '' or subText ~= '' then\n"
-        "            self:AddDoubleLine(slotText, subText, 1,1,1, 1,1,1)\n"
+        "            self:AddDoubleLine(slotText, subText, 1,1,1, subR,subG,subB)\n"
         "        end\n"
         // A bag says how much it holds, which is what the class line would
         // otherwise be spent on: "16 Slot Bag" rather than "Container". The
@@ -8758,7 +8766,8 @@ void LuaEngine::registerCoreAPI() {
         "        end\n"
         "        -- Required level\n"
         "        if data.requiredLevel and data.requiredLevel > 1 then\n"
-        "            self:AddLine('Requires Level '..data.requiredLevel, 1, 1, 1)\n"
+        "            if levelOk then self:AddLine('Requires Level '..data.requiredLevel, 1, 1, 1)\n"
+        "            else self:AddLine('Requires Level '..data.requiredLevel, 1, 0.125, 0.125) end\n"
         "        end\n"
         "        -- Flavor text\n"
         "        if data.description then self:AddLine('\"'..data.description..'\"', 1, 0.82, 0) end\n"
