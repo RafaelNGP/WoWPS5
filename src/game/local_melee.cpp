@@ -188,6 +188,10 @@ static float weaponHitTalentBonus(const LocalRealmPlayer& p,const LocalWorldCont
     }
     return std::min(100.f,amount);
 }
+bool localCanDualWield(const LocalRealmPlayer& p,const LocalWorldContent& c){
+    for(auto [id,rank]:p.talents)if(const auto* d=localTalentSpell(c,id,rank);activeStatTalent(p,c,d)&&d->passiveCanDualWield)return true;
+    return (p.level>=20&&(p.classId==1||p.classId==3||p.classId==4))||p.classId==6;
+}
 LocalMeleeStats localMeleeStats(const LocalRealmPlayer& p,const LocalWorldContent& c){
     LocalMeleeStats s;if(p.classId<1||p.classId>11||p.classId==10)return s;
     const auto level=std::clamp(unsigned(p.level),1u,80u);const auto key=unsigned(p.classId)*100+level;

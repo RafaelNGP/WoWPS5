@@ -242,6 +242,24 @@ struct LocalRecipe {
 struct LocalCooldown { uint32_t spellId = 0; uint32_t remainingMs = 0; };
 inline constexpr size_t kLocalMaxCategoryCooldowns=16;
 struct LocalCategoryCooldown { uint32_t category=0,family=0,remainingMs=0; };
+/// On-use consumable rules compiled by import_consumables.py (consumables.json).
+/// Amounts are totals; regeneration is spread evenly over durationMs.
+struct LocalConsumable {
+    uint32_t itemId=0,instantHealth=0,instantMana=0,regenHealth=0,regenMana=0,durationMs=0;
+    uint32_t cooldownMs=0,category=0,categoryCooldownMs=0;
+    uint8_t requiredLevel=0;
+    bool noCombat=false,cancelOnMove=false,cancelOnDamage=false;
+};
+/// Item cooldowns share the persisted category list under a family no spell uses.
+inline constexpr uint32_t kLocalItemCooldownFamily=1000;
+inline constexpr size_t kLocalMaxConsumableRegens=4;
+/// Food, drink or bandage in progress. Authority-only and never saved: a
+/// reload, death or teleport simply ends the meal.
+struct LocalConsumableRegen {
+    uint32_t itemId=0,category=0,durationMs=0,elapsedMs=0,health=0,mana=0,givenHealth=0,givenMana=0,lastHealth=0;
+    float x=0,y=0;
+    bool cancelOnMove=false,cancelOnDamage=false;
+};
 enum class LocalCastStatus : uint8_t { None = 0, Casting, Finished, Interrupted, Failed };
 enum class LocalQuestStatus : uint8_t { Active = 0, Complete = 1, Rewarded = 2 };
 struct LocalQuestProgress {
@@ -559,6 +577,7 @@ struct LocalRealmPlayer {
     std::vector<uint32_t> knownRecipes;
     std::vector<LocalCooldown> cooldowns;
     std::vector<LocalCategoryCooldown> categoryCooldowns;
+    std::vector<LocalConsumableRegen> consumableRegens; // Session-only meals/bandages.
     bool migrateLegacyCooldowns=false; // Preserved until imported category metadata is available.
     // Six independent base-rune timers, authority-owned; save format 9.
     LocalRuneCooldowns runeCooldownMs{};
@@ -1939,6 +1958,7 @@ struct LocalWorldContent {
     // Sorted by spellId, like every other definition list here.
     std::vector<LocalRecipe> recipes;
     std::vector<LocalQuestDefinition> quests;
+    std::vector<LocalConsumable> consumables; // Sorted by itemId.
     bool questChainCatalogRequired = false;
     std::map<uint32_t, LocalQuestChainGate> questChainGates;
     // Authored state/phase transitions keyed by quest ID or NPC entry. They are
@@ -1995,6 +2015,7 @@ struct LocalWorldContent {
     const LocalSpellDefinition* spell(uint32_t id) const;
     const LocalRecipe* recipe(uint32_t spellId) const;
     const LocalQuestDefinition* quest(uint32_t id) const;
+    const LocalConsumable* consumable(uint32_t itemId) const;
     const LocalNpcDefinition* npc(uint32_t id) const;
     std::vector<LocalQuestDefinition> questsForNpc(uint32_t entry) const;
 };

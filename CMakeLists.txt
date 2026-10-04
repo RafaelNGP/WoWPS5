@@ -225,6 +225,7 @@ set(WOWEE_SOURCES
     src/game/local_realm.cpp
     src/game/local_gameplay.cpp
     src/game/local_melee.cpp
+    src/game/local_selftest.cpp
     src/game/local_services.cpp
     src/game/local_travel.cpp
     src/game/local_bots.cpp

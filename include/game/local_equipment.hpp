@@ -57,4 +57,48 @@ inline constexpr bool localEquipmentFits(uint8_t inventoryType, uint8_t legacySl
     return (localEquipmentSlotMask(inventoryType, legacySlot) & localEquipmentSlotBit(slot)) != 0;
 }
 
+// WotLK class proficiencies (item_template class 2 weapons, class 4 armor),
+// i.e. what the class trainers and weapon masters can teach. Mail waits for
+// level 40 on hunters and shamans, plate for warriors and paladins; death
+// knights start with plate. Class ids: 1 Warrior, 2 Paladin, 3 Hunter,
+// 4 Rogue, 5 Priest, 6 Death Knight, 7 Shaman, 8 Mage, 9 Warlock, 11 Druid.
+inline constexpr bool localClassCanUseItem(uint8_t classId, uint8_t level, uint8_t itemClass, uint8_t subClass) {
+    constexpr auto bit = [](uint8_t n) { return uint32_t(1) << n; };
+    if (itemClass == 2) {
+        // 0 axe, 1 2h axe, 2 bow, 3 gun, 4 mace, 5 2h mace, 6 polearm, 7 sword,
+        // 8 2h sword, 10 staff, 13 fist, 14 misc, 15 dagger, 16 thrown,
+        // 18 crossbow, 19 wand, 20 fishing pole.
+        uint32_t mask = bit(14) | bit(20);
+        switch (classId) {
+            case 1: mask |= bit(0)|bit(1)|bit(2)|bit(3)|bit(4)|bit(5)|bit(6)|bit(7)|bit(8)|bit(10)|bit(13)|bit(15)|bit(16)|bit(18); break;
+            case 2: case 6: mask |= bit(0)|bit(1)|bit(4)|bit(5)|bit(6)|bit(7)|bit(8); break;
+            case 3: mask |= bit(0)|bit(1)|bit(2)|bit(3)|bit(6)|bit(7)|bit(8)|bit(10)|bit(13)|bit(15)|bit(16)|bit(18); break;
+            case 4: mask |= bit(0)|bit(2)|bit(3)|bit(4)|bit(7)|bit(13)|bit(15)|bit(16)|bit(18); break;
+            case 5: mask |= bit(4)|bit(10)|bit(15)|bit(19); break;
+            case 7: mask |= bit(0)|bit(1)|bit(4)|bit(5)|bit(10)|bit(13)|bit(15); break;
+            case 8: case 9: mask |= bit(7)|bit(10)|bit(15)|bit(19); break;
+            case 11: mask |= bit(4)|bit(5)|bit(6)|bit(10)|bit(13)|bit(15); break;
+            default: return false;
+        }
+        return subClass < 32 && (mask & bit(subClass)) != 0;
+    }
+    if (itemClass == 4) {
+        // 0 misc (rings, trinkets), 1 cloth, 2 leather, 3 mail, 4 plate,
+        // 6 shield, 7 libram, 8 idol, 9 totem, 10 sigil.
+        switch (subClass) {
+            case 0: case 1: return true;
+            case 2: return classId != 5 && classId != 8 && classId != 9;
+            case 3: return classId == 1 || classId == 2 || classId == 6 || ((classId == 3 || classId == 7) && level >= 40);
+            case 4: return classId == 6 || ((classId == 1 || classId == 2) && level >= 40);
+            case 6: return classId == 1 || classId == 2 || classId == 7;
+            case 7: return classId == 2;
+            case 8: return classId == 11;
+            case 9: return classId == 7;
+            case 10: return classId == 6;
+            default: return false;
+        }
+    }
+    return true;
+}
+
 } // namespace wowee::game

@@ -45,6 +45,8 @@ uint32_t localNpcMeleeFlags(uint32_t entry);
 uint32_t localMeleeArmor(const LocalRealmPlayer&,const LocalWorldContent&);
 float localMeleeRatingBonus(const LocalRealmPlayer&,const LocalWorldContent&,int rating);
 LocalMeleeStats localMeleeStats(const LocalRealmPlayer&,const LocalWorldContent&);
+/// Dual Wield: warriors, hunters and rogues from 20, death knights, or a talent (Enhancement).
+bool localCanDualWield(const LocalRealmPlayer&,const LocalWorldContent&);
 float localWeaponTalentDamageMultiplier(const LocalRealmPlayer&,const LocalWorldContent&,bool offHand=false);
 LocalWeaponAmounts localWeaponAmounts(const LocalRealmPlayer&,const LocalWorldContent&,bool offHand=false,bool normalized=false,bool applyDamageModifiers=true);
 // AP-based melee specials use the spell effect's percentage, without an added

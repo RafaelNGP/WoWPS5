@@ -286,6 +286,27 @@ void objectiveCredit(LocalRealmPlayer& p,const LocalWorldContent& c,LocalQuestOb
     }
     questStatus(p,c,false,nullptr,actions);
 }
+// Food, drink and bandages restore their total evenly over the duration and
+// end early on movement or damage when their aura interrupt flags say so.
+bool advanceLocalConsumables(LocalRealmPlayer& p,uint32_t ms) {
+    if(p.consumableRegens.empty())return false;
+    if(p.dead||p.ghost||p.flight.active){p.consumableRegens.clear();return true;}
+    const bool moved=[&]{for(const auto& r:p.consumableRegens)if(r.cancelOnMove&&(std::abs(p.x-r.x)>0.25f||std::abs(p.y-r.y)>0.25f))return true;return false;}();
+    std::erase_if(p.consumableRegens,[&](const auto& r){
+        const bool stop=(r.cancelOnMove&&moved)||(r.cancelOnDamage&&p.health<r.lastHealth);
+        if(stop)LOG_INFO("[LOCAL_CONSUMABLE] player=",p.guid," item=",r.itemId," interrupted by ",moved?"movement":"damage");
+        return stop;});
+    for(auto& r:p.consumableRegens) {
+        r.elapsedMs=std::min(r.durationMs,r.elapsedMs+ms);
+        const auto health=uint32_t(uint64_t(r.health)*r.elapsedMs/r.durationMs),mana=uint32_t(uint64_t(r.mana)*r.elapsedMs/r.durationMs);
+        p.health=uint32_t(std::min<uint64_t>(p.maxHealth,uint64_t(p.health)+(health-r.givenHealth)));
+        if(p.resourceType==LocalResourceType::Mana)p.mana=uint32_t(std::min<uint64_t>(p.maxMana,uint64_t(p.mana)+(mana-r.givenMana)));
+        r.givenHealth=health;r.givenMana=mana;
+    }
+    for(auto& r:p.consumableRegens)r.lastHealth=p.health;
+    std::erase_if(p.consumableRegens,[](const auto& r){return r.elapsedMs>=r.durationMs;});
+    return true;
+}
 uint32_t equipmentValue(const LocalRealmPlayer& p,const LocalWorldContent& c, unsigned kind) {
     uint64_t result = 0;
     for (size_t slot = 0; slot < p.equipment.size(); ++slot) {
@@ -320,7 +341,11 @@ bool equipItem(LocalRealmPlayer& p, const LocalWorldContent& c, uint32_t id, uin
         if(p.level<meta->requiredLevel || !p.classId || p.classId>32 || !p.race || p.race>32 ||
            (meta->allowableClasses && !(meta->allowableClasses&(1u<<(p.classId-1)))) ||
            (meta->allowableRaces && !(meta->allowableRaces&(1u<<(p.race-1)))))return false;
+        if(!localClassCanUseItem(p.classId,p.level,meta->itemClass,meta->subClass))return false;
     }
+    const auto* useMeta=localAuctionMetadata(id);
+    const bool offHandWeapon=useMeta&&useMeta->itemClass==2;
+    const bool canDualWield=!offHandWeapon||localCanDualWield(p,c);
     const uint32_t mask = localEquipmentSlotMask(item->inventoryType, item->slot);
     if (!mask) return false;
     size_t slot = target ? size_t(target - 1) : kLocalEquipmentSlotCount;
@@ -329,7 +354,7 @@ bool equipItem(LocalRealmPlayer& p, const LocalWorldContent& c, uint32_t id, uin
     const auto* main = c.item(p.equipment[mainSlot]);
     const auto usable = [&](size_t candidate) {
         return (mask & localEquipmentSlotBit(candidate)) &&
-            !(candidate == offSlot && main && main->inventoryType == 17);
+            !(candidate == offSlot && ((main && main->inventoryType == 17) || !canDualWield));
     };
     if (target && !usable(slot)) return false;
     if (!target) {
@@ -582,6 +607,10 @@ const LocalQuestDefinition* LocalWorldContent::quest(uint32_t id) const {
     LocalQuestDefinition d; if (!catalog->quest(id, d, catalogError)) return nullptr;
     attachQuestChain(*this,d);
     return &questCache.emplace(id, std::move(d)).first->second;
+}
+const LocalConsumable* LocalWorldContent::consumable(uint32_t itemId) const {
+    const auto it=std::lower_bound(consumables.begin(),consumables.end(),itemId,[](const auto& c,uint32_t id){return c.itemId<id;});
+    return it!=consumables.end()&&it->itemId==itemId?&*it:nullptr;
 }
 const LocalNpcDefinition* LocalWorldContent::npc(uint32_t id) const {
     if (const auto* d = definition(npcs, id)) return d;
@@ -3156,6 +3185,36 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
             c->questChainCatalogRequired=true;
             for(unsigned char b:chainText)c->fingerprint=(c->fingerprint^b)*16777619U;
         }
+        if(j.contains("consumables")) {
+            // On-use food, drink, potions and bandages (import_consumables.py).
+            const auto name=label(j,"consumables",128);
+            if(name.empty() || name=="." || name==".." || name.find('/')!=std::string::npos || name.find('\\')!=std::string::npos)
+                throw std::runtime_error("Consumables companion must be a sibling filename");
+            const auto usePath=std::filesystem::path(path).parent_path()/name;
+            std::ifstream useInput(usePath,std::ios::binary|std::ios::ate);
+            if(!useInput)throw std::runtime_error("Cannot open required consumables companion "+usePath.string());
+            const auto useLength=useInput.tellg();
+            if(useLength<=0 || useLength>4*1024*1024)throw std::runtime_error("Consumables companion must be 1 byte to 4 MiB");
+            std::string useText(size_t(useLength),'\0');useInput.seekg(0);
+            if(!useInput.read(useText.data(),useLength))throw std::runtime_error("Cannot read consumables companion");
+            const auto uses=Json::parse(useText);
+            if(!uses.is_object() || number(uses,"schemaVersion",0,1)!=1)throw std::runtime_error("Unsupported consumables schema");
+            const auto flag=[](const Json& v,const char* key){const auto& f=v.at(key);if(!f.is_boolean())throw std::runtime_error("Consumable flag must be boolean");return f.get<bool>();};
+            for(const auto& v:array(uses,"items",20000,true)) {
+                LocalConsumable d;d.itemId=number(v,"itemId",0,UINT32_MAX);if(!d.itemId)throw std::runtime_error("Consumable item id missing");
+                d.instantHealth=number(v,"instantHealth",0,1000000);d.instantMana=number(v,"instantMana",0,1000000);
+                d.regenHealth=number(v,"regenHealth",0,1000000);d.regenMana=number(v,"regenMana",0,1000000);
+                d.durationMs=number(v,"durationMs",0,3600000);d.cooldownMs=number(v,"cooldownMs",0,3600000);
+                d.category=number(v,"category",0,100000);d.categoryCooldownMs=number(v,"categoryCooldownMs",0,3600000);
+                d.requiredLevel=uint8_t(number(v,"requiredLevel",0,255));
+                d.noCombat=flag(v,"noCombat");d.cancelOnMove=flag(v,"cancelOnMove");d.cancelOnDamage=flag(v,"cancelOnDamage");
+                if(!d.instantHealth&&!d.instantMana&&!d.regenHealth&&!d.regenMana)throw std::runtime_error("Consumable restores nothing");
+                if((d.regenHealth||d.regenMana)!=(d.durationMs!=0))throw std::runtime_error("Consumable regeneration needs a duration");
+                if(!c->consumables.empty()&&c->consumables.back().itemId>=d.itemId)throw std::runtime_error("Consumables must be sorted and unique");
+                c->consumables.push_back(d);
+            }
+            for(unsigned char b:useText)c->fingerprint=(c->fingerprint^b)*16777619U;
+        }
         if(j.contains("creatureTalk")) {
             // Original SmartAI speech companion (compile_creature_talk.py).
             const auto name=label(j,"creatureTalk",128);
@@ -3956,8 +4015,17 @@ void LocalGameplay::initializePlayer(LocalRealmPlayer& p, bool fresh, uint8_t fo
     // thousandths and five-second-rule delay. Reinitializing a reused player
     // must behave like loading the same player into a fresh authority object.
     p.regenerationTickMs=p.manaRegenSubMilli=0;
+    p.consumableRegens.clear();
     const auto& c = content();
     migrateLocalCategoryCooldowns(p,c);
+    // Gear worn before class proficiencies were enforced goes back to the bags
+    // (worn items are inventory copies, so nothing is lost).
+    for(size_t slot=0;slot<p.equipment.size();++slot)if(const auto* meta=p.equipment[slot]?localAuctionMetadata(p.equipment[slot]):nullptr)
+        if(!localClassCanUseItem(p.classId,p.level,meta->itemClass,meta->subClass)||
+           (slot==localEquipmentIndex(LocalEquipmentSlot::OffHand)&&meta->itemClass==2&&!localCanDualWield(p,c))){
+            LOG_INFO("[LOCAL_EQUIP] player=",p.guid," class=",unsigned(p.classId)," unequipped unusable item=",p.equipment[slot]," slot=",slot);
+            p.equipment[slot]=0;
+        }
     std::erase_if(p.knownSpells,[&](auto id){const auto* spell=c.spell(id);return spell&&(spell->triggeredOnly||spell->npcOnly);});
     if(const auto dropped=normalizeLocalKnownRanks(p,c))
         LOG_INFO("[LOCAL_RANKS] player=",p.guid," dropped ",dropped," outranked spellbook entries (spell_ranks chains, 2.00)");
@@ -4018,6 +4086,10 @@ void LocalGameplay::initializePlayer(LocalRealmPlayer& p, bool fresh, uint8_t fo
             if (forcedLevel) p.level = forcedLevel;
         }
         p.inventory = c.start.inventory;
+        // The shared starter pack carries a one-handed sword; priests, shamans
+        // and druids cannot wield one, so they get the starter mace instead.
+        for(auto& stack:p.inventory)if(const auto* m=localAuctionMetadata(stack.itemId);m&&m->itemClass==2&&!localClassCanUseItem(p.classId,p.level,m->itemClass,m->subClass))
+            if(const auto* mace=localAuctionMetadata(36);mace&&c.item(36)&&localClassCanUseItem(p.classId,p.level,mace->itemClass,mace->subClass))stack.itemId=36;
         // The base pack declares shared local starter supplies; it is not a
         // CharStartOutfit.dbc or a claim of original gear for every class.
         p.knownSpells.clear();
@@ -5295,6 +5367,44 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
             candidate.knownSpells.push_back(metadata->mountSpell);removeItem(candidate,cmd.id,1);questStatus(candidate,c);
             p=std::move(candidate);
             result="Learned mount: "+c.spell(metadata->mountSpell)->name;return true;
+        }
+        if(const auto* use=c.consumable(cmd.id)) {
+            const auto* def=c.item(cmd.id);
+            if(!def||!totalItem(p,cmd.id))return reject("Item is not in your inventory");
+            if(p.dead||p.ghost)return reject("You can't do that while dead");
+            if(p.level<use->requiredLevel)return reject("You must reach level "+std::to_string(use->requiredLevel)+" to use that item");
+            if(use->noCombat&&inCombat())return reject("You can't do that while in combat");
+            if(p.flight.active)return reject("You can't do that while flying");
+            const auto ready=std::find_if(p.categoryCooldowns.begin(),p.categoryCooldowns.end(),[&](const auto& cd){
+                return cd.family==kLocalItemCooldownFamily&&cd.category==use->category&&cd.remainingMs;});
+            if(use->category&&ready!=p.categoryCooldowns.end())return reject("Item is not ready yet");
+            const bool mana=p.resourceType==LocalResourceType::Mana;
+            const bool wantsHealth=(use->instantHealth||use->regenHealth)&&p.health<p.maxHealth;
+            const bool wantsMana=mana&&(use->instantMana||use->regenMana)&&p.mana<p.maxMana;
+            if(!wantsHealth&&!wantsMana)return reject("Health/resource are already full");
+            const uint32_t cooldown=std::max(use->cooldownMs,use->categoryCooldownMs);
+            auto candidate=p;
+            if(use->category&&cooldown) {
+                std::erase_if(candidate.categoryCooldowns,[&](const auto& cd){return !cd.remainingMs||(cd.family==kLocalItemCooldownFamily&&cd.category==use->category);});
+                if(candidate.categoryCooldowns.size()>=kLocalMaxCategoryCooldowns)return reject("Too many cooldowns are running");
+                candidate.categoryCooldowns.push_back({use->category,kLocalItemCooldownFamily,cooldown});
+            }
+            candidate.health=uint32_t(std::min<uint64_t>(candidate.maxHealth,uint64_t(candidate.health)+use->instantHealth));
+            if(mana)candidate.mana=uint32_t(std::min<uint64_t>(candidate.maxMana,uint64_t(candidate.mana)+use->instantMana));
+            if(use->regenHealth||(mana&&use->regenMana)) {
+                // One meal per category: a second bread restarts eating, a drink runs beside it.
+                std::erase_if(candidate.consumableRegens,[&](const auto& r){return r.category==use->category;});
+                if(candidate.consumableRegens.size()>=kLocalMaxConsumableRegens)candidate.consumableRegens.erase(candidate.consumableRegens.begin());
+                LocalConsumableRegen r;r.itemId=use->itemId;r.category=use->category;r.durationMs=use->durationMs;
+                r.health=use->regenHealth;r.mana=mana?use->regenMana:0;r.lastHealth=candidate.health;
+                r.x=candidate.x;r.y=candidate.y;r.cancelOnMove=use->cancelOnMove;r.cancelOnDamage=use->cancelOnDamage;
+                candidate.consumableRegens.push_back(r);
+            }
+            removeItem(candidate,cmd.id,1);stats(candidate,c,false);questStatus(candidate,c);
+            p=std::move(candidate);
+            LOG_INFO("[LOCAL_CONSUMABLE] player=",p.guid," item=",cmd.id," instant=",use->instantHealth,"/",use->instantMana,
+                     " regen=",use->regenHealth,"/",use->regenMana," over=",use->durationMs,"ms health=",p.health,"/",p.maxHealth," mana=",p.mana,"/",p.maxMana);
+            result="Used "+def->name;return true;
         }
         const auto* def=c.item(cmd.id);if(!def||!totalItem(p,cmd.id)||(!def->heal&&!def->mana))return reject("Item cannot be used");
         const uint32_t restoredMana=p.resourceType==LocalResourceType::Mana?def->mana:0;
@@ -6804,6 +6914,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
         }
         changed=advanceLocalRunes(p->runeCooldownMs,ms)||changed;
         changed=advanceLocalRegeneration(*p,elapsedMs,localCombatActive(*p,g.npcs),localRegenerationRates(*p,content()))||changed;
+        changed=advanceLocalConsumables(*p,elapsedMs)||changed;
         // A flight owns the character's position for its duration. Combat,
         // casting and NPC aggro are all suppressed by the same rule that
         // suppresses them for a dead player: nothing else runs for them below.

@@ -18,6 +18,10 @@
 #include "game/local_spell_import.hpp"
 #include "game/local_world_catalog.hpp"
 #include "game/local_graveyard_sites.hpp"
+#include "game/local_selftest.hpp"
+#include <chrono>
+#include <filesystem>
+#include <thread>
 #include "game/local_pet.hpp"
 #include "game/local_pet_bar.hpp"
 #include "game/pet_action.hpp"
@@ -510,6 +514,33 @@ void Application::updateLocalRealm(float deltaTime) {
         }
         LOG_INFO("[LOCAL_GAMEPLAY] content=", contentPath, " NPC spawns=", localRealm_->content().spawns.size(),
                  " quests=", localRealm_->content().quests.size());
+#ifdef WOWEE_PS4
+        // Development: WOWEE_DEV_SELFTEST=1 (config/env.txt) checks class gear
+        // rules, consumables and start-zone quests against the installed
+        // content on a background thread; =2 skips the quest simulation.
+        if (const char* selfTest = std::getenv("WOWEE_DEV_SELFTEST"); selfTest && *selfTest && *selfTest != '0') {
+            static bool started = false;
+            if (!started) {
+                started = true;
+                const bool quests = std::string(selfTest) != "2";
+                const std::string report = platform::ps4::writableRoot() + "/logs/selftest.txt";
+                const std::string catalog = (std::filesystem::path(contentPath).parent_path() / "catalog").string();
+                std::thread([contentPath, catalog, report, quests] {
+                    // Unbuffered, so the file grows line by line: the host
+                    // runner (tools/ps5/selftest.sh) reads its growth as a
+                    // heartbeat and restarts a run that stops writing.
+                    std::ofstream out(report, std::ios::trunc);
+                    out << std::unitbuf << "SELFTEST BEGIN quests=" << (quests ? 1 : 0) << "\n";
+                    const auto begin = std::chrono::steady_clock::now();
+                    LOG_WARNING("[SELFTEST] begin quests=", quests ? 1 : 0);
+                    const bool ok = game::runLocalGameplaySelfTest(contentPath, catalog, out, quests);
+                    const auto seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - begin).count();
+                    out << (ok ? "SELFTEST PASS" : "SELFTEST FAIL") << " seconds=" << seconds << "\n";
+                    LOG_WARNING("[SELFTEST] ", ok ? "PASS" : "FAIL", " seconds=", seconds, " report=", report);
+                }).detach();
+            }
+        }
+#endif
 #ifdef WOWEE_PS4
         const auto available=platform::ps4::queryAvailableCpuMemory();
         LOG_WARNING("[LOCAL_SESSION] before spell import freeMiB=",available.bytes/(1024*1024),
