@@ -66,6 +66,7 @@
 #include <limits>
 #include <map>
 #include <set>
+#include <ctime>
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>
@@ -288,6 +289,16 @@ void objectiveCredit(LocalRealmPlayer& p,const LocalWorldContent& c,LocalQuestOb
 }
 // Food, drink and bandages restore their total evenly over the duration and
 // end early on movement or damage when their aura interrupt flags say so.
+// Rested experience (Player::SetRestBonus): 5% of a level per eight hours of
+// rest in an inn, a quarter of that while logged out elsewhere, capped at one
+// and a half levels; nothing once the level cap is reached.
+void accrueLocalRest(LocalRealmPlayer& p,double seconds,bool inn) {
+    if(p.level>=80||seconds<=0){if(p.level>=80)p.restedXp=0;return;}
+    const double rate=double(p.xpToLevel)*0.05/(8.0*3600.0)*(inn?1.0:0.25);
+    const double gained=rate*seconds+p.restRemainder;
+    const auto whole=uint64_t(gained);p.restRemainder=float(gained-double(whole));
+    p.restedXp=uint32_t(std::min<uint64_t>(uint64_t(p.restedXp)+whole,uint64_t(p.xpToLevel)*3/2));
+}
 // One buff of each kind (elixir, flask, scroll, food): a new one replaces it.
 void applyLocalConsumableBuff(LocalRealmPlayer& p,const LocalConsumable& use) {
     if(!use.buffSpellId)return;
@@ -4251,6 +4262,10 @@ void LocalGameplay::initializePlayer(LocalRealmPlayer& p, bool fresh, uint8_t fo
     // must behave like loading the same player into a fresh authority object.
     p.regenerationTickMs=p.manaRegenSubMilli=0;
     p.consumableRegens.clear();
+    // Rest earned while logged out, at the inn's rate if the character left from one.
+    if(const auto now=uint64_t(std::time(nullptr));p.restLastUnix&&now>p.restLastUnix)
+        accrueLocalRest(p,double(std::min<uint64_t>(now-p.restLastUnix,30ull*24*3600)),p.resting);
+    p.restLastUnix=uint64_t(std::time(nullptr));
     const auto& c = content();
     migrateLocalCategoryCooldowns(p,c);
     // Gear worn before class proficiencies were enforced goes back to the bags
@@ -7329,6 +7344,14 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
         changed=advanceLocalRunes(p->runeCooldownMs,ms)||changed;
         changed=advanceLocalRegeneration(*p,elapsedMs,localCombatActive(*p,g.npcs),localRegenerationRates(*p,content()))||changed;
         changed=advanceLocalConsumables(*p,content(),elapsedMs)||changed;
+        {
+            // Resting: within an inn, i.e. near an innkeeper; the pool grows while there.
+            bool inn=false;
+            for(const auto& n:g.npcs)if(n.innkeeper&&!n.dead&&n.mapId==p->mapId&&n.instanceId==p->instanceId&&distance2(*p,n)<=30.f*30.f){inn=true;break;}
+            if(inn!=p->resting){p->resting=inn;changed=true;}
+            if(inn)accrueLocalRest(*p,elapsedMs/1000.0,true);
+            if(const auto now=uint64_t(std::time(nullptr));now)p->restLastUnix=now;
+        }
         changed=g.syncHunterPet(*p,players)||changed;
         // A flight owns the character's position for its duration. Combat,
         // casting and NPC aggro are all suppressed by the same rule that
@@ -8298,7 +8321,10 @@ bool LocalGameplay::settlePendingScriptKills(const std::vector<LocalRealmPlayer*
         if(blockedScriptPlayers.count(it->playerGuid)){++it;continue;}
         auto candidate=*player;LocalScriptActionBatch actions;
         const uint32_t eventXp=it->count?uint32_t(it->xp/it->count+(it->xp%it->count?1u:0u)):0;
-        if(eventXp)experience(candidate,content(),eventXp);
+        // Rested: a kill earns as much again from the rest pool, which it spends.
+        const uint32_t restedBonus=candidate.level<80?std::min(eventXp,candidate.restedXp):0;
+        candidate.restedXp-=restedBonus;
+        if(eventXp)experience(candidate,content(),eventXp+restedBonus);
         if(!applyScriptTriggers(candidate,content(),LocalScriptTriggerKind::NpcKill,it->npcEntry,&actions)) {
             blockedScriptPlayers.insert(it->playerGuid);++it;continue;
         }

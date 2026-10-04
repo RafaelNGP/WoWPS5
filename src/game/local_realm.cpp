@@ -78,7 +78,7 @@ constexpr uint32_t WireMagic = 0x57504c52; // WPLR
 constexpr uint32_t SaveMagic = 0x57505253; // WPRS
 constexpr uint32_t IdentityMagic = 0x57504944; // WPID
 constexpr uint8_t Version = lan::GameplayVersion; // LAN103 creature periodic-damage views in the owner snapshot.
-constexpr uint8_t SaveVersion = 46;  // Hunter pet kept with the character; reads 1-46 with schedule-ID/object migration.
+constexpr uint8_t SaveVersion = 47;  // Rested experience; reads 1-47 with schedule-ID/object migration.
 constexpr size_t HeaderSize = 20, MaxPacket = 1400, MaxSavedPlayers = 128;
 constexpr size_t VehicleWireBytes = 14;
 constexpr size_t PublicPlayerBytes = 4 + 49 + 34 + 4 * kLocalEquipmentSlotCount + 6 + 4 + 30 + VehicleWireBytes;
@@ -576,6 +576,7 @@ void writeProgress(Writer& w, const LocalRealmPlayer& p, uint8_t version = SaveV
     if(version>=40){const auto& e=p.escort;w.u32(e.routeId);w.u32(e.nextPoint);w.u32(e.waitMs);w.u32(e.remainingMs);w.f32(e.x);w.f32(e.y);w.f32(e.z);}
     if(version>=41)w.u32(p.escort.guideHealth);
     if(version>=46){const auto& h=p.hunterPet;w.u32(h.entry);w.u32(h.displayId);w.u8(h.family);w.u8(uint8_t(h.dead)|uint8_t(h.active)<<1);w.text(h.name);}
+    if(version>=47){w.u32(p.restedXp);w.u64(p.restLastUnix);w.u8(p.resting?1:0);}
 }
 // CharSections indices retain their full uint8 domain; only the model selector
 // is a boolean. Asset-specific option ranges are resolved by the character UI.
@@ -760,6 +761,8 @@ bool readProgress(Reader& r, LocalRealmPlayer& p, uint8_t version = SaveVersion)
         if(flags>3||h.name.size()>96||(!h.entry&&(h.displayId||h.family||flags||!h.name.empty())))return false;
         h.dead=flags&1;h.active=(flags&2)!=0;
     }
+    p.restedXp=0;p.restLastUnix=0;p.resting=false;
+    if(version>=47){p.restedXp=r.u32();p.restLastUnix=r.u64();const auto resting=r.u8();if(resting>1||p.restedXp>100000000)return false;p.resting=resting!=0;}
     return r.valid;
 }
 void writeHealingViews(Writer& w,const LocalRealmPlayer& p){

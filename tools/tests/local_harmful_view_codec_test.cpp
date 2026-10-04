@@ -18,7 +18,7 @@
 using namespace wowee::game;
 
 int main() {
-    static_assert(lan::GameplayVersion==110);
+    static_assert(lan::GameplayVersion==111);
     static_assert(HarmfulViewWireBytes==62&&KnockbackWireBytes==20&&kLocalMaxSchoolLockouts==8);
     LocalRealmPlayer p;p.guid=7;
     p.healingAuras.push_back({48441,9000,15000,7,1});

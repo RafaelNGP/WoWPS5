@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <ctime>
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -287,6 +288,47 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             SELFTEST_CHECK(c.petFamilyAttack[2] == 2 && c.petFamilyAttack[1] == 1 && c.petBasicRanks[1].size() == 11);
         }
         out << "PASS hunter pets: " << c.tameableBeasts.size() << " tameable beasts; tame Young Nightsaber (20 s channel, broken by moving), one-pet rule, dismiss, call, return after travel, fights beside the hunter with its family's basic attack, Mend Pet\n";
+    }
+
+    // ---- 2b'. Rested experience: earned at an inn (offline too), doubles kill XP.
+    {
+        LocalGameplay inn; SELFTEST_CHECK(inn.loadContent(worldPath, error));
+        LocalRealmPlayer p; p.guid = 88; p.race = 1; p.classId = 1; p.name = "Rester";
+        inn.initializePlayer(p, true, 5);
+        // Eight hours logged out in an inn: 5% of the level's experience.
+        p.restedXp = 0; p.resting = true; p.restLastUnix = uint64_t(std::time(nullptr)) - 8 * 3600;
+        inn.initializePlayer(p, false, 0);
+        const auto expected = p.xpToLevel * 5 / 100;
+        SELFTEST_CHECK(p.restedXp + 1 >= expected && p.restedXp <= expected + 1);
+        // Thirty days elsewhere cannot pass the cap of one and a half levels.
+        p.resting = false; p.restLastUnix = uint64_t(std::time(nullptr)) - 30ull * 24 * 3600;
+        inn.initializePlayer(p, false, 0);
+        SELFTEST_CHECK(p.restedXp <= p.xpToLevel * 3 / 2 && p.restedXp > expected);
+        // A kill with rest earns double and spends the pool.
+        std::vector<LocalRealmPlayer*> players{&p};
+        const auto killOne = [&]() -> uint32_t {
+            const LocalRealmNpc* foe = nullptr;
+            for (int i = 0; i < 200 && !foe; ++i) { inn.tick(0.05f, players);
+                for (const auto& n : inn.npcs()) if (n.hostile && !n.dead && n.level <= p.level && std::hypot(n.x - p.x, n.y - p.y) < 120) { foe = &n; break; } }
+            if (!foe) return 0;
+            const uint64_t guid = foe->guid; const auto xp0 = uint64_t(p.level) * 1000000 + p.xp;
+            for (int t = 0; t < 1200; ++t) {
+                const LocalRealmNpc* n = nullptr; for (const auto& v : inn.npcs()) if (v.guid == guid) n = &v;
+                if (!n || n->dead) break;
+                p.x = n->x - 1; p.y = n->y; p.z = n->z; ++p.positionRevision; p.health = p.maxHealth;
+                if (!p.attackTarget) inn.execute(p, {LocalAction::Attack, guid, 0}, players, result);
+                inn.tick(0.05f, players);
+            }
+            for (int t = 0; t < 10; ++t) inn.tick(0.05f, players);
+            return uint32_t(uint64_t(p.level) * 1000000 + p.xp - xp0);
+        };
+        const auto restBefore = p.restedXp;
+        const auto rested = killOne();
+        SELFTEST_CHECK(rested > 0 && p.restedXp < restBefore && restBefore - p.restedXp == rested / 2);
+        p.restedXp = 0;
+        const auto normal = killOne();
+        SELFTEST_CHECK(normal > 0);
+        out << "PASS rested experience: offline inn rest " << expected << " (5% of a level), capped at 1.5 levels, kill " << normal << " xp -> " << rested << " rested\n";
     }
 
     // ---- 2c. Class abilities from the client's own Spell.dbc, cast in combat.

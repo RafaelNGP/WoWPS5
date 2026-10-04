@@ -528,6 +528,8 @@ bool GameHandler::syncLocalRealmPlayer(const LocalRealmPlayer& snapshot, const L
             if(changed&&addonEventCallback_){addonEventCallback_("UNIT_AURA",{"player"});addonEventCallback_("PLAYER_AURAS_CHANGED",{});}
         }
         playerXp_ = snapshot.xp;
+        playerRestedXp_ = snapshot.restedXp;
+        isResting_ = snapshot.resting;
         playerNextLevelXp_ = snapshot.xpToLevel;
         playerMoneyCopper_ = snapshot.money;
         if(snapshot.classId==6) for(size_t i=0;i<playerRunes_.size();++i) {

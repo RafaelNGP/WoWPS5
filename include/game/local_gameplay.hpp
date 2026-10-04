@@ -611,6 +611,13 @@ struct LocalRealmPlayer {
     std::vector<LocalConsumableRegen> consumableRegens; // Session-only meals/bandages.
     std::vector<LocalConsumableBuff> consumableBuffs; // Session-only elixir/flask/scroll/food buffs.
     LocalHunterPet hunterPet; // Save46/LAN110: the hunter's beast while it is not out.
+    /// Save47/LAN111 rested experience: the pool kills draw a matching bonus
+    /// from, when it was last brought up to date (unix seconds) and whether
+    /// the character was resting then (an inn's rate applies offline).
+    uint32_t restedXp=0;
+    uint64_t restLastUnix=0;
+    bool resting=false;
+    float restRemainder=0; // Session-only fraction of a point of rest.
     bool migrateLegacyCooldowns=false; // Preserved until imported category metadata is available.
     // Six independent base-rune timers, authority-owned; save format 9.
     LocalRuneCooldowns runeCooldownMs{};
