@@ -66,6 +66,26 @@ def main():
             elif u[EFFECT + e]:
                 yield u, s, e
 
+    def buff_of(spell_id):
+        """Stat buff an aura spell carries: primary stats (aura 29), attack power
+        (99), armor (22, physical), maximum health (34); None when it has none."""
+        if spell_id not in spells: return None
+        u, s = spells[spell_id]
+        duration = max(0, durations.get(u[DURATION_INDEX], 0))
+        b = {'stats': [0, 0, 0, 0, 0], 'attackPower': 0, 'armor': 0, 'health': 0}
+        for e in range(3):
+            if u[EFFECT + e] not in (6, 35) or u[86 + e] not in (0, 1, 21, 25): continue
+            aura, misc, amount = u[AURA + e], s[MISC + e], s[BASE_POINTS + e] + 1
+            if amount <= 0 or amount > 100000: continue
+            if aura == 29 and -1 <= misc <= 4:
+                for k in (range(5) if misc == -1 else [misc]): b['stats'][k] += amount
+            elif aura == 99: b['attackPower'] += amount
+            elif aura == 22 and misc & 1: b['armor'] += amount
+            elif aura == 34: b['health'] += amount
+        if not duration or not (any(b['stats']) or b['attackPower'] or b['armor'] or b['health']): return None
+        b['spellId'] = spell_id; b['durationMs'] = min(duration, 7200000)
+        return b
+
     out, report, buff_spells = [], collections.Counter(), {}
     for item in items:
         if item['class'] != 0: continue
@@ -73,7 +93,7 @@ def main():
         entry = {'itemId': item['entry'], 'instantHealth': 0, 'instantMana': 0, 'regenHealth': 0, 'regenMana': 0,
                  'durationMs': 0, 'cooldownMs': 0, 'category': 0, 'categoryCooldownMs': 0,
                  'requiredLevel': max(0, item['requiredlevel']), 'noCombat': False,
-                 'cancelOnMove': False, 'cancelOnDamage': False, 'spellId': 0}
+                 'cancelOnMove': False, 'cancelOnDamage': False, 'spellId': 0, 'buff': None}
         for slot in range(1, 6):
             spell_id = item[f'spellid_{slot}']
             if not spell_id or item[f'spelltrigger_{slot}'] != 0 or spell_id not in spells: continue
@@ -83,6 +103,14 @@ def main():
             if category_cd < 0 or not category: category, category_cd = u[CATEGORY], u[CATEGORY_RECOVERY]
             entry['cooldownMs'] = max(entry['cooldownMs'], cooldown)
             if category and category_cd > entry['categoryCooldownMs']: entry['category'], entry['categoryCooldownMs'] = category, category_cd
+            if not entry['buff']:
+                direct = buff_of(spell_id)
+                if direct: direct['delayMs'] = 0; entry['buff'] = direct
+                else:
+                    for e in range(3):
+                        if u[EFFECT + e] == 6 and u[AURA + e] == 23 and u[TRIGGER + e] and u[AMPLITUDE + e]:
+                            later = buff_of(u[TRIGGER + e])
+                            if later: later['delayMs'] = u[AMPLITUDE + e]; entry['buff'] = later; break
             per5 = collections.Counter()
             for eu, es, e in effects(spell_id):
                 effect, aura, misc = eu[EFFECT + e], eu[AURA + e], es[MISC + e]
@@ -117,9 +145,17 @@ def main():
                     entry['cancelOnDamage'] |= bool(interrupts & INTERRUPT_DAMAGE)
         if item['subclass'] == 7 and entry['regenHealth']:
             entry['category'], entry['categoryCooldownMs'] = 11196, max(entry['categoryCooldownMs'], RECENTLY_BANDAGED_MS)
-        if not any(entry[k] for k in ('instantHealth', 'instantMana', 'regenHealth', 'regenMana')):
+        if entry['buff']:
+            # One buff of each kind at a time: elixir, flask, scroll, food.
+            entry['buff']['slot'] = item['subclass'] if item['subclass'] in (2, 3, 4, 5) else 0
+            b = entry['buff']; bu = spells[b['spellId']][0]
+            icon = icon_string(icons[bu[ICON]][0][1]) if bu[ICON] in icons else ''
+            buff_spells[b['spellId']] = {'id': b['spellId'], 'name': string(bu[NAME])[:64], 'icon': icon[:128]}
+            report['buffs'] += 1
+        if not any(entry[k] for k in ('instantHealth', 'instantMana', 'regenHealth', 'regenMana')) and not entry['buff']:
             report['unsupported'] += 1; continue
         if not (entry['regenHealth'] or entry['regenMana']): entry['durationMs'] = 0; entry['spellId'] = 0
+        if entry['buff'] and entry['buff']['delayMs'] and not entry['durationMs']: entry['buff'] = None; report['buffs'] -= 1
         if entry['spellId']:
             # The buff the player sees while eating: the on-use spell's own name and icon.
             u = spells[entry['spellId']][0]

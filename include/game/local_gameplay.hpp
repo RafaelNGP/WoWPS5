@@ -249,6 +249,13 @@ struct LocalConsumable {
     uint32_t cooldownMs=0,category=0,categoryCooldownMs=0;
     uint32_t spellId=0; // The buff shown while it regenerates (Food, Drink, First Aid).
     uint8_t requiredLevel=0;
+    /// Stat buff the item leaves (elixir, flask, scroll; Well Fed after
+    /// `buffDelayMs` of eating). buffSpellId zero: no buff.
+    uint32_t buffSpellId=0,buffDurationMs=0,buffDelayMs=0;
+    std::array<int32_t,5> buffStats{};
+    int32_t buffAttackPower=0,buffArmor=0,buffHealth=0;
+    uint8_t buffSlot=0; // 2 elixir, 3 flask, 4 scroll, 5 food: one active buff each.
+
     bool noCombat=false,cancelOnMove=false,cancelOnDamage=false;
 };
 /// Item cooldowns share the persisted category list under a family no spell uses.
@@ -271,6 +278,14 @@ inline constexpr uint32_t kLocalTameBeast=1515,kLocalCallPet=883,kLocalDismissPe
 inline constexpr bool localHunterPetSpell(uint32_t id){return id==kLocalTameBeast||id==kLocalCallPet||id==kLocalDismissPet||id==kLocalRevivePet;}
 /// Name and icon of a consumable's buff, for the interface (Spell.dbc/SpellIcon.dbc).
 struct LocalConsumableSpell { uint32_t id=0; std::string name,iconPath; };
+/// A consumable's stat buff on the character (session-only, like meals).
+struct LocalConsumableBuff {
+    uint32_t spellId=0,remainingMs=0,durationMs=0;
+    uint8_t slot=0;
+    std::array<int32_t,5> stats{};
+    int32_t attackPower=0,armor=0,health=0;
+};
+inline constexpr size_t kLocalMaxConsumableBuffs=6;
 struct LocalConsumableRegen {
     uint32_t spellId=0,itemId=0,category=0,durationMs=0,elapsedMs=0,health=0,mana=0,givenHealth=0,givenMana=0,lastHealth=0;
     float x=0,y=0;
@@ -594,6 +609,7 @@ struct LocalRealmPlayer {
     std::vector<LocalCooldown> cooldowns;
     std::vector<LocalCategoryCooldown> categoryCooldowns;
     std::vector<LocalConsumableRegen> consumableRegens; // Session-only meals/bandages.
+    std::vector<LocalConsumableBuff> consumableBuffs; // Session-only elixir/flask/scroll/food buffs.
     LocalHunterPet hunterPet; // Save46/LAN110: the hunter's beast while it is not out.
     bool migrateLegacyCooldowns=false; // Preserved until imported category metadata is available.
     // Six independent base-rune timers, authority-owned; save format 9.
@@ -923,6 +939,11 @@ struct LocalSpellDefinition {
     uint32_t procParentTalentId=0; // Internal child is valid only for its current allocated parent rank.
     uint8_t comboProfile=0,comboGain=0;
     bool comboFinisher=false,weaponDamage=false,normalizedWeapon=false,requiresBehind=false;
+    /// SPELL_EFFECT_INTERRUPT_CAST (68): stops the creature's current cast.
+    bool interruptCast=false;
+    /// TargetAuraState AURA_STATE_HEALTHLESS_20_PERCENT (2): castable only on
+    /// a target at or below this health percentage (Execute, Kill Shot).
+    uint8_t targetMaxHealthPct=0;
     uint16_t weaponPercent=100;
     float directPerCombo=0,periodicPerCombo=0,extraEnergyMultiplier=0;
     uint64_t requiredForms=0,excludedForms=0;
@@ -1978,6 +1999,11 @@ struct LocalWorldContent {
     std::vector<LocalConsumable> consumables; // Sorted by itemId.
     std::vector<LocalConsumableSpell> consumableSpells; // Sorted by id.
     std::vector<std::pair<uint32_t,uint8_t>> tameableBeasts; // Creature entry, pet family; sorted.
+    /// Hunter pet basic attacks: family -> 0 Bite, 1 Claw, 2 Smack; each kind's
+    /// ranks (spell, learn level, damage) ascending by level.
+    std::array<uint8_t,256> petFamilyAttack{};
+    struct PetBasicRank { uint32_t spellId=0; uint8_t level=0; uint32_t low=0,high=0; };
+    std::array<std::vector<PetBasicRank>,3> petBasicRanks;
     bool questChainCatalogRequired = false;
     std::map<uint32_t, LocalQuestChainGate> questChainGates;
     // Authored state/phase transitions keyed by quest ID or NPC entry. They are
@@ -2399,7 +2425,7 @@ private:
     /// Tame Beast, Call Pet, Dismiss Pet and Revive Pet for a hunter; `why`
     /// is the refusal shown to the player.
     bool hunterPetSpell(LocalRealmPlayer& player, const LocalRealmCommand& command,
-                        const std::vector<LocalRealmPlayer*>& players, std::string& result, std::string& why);
+                        const std::vector<LocalRealmPlayer*>& players, std::string& result, std::string& why, bool finishing = false);
     bool executeCastSpell(LocalRealmPlayer& player, const LocalRealmCommand& command,
         const std::vector<LocalRealmPlayer*>& players, std::string& result, bool finishing);
     struct Impl;

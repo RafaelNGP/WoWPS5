@@ -1176,7 +1176,9 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if((u(43)&&!creatureCaster)||u(44)||u(45)) unavailable("Scaling or periodic resource costs are not implemented");
     // A creature's next-swing special replaces its next main-hand swing
     // (Unit::AttackerStateUpdate casts CURRENT_MELEE_SPELL instead).
-    if(u(4)&0x404u){if(creatureCaster)d.npcNextSwing=true;else unavailable("Next-swing attacks are not implemented");}
+    // ON_NEXT_SWING (Heroic Strike, Raptor Strike, Cleave, Maul): a player's
+    // is struck at once as a weapon attack; the realm has no swing queue.
+    if(u(4)&0x404u){if(creatureCaster)d.npcNextSwing=true;}
     d.sourceNoAttackDodge=(u(11)&0x00800000u)!=0;d.sourceNoAttackParry=(u(11)&0x01000000u)!=0;d.sourceNoAttackMiss=(u(11)&0x02000000u)!=0;
     if(u(5)&0x44u){if(creatureCaster)d.npcChannel=true;else unavailable("Channeled spells are not implemented");}
     // A form boost's applicability is HandleShapeshiftBoosts's switch, not this
@@ -1187,7 +1189,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         d.excludedForms=uint64_t(u(14))|(uint64_t(u(15))<<32);
     }
     d.notShapeshifted=(u(4)&0x10000u)!=0;d.allowWithoutForm=(u(6)&0x80000u)!=0;
-    if(u(20)||u(21)||u(22)||u(23)||u(24)||u(25)||u(26)||u(27)) unavailable("Aura requirements are not implemented");
+    if(!creatureCaster&&u(21)==2&&!u(20)&&!u(22)&&!u(23)&&!u(24)&&!u(25)&&!u(26)&&!u(27))d.targetMaxHealthPct=20;
+    else if(u(20)||u(21)||u(22)||u(23)||u(24)||u(25)||u(26)||u(27)) unavailable("Aura requirements are not implemented");
     d.requiresMainHand=(u(7)&0x400u)!=0;d.requiresOffHand=(u(7)&0x1000000u)!=0;
     if(i(68)>=0) {
         if(i(68)!=2&&i(68)!=4)unavailable("Unsupported spell equipment class");
@@ -1196,14 +1199,18 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     for(uint32_t reagent=0;reagent<8;++reagent) if(i(52+reagent)>0) unavailable("Spell reagents are not implemented");
     if(u(50)||u(51)) unavailable("Totem requirements are not implemented");
     const auto castRow=ClientSpellTables::lookup(t.castIndex,u(28));
+    // SpellInfo::CalcCastTime returns 0 for a non-positive base before any
+    // ranged adjustment: the "-1000000" row hunters' shots use is instant.
+    bool negativeCast=false;
     if(castRow<0) unavailable("Cast-time record missing");
-    else if(t.casts->getInt32(castRow,1)<0||t.casts->getInt32(castRow,1)>60000||t.casts->getInt32(castRow,2)!=0)
+    else if(t.casts->getInt32(castRow,1)>60000||t.casts->getInt32(castRow,2)!=0)
         unavailable("Variable or invalid cast time is not implemented");
+    else if(t.casts->getInt32(castRow,1)<0){negativeCast=true;d.castTimeMs=0;}
     else d.castTimeMs=uint32_t(t.casts->getInt32(castRow,1));
     // SpellInfo::CalcCastTime: a creature's USES_RANGED_SLOT spell (not
     // auto-repeat) takes 500 ms more; a creature's cast-speed and ranged-haste
     // multipliers are 1.
-    if(creatureCaster&&(u(4)&0x2u)&&!(u(6)&0x20u)&&d.castTimeMs<=59500)d.castTimeMs+=500;
+    if(creatureCaster&&!negativeCast&&(u(4)&0x2u)&&!(u(6)&0x20u)&&d.castTimeMs<=59500)d.castTimeMs+=500;
     const auto durationRow=ClientSpellTables::lookup(t.durationIndex,u(40));
     if(u(40)&&durationRow<0) unavailable("Duration record missing");
     else if(durationRow>=0) {
@@ -1248,6 +1255,16 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         // A combined amount cannot safely identify one source effect. Keep
         // that distinction explicit instead of applying a slot mod twice.
         d.directEffectSlot=++directAmountEffects==1?uint8_t(effect):255;
+    };
+    // A player attack's secondary rider the realm does not model (Mortal
+    // Strike's healing reduction, Icy Touch's disease, Shield Bash's daze) is
+    // set aside when the spell still lands a supported direct hit; without one
+    // the first such rider is the refusal, as before.
+    std::vector<std::string> setAside;
+    const auto rider=[&](uint32_t effect,const std::string& reason){
+        const auto type=u(71+effect);
+        if(!creatureCaster&&u(86+effect)==6&&!u(89+effect)&&(type==6||type==64)){setAside.push_back(reason);return true;}
+        return false;
     };
     if(creatureCaster){decodeCreatureEffects(t,row,d,unavailable);harm=!d.npcPositive;healing=d.npcPositive;}
     else for(uint32_t effect=0;effect<3;++effect) {
@@ -1318,7 +1335,9 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         const float perCombo=f(119+effect);
         if(base < -1 || base > 100000 || dice<0 || dice>100000 || !std::isfinite(scale)||std::abs(scale)>10000 ||
            !std::isfinite(perCombo)||perCombo<0||perCombo>100000||(perCombo!=0&&(!combo||!d.comboFinisher))) {
-            unavailable("Invalid or combo-point effect amount is not implemented");continue;
+            if(!rider(effect,"Invalid or combo-point effect amount is not implemented"))
+                unavailable("Invalid or combo-point effect amount is not implemented");
+            continue;
         }
         // DBC base points encode one less than the minimum; preserve the dice
         // range and choose a deterministic midpoint in the local ruleset.
@@ -1351,6 +1370,15 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             else {if(d.absorbSchoolMask && d.absorbSchoolMask!=u(110+effect))unavailable("Mixed absorb schools are not implemented");
                 d.buffAbsorb+=low;d.absorbSchoolMask=u(110+effect);}
             buff=true;
+        } else if(!combo&&(type==58||type==121||type==17)&&target==6&&!secondary) {
+            // Spell::EffectWeaponDmg for a single hostile target: the weapon's
+            // damage (normalized for 121) plus this flat bonus, through the
+            // same weapon pipeline the reviewed combo attacks use.
+            if(d.weaponDamage)unavailable("Repeated weapon damage effects are not implemented");
+            else {directSlot(effect);d.weaponDamage=true;d.normalizedWeapon=type==121;d.damage+=low;d.damageMax+=high;d.damagePerLevel+=scale;harm=true;}
+        } else if(!combo&&type==31&&target==6&&!secondary) {
+            if(low>1000||!low||dice>1||scale!=0)unavailable("Invalid weapon percentage");
+            else {d.weaponPercent=uint16_t(low);d.weaponDamage=true;harm=true;}
         } else if(type==2) {directSlot(effect);if(u(3)==kLocalMechanicBleed||u(83+effect)==kLocalMechanicBleed)d.directIgnoresArmor=true;d.damage+=low;d.damageMax+=high;d.damagePerLevel+=scale;d.directPerCombo+=perCombo;harm=true;}
         else if(type==10) {
             directSlot(effect);d.heal+=low;d.healMax+=high;d.healPerLevel+=scale;healing=true;
@@ -1418,7 +1446,16 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             else if(u(110+effect)!=1)unavailable("A non-magic dispel type is not implemented");
             else if(dice>1||scale!=0||low>255)unavailable("Invalid dispel attempt count");
             else {d.dispelProfile=1;d.dispelAttempts=uint8_t(low);harm=true;}
-        } else unavailable("Unsupported effect "+std::to_string(type)+(type==6?" / aura "+std::to_string(u(95+effect)):""));
+        } else if(type==68&&target==6&&!secondary) {
+            d.interruptCast=true;harm=true;
+        } else {
+            const auto reason="Unsupported effect "+std::to_string(type)+(type==6?" / aura "+std::to_string(u(95+effect)):"");
+            if(!rider(effect,reason))unavailable(reason);
+        }
+    }
+    if(!setAside.empty()) {
+        const bool directHit=(d.damage||d.weaponDamage||d.interruptCast)&&!healing&&!buff&&!d.controlProfile;
+        if(!directHit)unavailable(setAside.front());
     }
     if(harm&&!d.schoolMask&&(!creatureCaster||d.damage||d.periodicDamage))unavailable("Damaging spell has no school");
     if(buff&&(harm||healing)) unavailable("Mixed stat buffs and other effects are not implemented");

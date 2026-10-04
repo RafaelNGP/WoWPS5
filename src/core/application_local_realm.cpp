@@ -515,33 +515,6 @@ void Application::updateLocalRealm(float deltaTime) {
         LOG_INFO("[LOCAL_GAMEPLAY] content=", contentPath, " NPC spawns=", localRealm_->content().spawns.size(),
                  " quests=", localRealm_->content().quests.size());
 #ifdef WOWEE_PS4
-        // Development: WOWEE_DEV_SELFTEST=1 (config/env.txt) checks class gear
-        // rules, consumables and start-zone quests against the installed
-        // content on a background thread; =2 skips the quest simulation.
-        if (const char* selfTest = std::getenv("WOWEE_DEV_SELFTEST"); selfTest && *selfTest && *selfTest != '0') {
-            static bool started = false;
-            if (!started) {
-                started = true;
-                const bool quests = std::string(selfTest) != "2";
-                const std::string report = platform::ps4::writableRoot() + "/logs/selftest.txt";
-                const std::string catalog = (std::filesystem::path(contentPath).parent_path() / "catalog").string();
-                std::thread([contentPath, catalog, report, quests] {
-                    // Unbuffered, so the file grows line by line: the host
-                    // runner (tools/ps5/selftest.sh) reads its growth as a
-                    // heartbeat and restarts a run that stops writing.
-                    std::ofstream out(report, std::ios::trunc);
-                    out << std::unitbuf << "SELFTEST BEGIN quests=" << (quests ? 1 : 0) << "\n";
-                    const auto begin = std::chrono::steady_clock::now();
-                    LOG_WARNING("[SELFTEST] begin quests=", quests ? 1 : 0);
-                    const bool ok = game::runLocalGameplaySelfTest(contentPath, catalog, out, quests);
-                    const auto seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - begin).count();
-                    out << (ok ? "SELFTEST PASS" : "SELFTEST FAIL") << " seconds=" << seconds << "\n";
-                    LOG_WARNING("[SELFTEST] ", ok ? "PASS" : "FAIL", " seconds=", seconds, " report=", report);
-                }).detach();
-            }
-        }
-#endif
-#ifdef WOWEE_PS4
         const auto available=platform::ps4::queryAvailableCpuMemory();
         LOG_WARNING("[LOCAL_SESSION] before spell import freeMiB=",available.bytes/(1024*1024),
                     " measured=",available.measured," cached=",bool(localSpellImport_));
@@ -564,7 +537,10 @@ void Application::updateLocalRealm(float deltaTime) {
         auto importedSpells=game::importClientStarterSpells(spellDb.get(),rangeDb.get(),castDb.get(),durationDb.get(),iconDb.get(),
             abilities.get(),skills.get(),talents.get(),runeCostDb.get(),radiusDb.get(),summonPropertiesDb.get());
         game::detail::importClientTalents(importedSpells,talents.get(),tabs.get(),spellDb.get(),rangeDb.get(),castDb.get(),durationDb.get(),iconDb.get(),runeCostDb.get(),radiusDb.get());
-        for(const auto& row:importedSpells.audit)
+        // Per-row listings are ~8,000 log lines a session on the console; they
+        // are a development aid, written only with WOWEE_LOG_SPELL_IMPORT=1.
+        const bool spellImportLog=std::getenv("WOWEE_LOG_SPELL_IMPORT")&&std::string(std::getenv("WOWEE_LOG_SPELL_IMPORT"))=="1";
+        if(spellImportLog)for(const auto& row:importedSpells.audit)
             LOG_INFO("[CLASS_AUDIT] spell=",row.id," classMask=",row.classes," talent=",row.talent," result=",row.status);
         LOG_INFO("[CLASS_AUDIT] rows=",importedSpells.audit.size()," scope=starter/class-skill/talent ranks; decoder support is not full gameplay verification");
         importedSpells.audit.clear();importedSpells.audit.shrink_to_fit();
@@ -585,9 +561,36 @@ void Application::updateLocalRealm(float deltaTime) {
             localRealmStatus(localRealm_->error(),true);return;
         }
         LOG_INFO("[LOCAL_SPELLS] ",importedSpells.diagnostic);
+#ifdef WOWEE_PS4
+        // Development: WOWEE_DEV_SELFTEST=1 (config/env.txt) checks class gear
+        // rules, consumables and start-zone quests against the installed
+        // content on a background thread; =2 skips the quest simulation.
+        if (const char* selfTest = std::getenv("WOWEE_DEV_SELFTEST"); selfTest && *selfTest && *selfTest != '0') {
+            static bool started = false;
+            if (!started) {
+                started = true;
+                const bool quests = std::string(selfTest) != "2";
+                const std::string report = platform::ps4::writableRoot() + "/logs/selftest.txt";
+                const std::string catalog = (std::filesystem::path(contentPath).parent_path() / "catalog").string();
+                std::thread([contentPath, catalog, report, quests, spells = importedSpells.spells] {
+                    // Unbuffered, so the file grows line by line: the host
+                    // runner (tools/ps5/selftest.sh) reads its growth as a
+                    // heartbeat and restarts a run that stops writing.
+                    std::ofstream out(report, std::ios::trunc);
+                    out << std::unitbuf << "SELFTEST BEGIN quests=" << (quests ? 1 : 0) << "\n";
+                    const auto begin = std::chrono::steady_clock::now();
+                    LOG_WARNING("[SELFTEST] begin quests=", quests ? 1 : 0);
+                    const bool ok = game::runLocalGameplaySelfTest(contentPath, catalog, out, quests, &spells);
+                    const auto seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - begin).count();
+                    out << (ok ? "SELFTEST PASS" : "SELFTEST FAIL") << " seconds=" << seconds << "\n";
+                    LOG_WARNING("[SELFTEST] ", ok ? "PASS" : "FAIL", " seconds=", seconds, " report=", report);
+                }).detach();
+            }
+        }
+#endif
         for(const auto& spell:importedSpells.spells) {
             if(!spell.iconPath.empty())localRealmSpellIconPaths_[spell.iconId]=spell.iconPath;
-            if(!spell.talentId)LOG_INFO("[LOCAL_SPELLS] id=",spell.id," classMask=",spell.allowableClasses," name=",spell.name,
+            if(!spell.talentId&&std::getenv("WOWEE_LOG_SPELL_IMPORT"))LOG_INFO("[LOCAL_SPELLS] id=",spell.id," classMask=",spell.allowableClasses," name=",spell.name,
                 " castMs=",spell.castTimeMs," gcdMs=",spell.globalCooldownMs," internal=",spell.triggeredOnly," supported=",spell.unsupportedReason.empty(),
                 " reason=",spell.unsupportedReason);
         }

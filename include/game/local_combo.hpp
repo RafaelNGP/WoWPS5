@@ -1,6 +1,7 @@
 #pragma once
 #include "game/local_gameplay.hpp"
 #include "game/local_melee.hpp"
+#include "game/local_ranged.hpp"
 #include <algorithm>
 #include <cmath>
 namespace wowee::game {
@@ -41,7 +42,25 @@ inline void addLocalCombo(LocalRealmPlayer& p,const LocalRealmNpc& n,uint8_t gai
 // The physical combat core owns attributes, AP and equipped-weapon normalization.
 inline uint32_t localComboAttackRating(const LocalRealmPlayer& p,const LocalWorldContent& c){return uint32_t(localMeleeStats(p,c).attackPower);}
 inline uint32_t localComboAmount(const LocalRealmPlayer& p,const LocalWorldContent& c,const LocalSpellDefinition& s,uint32_t base,uint8_t points,uint32_t extraEnergy,bool periodic,bool sourceComboIncluded=false){
-    if(!s.comboProfile)return base;
+    if(!s.comboProfile) {
+        // A reviewed single-target weapon attack outside the combo family
+        // (Mortal Strike, Aimed Shot, Plague Strike...): Spell::EffectWeaponDmg
+        // adds the weapon's damage to the flat bonus, then applies the
+        // percentage. A ranged attack (DmgClass 3) uses the ranged weapon and
+        // ammunition through the Auto Shot pipeline.
+        if(periodic||!s.weaponDamage)return base;
+        double low=0,high=0;
+        if(s.sourceDamageClass==3) {
+            const auto* autoShot=c.spell(75);
+            const auto ranged=autoShot?localRangedAmounts(p,c,*autoShot):LocalRangedAmounts{};
+            if(!ranged.active)return base;
+            low=ranged.low;high=ranged.high;
+        } else {
+            const auto w=localWeaponAmounts(p,c,false,s.normalizedWeapon,false);
+            low=w.low+w.magicLow;high=w.high+w.magicHigh;
+        }
+        return uint32_t(std::clamp((double(base)+(low+high)*.5)*s.weaponPercent/100.0,0.0,1000000.0));
+    }
     const auto profile=LocalComboProfile(s.comboProfile);const double ap=localComboAttackRating(p,c);
     double amount=base;
     if(!periodic&&s.weaponDamage){const auto w=localWeaponAmounts(p,c,false,s.normalizedWeapon,false);amount=(amount+(w.low+w.high+w.magicLow+w.magicHigh)*.5)*s.weaponPercent/100.0;}

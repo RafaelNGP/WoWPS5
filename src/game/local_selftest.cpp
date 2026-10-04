@@ -11,6 +11,7 @@
 #include "game/local_world_catalog.hpp"
 #include "game/local_inventory_layout.hpp"
 #include "game/local_quest_marker.hpp"
+#include "game/local_quest_eligibility.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -45,7 +46,8 @@ uint32_t findItem(uint8_t itemClass, uint8_t subClass, uint8_t inventoryType, co
 const char* kClassNames[] = {"", "Warrior", "Paladin", "Hunter", "Rogue", "Priest", "DeathKnight", "Shaman", "Mage", "Warlock", "", "Druid"};
 }
 
-bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& catalogDir, std::ostream& out, bool quests) {
+bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& catalogDir, std::ostream& out, bool quests,
+                              const std::vector<LocalSpellDefinition>* clientSpells) {
     LocalGameplay game; std::string error, result;
     if (!game.loadContent(worldPath, error)) { out << error << "\n"; return false; }
     const auto& c = game.content(); SELFTEST_CHECK(c.catalog);
@@ -157,7 +159,35 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // Bandage: heal over time, Recently Bandaged blocks a second one.
         p.health = 10; SELFTEST_CHECK(game.execute(p, {LocalAction::UseItem, 0, 1251}, players, result));
         SELFTEST_CHECK(!game.execute(p, {LocalAction::UseItem, 0, 1251}, players, result) && count(1251) == 1);
-        out << "PASS consumables: " << c.consumables.size() << " items; instant potion, shared cooldown, level gate, food over time, move interrupt, bandage debuff\n";
+        // Stat buffs: elixir, scroll, flask, Well Fed; one per kind.
+        {
+            LocalRealmPlayer b; b.guid = 8; b.race = 1; b.classId = 1; b.name = "Buffed"; game.initializePlayer(b, true, 60);
+            std::vector<LocalRealmPlayer*> bp{&b};
+            b.inventory = {{2454, 2, 0}, {3013, 1, 1}, {13510, 1, 2}, {2680, 2, 3}, {955, 1, 4}};
+            normalizeLocalInventory(b);
+            const auto melee0 = localMeleeStats(b, c); const auto armor0 = localMeleeArmor(b, c); const auto health0 = b.maxHealth;
+            SELFTEST_CHECK(game.execute(b, {LocalAction::UseItem, 0, 2454}, bp, result));
+            SELFTEST_CHECK(localMeleeStats(b, c).attributes[0] == melee0.attributes[0] + 4);
+            SELFTEST_CHECK(localMeleeStats(b, c).attackPower > melee0.attackPower);
+            SELFTEST_CHECK(game.execute(b, {LocalAction::UseItem, 0, 3013}, bp, result) && localMeleeArmor(b, c) > armor0);
+            // Elixirs and flasks share a three second category cooldown.
+            SELFTEST_CHECK(!game.execute(b, {LocalAction::UseItem, 0, 13510}, bp, result));
+            for (int i = 0; i < 31; ++i) game.tick(0.1f, bp);
+            SELFTEST_CHECK(game.execute(b, {LocalAction::UseItem, 0, 13510}, bp, result) && b.maxHealth == health0 + 400);
+            // A second scroll replaces the first (one scroll at a time).
+            SELFTEST_CHECK(game.execute(b, {LocalAction::UseItem, 0, 955}, bp, result) && localMeleeArmor(b, c) == armor0);
+            SELFTEST_CHECK(b.consumableBuffs.size() == 3);
+            // Well Fed after ten seconds of eating.
+            b.health = b.maxHealth / 2;
+            SELFTEST_CHECK(game.execute(b, {LocalAction::UseItem, 0, 2680}, bp, result));
+            for (int i = 0; i < 95; ++i) game.tick(0.1f, bp);
+            SELFTEST_CHECK(b.consumableBuffs.size() == 3);
+            for (int i = 0; i < 15; ++i) game.tick(0.1f, bp);
+            SELFTEST_CHECK(b.consumableBuffs.size() == 4 && std::any_of(b.consumableBuffs.begin(), b.consumableBuffs.end(), [](const auto& x) { return x.spellId == 19705; }));
+            SELFTEST_CHECK(std::any_of(b.healingAuras.begin(), b.healingAuras.end(), [](const auto& a) { return a.spellId == 13510 || a.spellId == 17626; }));
+            SELFTEST_CHECK(c.consumableSpell(19705) && c.consumableSpell(19705)->name == "Well Fed");
+        }
+        out << "PASS consumables: " << c.consumables.size() << " items; instant potion, shared cooldown, level gate, food over time, move interrupt, bandage debuff, elixir/scroll/flask/Well Fed buffs\n";
     }
 
     // ---- 2b. Hunter pets: tame a real Shadowglen beast, dismiss, call, refusals.
@@ -185,7 +215,15 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // A warrior cannot tame; a hunter can.
         { auto warrior = p; warrior.classId = 1; std::vector<LocalRealmPlayer*> w{&warrior};
           SELFTEST_CHECK(!world.execute(warrior, {LocalAction::CastSpell, beastGuid, kLocalTameBeast}, w, result)); }
+        const auto finishCast = [&] { for (int i = 0; i < 500 && p.castingSpellId; ++i) { p.health = p.maxHealth; world.tick(0.05f, players); } };
+        // Tame Beast is a 20 second channel; moving breaks it.
+        SELFTEST_CHECK(world.execute(p, {LocalAction::CastSpell, beastGuid, kLocalTameBeast}, players, result) && p.castingSpellId == kLocalTameBeast);
+        SELFTEST_CHECK(p.castTotalMs >= 15000);
+        world.tick(0.5f, players); p.x += 2; world.tick(0.05f, players); p.x -= 2;
+        SELFTEST_CHECK(!p.castingSpellId && !p.hunterPet.entry);
+        p.globalCooldownMs = 0;
         SELFTEST_CHECK(world.execute(p, {LocalAction::CastSpell, beastGuid, kLocalTameBeast}, players, result));
+        finishCast();
         world.tick(0.05f, players);
         SELFTEST_CHECK(p.hunterPet.entry == 2031 && p.hunterPet.family == 2 && p.hunterPet.active && !p.hunterPet.dead);
         const auto* pet = livePet();
@@ -196,9 +234,12 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // One pet: a second tame is refused, Revive needs a dead pet.
         SELFTEST_CHECK(!world.execute(p, {LocalAction::CastSpell, beastGuid, kLocalTameBeast}, players, result));
         SELFTEST_CHECK(!world.execute(p, {LocalAction::CastSpell, 0, kLocalRevivePet}, players, result));
+        p.globalCooldownMs = 0;
         SELFTEST_CHECK(world.execute(p, {LocalAction::CastSpell, 0, kLocalDismissPet}, players, result));
+        finishCast();
         world.tick(0.05f, players);
         SELFTEST_CHECK(!livePet() && !p.hunterPet.active && p.hunterPet.entry == 2031);
+        p.globalCooldownMs = 0;
         SELFTEST_CHECK(world.execute(p, {LocalAction::CastSpell, 0, kLocalCallPet}, players, result));
         world.tick(0.05f, players);
         SELFTEST_CHECK(livePet() && p.hunterPet.active);
@@ -215,15 +256,132 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             const uint64_t boarGuid = boar->guid; const uint32_t before = boar->maxHealth;
             p.x = boar->x + 1; p.y = boar->y; p.z = boar->z; ++p.positionRevision;
             world.execute(p, {LocalAction::Attack, boarGuid, 0}, players, result);
-            bool petEngaged = false, boarHurt = false;
-            for (int i = 0; i < 400 && !(petEngaged && boarHurt); ++i) {
+            bool petEngaged = false, boarHurt = false, focusSpent = false;
+            for (int i = 0; i < 600 && !(petEngaged && boarHurt && focusSpent); ++i) {
                 p.health = p.maxHealth; world.tick(0.05f, players);
                 if (const auto* v = livePet(); v && v->targetGuid == boarGuid) petEngaged = true;
+                if (const auto* v = livePet(); v && v->power < v->maxPower) focusSpent = true;
                 for (const auto& n : world.npcs()) if (n.guid == boarGuid && (n.dead || n.health < before)) boarHurt = true;
             }
             SELFTEST_CHECK(petEngaged && boarHurt);
+            SELFTEST_CHECK(focusSpent); // Claw/Bite/Smack spends 25 focus.
+            SELFTEST_CHECK(c.petFamilyAttack[2] == 2 && c.petFamilyAttack[1] == 1 && c.petBasicRanks[1].size() == 11);
         }
-        out << "PASS hunter pets: " << c.tameableBeasts.size() << " tameable beasts; tame Young Nightsaber, one-pet rule, dismiss, call, return after travel, fights beside the hunter\n";
+        out << "PASS hunter pets: " << c.tameableBeasts.size() << " tameable beasts; tame Young Nightsaber (20 s channel, broken by moving), one-pet rule, dismiss, call, return after travel, fights beside the hunter with its family's basic attack\n";
+    }
+
+    // ---- 2c. Class abilities from the client's own Spell.dbc, cast in combat.
+    if (!clientSpells) out << "SKIP class abilities (no client spell import)\n";
+    else {
+        const uint32_t bow = findItem(2, 2, 15, c), sword2h = findItem(2, 8, 17, c);
+        uint32_t arrows = 0;
+        for (const auto& m : kLocalAuctionItems) if (m.itemClass == 6 && m.subClass == 2 && m.requiredLevel <= 1 && c.item(m.id)) { arrows = m.id; break; }
+        SELFTEST_CHECK(bow && sword2h && arrows);
+        struct Ability { uint8_t race, cls; const char* name; bool interrupt; };
+        const Ability abilities[] = {
+            {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
+            {4, 3, "Arcane Shot", false}, {4, 3, "Aimed Shot", false}, {4, 3, "Raptor Strike", false},
+            {1, 4, "Kick", true}, {1, 6, "Icy Touch", false}, {1, 6, "Plague Strike", false}, {1, 6, "Blood Strike", false},
+            {1, 6, "Mind Freeze", true}, {1, 8, "Counterspell", true}, {1, 8, "Frostfire Bolt", false}, {11, 7, "Earth Shock", false},
+            {1, 9, "Haunt", false},
+        };
+        size_t passed = 0;
+        for (const auto& a : abilities) {
+            LocalGameplay arena; SELFTEST_CHECK(arena.loadContent(worldPath, error));
+            SELFTEST_CHECK(arena.setStarterSpells(*clientSpells, "selftest", error));
+            LocalRealmPlayer p; p.guid = 500 + passed; p.race = a.race; p.classId = a.cls; p.name = "Tester";
+            arena.initializePlayer(p, true, 80);
+            // Ebon Hold's creatures are scripted, not fair game: test a death
+            // knight in Northshire like everyone else's first enemies.
+            if (a.cls == 6) for (const auto& start : c.catalog->starts()) if (start.race == 1 && start.classId == 1) {
+                p.mapId = start.mapId; p.x = start.x; p.y = start.y; p.z = start.z; ++p.positionRevision; break; }
+            std::vector<LocalRealmPlayer*> players{&p};
+            const auto& content = arena.content();
+            uint32_t spellId = 0;
+            for (auto id : p.knownSpells) if (const auto* d = content.spell(id); d && d->name == a.name && d->unsupportedReason.empty()) spellId = id;
+            if (!spellId) { out << "FAIL class ability " << a.name << ": not in the level 80 spellbook\n"; return false; }
+            // Weapons the ability needs.
+            p.inventory.push_back({a.cls == 3 ? bow : sword2h, 1, 20});
+            if (a.cls == 3) { p.inventory.push_back({sword2h, 1, 21}); p.inventory.push_back({arrows, 200, 22}); }
+            if (a.cls == 7) p.inventory.push_back({findItem(2, 4, 13, c), 1, 23});
+            normalizeLocalInventory(p);
+            for (const auto& stack : std::vector<LocalItemStack>(p.inventory))
+                if (const auto* m = localAuctionMetadata(stack.itemId); m && m->itemClass == 2)
+                    arena.execute(p, {LocalAction::EquipItem, 0, stack.itemId}, players, result);
+            // A living enemy beside the character, faced.
+            std::vector<uint64_t> foes;
+            for (int i = 0; i < 200 && foes.empty(); ++i) { arena.tick(0.05f, players);
+                for (const auto& n : arena.npcs()) if (n.hostile && !n.dead && n.health && std::hypot(n.x - p.x, n.y - p.y) < 120) foes.push_back(n.guid); }
+            if (foes.empty()) { out << "FAIL class ability " << a.name << ": no enemy near the start\n"; return false; }
+            uint64_t foeGuid = foes.front(); size_t foeIndex = 0;
+            bool landed = false; std::string last;
+            for (int attempt = 0; attempt < 12 && !landed; ++attempt) {
+                // Some "hostile" creatures at a start (Ebon Hold) cannot be attacked: try the next one.
+                if (last.find("living enemy") != std::string::npos && foeIndex + 1 < foes.size()) { foeGuid = foes[++foeIndex]; last.clear(); }
+                const LocalRealmNpc* n = nullptr;
+                for (const auto& v : arena.npcs()) if (v.guid == foeGuid) n = &v;
+                if (!n || n->dead) break;
+                const bool ranged = a.cls == 3 && std::string(a.name) != "Raptor Strike";
+                const float gap = ranged ? 15.f : 1.5f;
+                p.x = n->x - gap; p.y = n->y; p.z = n->z; p.orientation = 0; ++p.positionRevision;
+                p.mana = p.maxMana; p.runeCooldownMs.fill(0); p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear();
+                p.health = p.maxHealth;
+                const uint32_t before = n->health;
+                if (!arena.execute(p, {LocalAction::CastSpell, foeGuid, spellId}, players, result)) {
+                    last = result;
+                    // A stance-bound ability (Overpower): take the next known stance and retry.
+                    if (result.find("form or stance") != std::string::npos) {
+                        std::vector<uint32_t> forms;
+                        for (auto id : p.knownSpells) if (const auto* f = content.spell(id); f && f->formId && f->unsupportedReason.empty()) forms.push_back(id);
+                        if (!forms.empty()) {
+                            p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear();
+                            arena.execute(p, {LocalAction::CastSpell, p.guid, forms[size_t(attempt) % forms.size()]}, players, result);
+                        }
+                    }
+                    arena.tick(0.05f, players); continue;
+                }
+                for (int t = 0; t < 120 && p.castingSpellId; ++t) { p.health = p.maxHealth; arena.tick(0.05f, players); }
+                arena.tick(0.05f, players);
+                const LocalRealmNpc* after = nullptr;
+                for (const auto& v : arena.npcs()) if (v.guid == foeGuid) after = &v;
+                landed = a.interrupt ? p.lastCastSpellId == spellId : (!after || after->dead || after->health < before);
+                last = result;
+            }
+            if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
+            ++passed;
+        }
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities cast in combat (weapon strikes, shots, interrupts, spells)\n";
+    }
+
+    // ---- 2d. Every chain is reachable: closure over the realm's own gates.
+    {
+        std::set<uint32_t> reached; bool grew = true;
+        size_t blocked = 0;
+        for (const auto& [id, gate] : c.questChainGates) if (!gate.unsupportedReason.empty()) ++blocked;
+        while (grew) {
+            grew = false;
+            LocalRealmPlayer probe; probe.race = 1; probe.classId = 1; probe.level = 1;
+            probe.completedQuestIds.assign(reached.begin(), reached.end());
+            for (const auto& [id, gate] : c.questChainGates) {
+                if (reached.count(id)) continue;
+                const auto* q = c.quest(id); if (!q) continue;
+                // Item, reputation and spell conditions are things a player can
+                // go and get; the question here is the quest structure alone.
+                auto structural = *q;
+                // Exclusive choices ("not having done X") are a player's pick, not structure.
+                for (auto& alternative : structural.chainGate.alternatives) {
+                    alternative.player.clear();
+                    std::erase_if(alternative.quests, [](const auto& predicate) { return predicate.statusMask == LocalQuestChainNone; });
+                }
+                if (localQuestChainSatisfied(probe, structural)) { reached.insert(id); grew = true; }
+            }
+        }
+        const size_t total = c.questChainGates.size();
+        if (std::getenv("QUEST_VERBOSE")) for (const auto& [id, gate] : c.questChainGates) if (!reached.count(id))
+            if (const auto* q = c.quest(id)) out << "  unreachable " << id << " '" << q->title << "' " << gate.unsupportedReason << "\n";
+        out << "QUEST CHAINS reachable=" << reached.size() << "/" << total << " blocked=" << blocked << "\n";
+        SELFTEST_CHECK(reached.size() + blocked >= total - 3);
+        out << "PASS quest chains: " << reached.size() << " of " << total << " quests reachable from a fresh character\n";
     }
 
     if (!quests) { out << "SKIP start-zone quests\n"; return true; }

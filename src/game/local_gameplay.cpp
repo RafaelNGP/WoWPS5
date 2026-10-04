@@ -288,23 +288,45 @@ void objectiveCredit(LocalRealmPlayer& p,const LocalWorldContent& c,LocalQuestOb
 }
 // Food, drink and bandages restore their total evenly over the duration and
 // end early on movement or damage when their aura interrupt flags say so.
-bool advanceLocalConsumables(LocalRealmPlayer& p,uint32_t ms) {
-    if(p.consumableRegens.empty())return false;
-    if(p.dead||p.ghost||p.flight.active){p.consumableRegens.clear();return true;}
+// One buff of each kind (elixir, flask, scroll, food): a new one replaces it.
+void applyLocalConsumableBuff(LocalRealmPlayer& p,const LocalConsumable& use) {
+    if(!use.buffSpellId)return;
+    std::erase_if(p.consumableBuffs,[&](const auto& b){return b.spellId==use.buffSpellId||(use.buffSlot&&b.slot==use.buffSlot);});
+    if(p.consumableBuffs.size()>=kLocalMaxConsumableBuffs)p.consumableBuffs.erase(p.consumableBuffs.begin());
+    LocalConsumableBuff b;b.spellId=use.buffSpellId;b.remainingMs=b.durationMs=use.buffDurationMs;b.slot=use.buffSlot;
+    b.stats=use.buffStats;b.attackPower=use.buffAttackPower;b.armor=use.buffArmor;b.health=use.buffHealth;
+    p.consumableBuffs.push_back(b);
+    LOG_INFO("[LOCAL_CONSUMABLE] player=",p.guid," buff=",b.spellId," slot=",unsigned(b.slot)," for=",b.durationMs,"ms");
+}
+void stats(LocalRealmPlayer& p,const LocalWorldContent& c,bool heal);
+bool advanceLocalConsumables(LocalRealmPlayer& p,const LocalWorldContent& c,uint32_t ms) {
+    if(p.consumableRegens.empty()&&p.consumableBuffs.empty())return false;
+    bool buffsChanged=false;
+    // Death ends every buff but a flask's (WotLK flasks persist through death).
+    if((p.dead||p.ghost)&&std::erase_if(p.consumableBuffs,[](const auto& b){return b.slot!=3;}))buffsChanged=true;
+    for(auto& b:p.consumableBuffs)b.remainingMs=b.remainingMs>ms?b.remainingMs-ms:0;
+    if(std::erase_if(p.consumableBuffs,[](const auto& b){return !b.remainingMs;}))buffsChanged=true;
+    if(p.dead||p.ghost||p.flight.active)p.consumableRegens.clear();
     const bool moved=[&]{for(const auto& r:p.consumableRegens)if(r.cancelOnMove&&(std::abs(p.x-r.x)>0.25f||std::abs(p.y-r.y)>0.25f))return true;return false;}();
     std::erase_if(p.consumableRegens,[&](const auto& r){
         const bool stop=(r.cancelOnMove&&moved)||(r.cancelOnDamage&&p.health<r.lastHealth);
         if(stop)LOG_INFO("[LOCAL_CONSUMABLE] player=",p.guid," item=",r.itemId," interrupted by ",moved?"movement":"damage");
         return stop;});
     for(auto& r:p.consumableRegens) {
+        const auto before=r.elapsedMs;
         r.elapsedMs=std::min(r.durationMs,r.elapsedMs+ms);
         const auto health=uint32_t(uint64_t(r.health)*r.elapsedMs/r.durationMs),mana=uint32_t(uint64_t(r.mana)*r.elapsedMs/r.durationMs);
         p.health=uint32_t(std::min<uint64_t>(p.maxHealth,uint64_t(p.health)+(health-r.givenHealth)));
         if(p.resourceType==LocalResourceType::Mana)p.mana=uint32_t(std::min<uint64_t>(p.maxMana,uint64_t(p.mana)+(mana-r.givenMana)));
         r.givenHealth=health;r.givenMana=mana;
+        // Well Fed: the meal's periodic trigger after its first interval of eating.
+        if(const auto* use=c.consumable(r.itemId);use&&use->buffSpellId&&use->buffDelayMs&&before<use->buffDelayMs&&r.elapsedMs>=use->buffDelayMs){
+            applyLocalConsumableBuff(p,*use);buffsChanged=true;
+        }
     }
     for(auto& r:p.consumableRegens)r.lastHealth=p.health;
     std::erase_if(p.consumableRegens,[](const auto& r){return r.elapsedMs>=r.durationMs;});
+    if(buffsChanged)stats(p,c,false);
     return true;
 }
 uint32_t equipmentValue(const LocalRealmPlayer& p,const LocalWorldContent& c, unsigned kind) {
@@ -917,6 +939,10 @@ struct LocalGameplay::Impl {
             const auto* d=content->spell(a.spell);if(!d||target->healingAuras.size()>=kLocalMaxHealingAuraViews)continue;
             target->healingAuras.push_back({a.spell,a.remaining,d->durationMs,a.owner,a.stacks});
         }
+        // Elixir, flask, scroll and Well Fed buffs, then the meal in progress.
+        for(auto* p:players)if(p)for(const auto& b:p->consumableBuffs)
+            if(b.remainingMs&&p->healingAuras.size()<kLocalMaxHealingAuraViews)
+                p->healingAuras.push_back({b.spellId,b.remainingMs,b.durationMs,p->guid,1});
         // Eating, drinking and bandaging show as the player's own timed buff.
         for(auto* p:players)if(p)for(const auto& r:p->consumableRegens)
             if(r.spellId&&r.durationMs>r.elapsedMs&&p->healingAuras.size()<kLocalMaxHealingAuraViews)
@@ -2612,6 +2638,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         // which range type a spell has, which facings it accepts and which
         // creature types and combat states it may be cast at.
         hash(d.sourceRangeFlags);hash(d.sourceFacingFlags);hash(d.targetCreatureType);
+        hash(uint32_t(d.weaponDamage)|uint32_t(d.normalizedWeapon)<<1|uint32_t(d.interruptCast)<<2);hash(d.weaponPercent);hash(d.targetMaxHealthPct);
         hash(uint32_t(d.sourceOnlyPeacefulTargets));
         // P05 line of sight : two peers must agree on which casts are
         // exempt from the test before they can agree on the test's answer.
@@ -3283,7 +3310,18 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
                 d.category=number(v,"category",0,100000);d.categoryCooldownMs=number(v,"categoryCooldownMs",0,3600000);
                 d.requiredLevel=uint8_t(number(v,"requiredLevel",0,255));d.spellId=number(v,"spellId",0,UINT32_MAX);
                 d.noCombat=flag(v,"noCombat");d.cancelOnMove=flag(v,"cancelOnMove");d.cancelOnDamage=flag(v,"cancelOnDamage");
-                if(!d.instantHealth&&!d.instantMana&&!d.regenHealth&&!d.regenMana)throw std::runtime_error("Consumable restores nothing");
+                if(v.contains("buff")&&!v.at("buff").is_null()) {
+                    const auto& b=v.at("buff");
+                    d.buffSpellId=number(b,"spellId",0,UINT32_MAX);d.buffDurationMs=number(b,"durationMs",0,7200000);
+                    d.buffDelayMs=number(b,"delayMs",0,600000);d.buffSlot=uint8_t(number(b,"slot",0,5));
+                    d.buffAttackPower=int32_t(number(b,"attackPower",0,100000));d.buffArmor=int32_t(number(b,"armor",0,100000));
+                    d.buffHealth=int32_t(number(b,"health",0,100000));
+                    const auto& stats=b.at("stats");
+                    if(!stats.is_array()||stats.size()!=5)throw std::runtime_error("Consumable buff needs five stats");
+                    for(size_t k=0;k<5;++k){if(!stats[k].is_number_integer()||stats[k].get<int64_t>()<0||stats[k].get<int64_t>()>100000)throw std::runtime_error("Invalid consumable buff stat");d.buffStats[k]=stats[k].get<int32_t>();}
+                    if(!d.buffSpellId||!d.buffDurationMs||(d.buffDelayMs&&!d.durationMs))throw std::runtime_error("Invalid consumable buff");
+                }
+                if(!d.instantHealth&&!d.instantMana&&!d.regenHealth&&!d.regenMana&&!d.buffSpellId)throw std::runtime_error("Consumable restores nothing");
                 if((d.regenHealth||d.regenMana)!=(d.durationMs!=0))throw std::runtime_error("Consumable regeneration needs a duration");
                 if(!c->consumables.empty()&&c->consumables.back().itemId>=d.itemId)throw std::runtime_error("Consumables must be sorted and unique");
                 c->consumables.push_back(d);
@@ -3323,10 +3361,27 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
                 d.name=label(v,"name",64);d.iconPath=label(v,"icon",128,false);
                 d.clientSpell=true;d.allowableClasses=1u<<2;d.spellLevel=uint16_t(number(v,"level",1,80));d.baseLevel=d.spellLevel;
                 d.castTimeMs=number(v,"castMs",0,60000);d.cooldownMs=number(v,"cooldownMs",0,3600000);d.range=30;
+                d.interruptFlags=1; // Moving stops the cast or the Tame Beast channel.
                 if(std::any_of(c->spells.begin(),c->spells.end(),[&](const auto& o){return o.id==d.id;}))throw std::runtime_error("Duplicate hunter pet spell");
                 c->spells.push_back(std::move(d));
             }
             std::sort(c->spells.begin(),c->spells.end(),[](const auto& a,const auto& b){return a.id<b.id;});
+            static const char* const kBasicNames[]={"Bite","Claw","Smack"};
+            const auto kindOf=[](const std::string& n)->int{for(int k=0;k<3;++k)if(n==kBasicNames[k])return k;return -1;};
+            for(const auto& v:array(pets,"basicAttacks",3)) {
+                const int kind=kindOf(label(v,"name",16));if(kind<0)throw std::runtime_error("Unknown pet basic attack");
+                for(const auto& r:array(v,"ranks",32,true)) {
+                    LocalWorldContent::PetBasicRank rank;rank.spellId=number(r,"spellId",0,UINT32_MAX);rank.level=uint8_t(number(r,"level",0,80));
+                    rank.low=number(r,"low",0,100000);rank.high=number(r,"high",0,100000);
+                    if(!rank.spellId||rank.high<rank.low)throw std::runtime_error("Invalid pet basic attack rank");
+                    c->petBasicRanks[size_t(kind)].push_back(rank);
+                }
+            }
+            for(const auto& v:array(pets,"familyAttacks",256)) {
+                const auto family=number(v,"family",0,255);const int kind=kindOf(label(v,"attack",16));
+                if(!family||kind<0)throw std::runtime_error("Invalid pet family attack");
+                c->petFamilyAttack[family]=uint8_t(kind+1);
+            }
             for(unsigned char b:petText)c->fingerprint=(c->fingerprint^b)*16777619U;
         }
         if(j.contains("creatureTalk")) {
@@ -3850,6 +3905,31 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
         std::sort(c->items.begin(), c->items.end(), byId);
         std::sort(c->spells.begin(), c->spells.end(), byId);
         std::sort(c->quests.begin(), c->quests.end(), byId);
+        // Standalone realm: a predecessor this realm does not carry (its
+        // objectives or giver were never importable) can never be completed
+        // here, and requiring it walled its whole chain off. Such a "must be
+        // rewarded" predicate is also met by never having done it; a
+        // predicate that requires NOT having done a quest is left alone.
+        if(!c->questChainGates.empty()) {
+            std::set<uint32_t> authored;for(const auto& q:c->quests)authored.insert(q.id);
+            const auto inRealm=[&](uint32_t id){return c->questChainGates.count(id)>0||authored.count(id)>0;};
+            size_t opened=0;
+            const auto open=[&](LocalQuestChainPredicate& predicate){
+                if(predicate.questId&&!inRealm(predicate.questId)&&(predicate.statusMask&LocalQuestChainRewarded)&&!(predicate.statusMask&LocalQuestChainNone)){
+                    predicate.statusMask=LocalQuestChainNone|LocalQuestChainRewarded;++opened;} // An absent quest is never active.
+            };
+            for(auto& [id,gate]:c->questChainGates) {
+                for(auto& alternative:gate.alternatives)for(auto& predicate:alternative.quests)open(predicate);
+                for(auto& rule:gate.orderedPrevious)for(auto& predicate:rule.requirements)open(predicate);
+                // A "one of these predecessors" rule keyed on a quest absent
+                // from this realm can never match; drop it, and when none is
+                // left the predecessor requirement goes with them.
+                const auto before=gate.orderedPrevious.size();
+                std::erase_if(gate.orderedPrevious,[&](const auto& rule){return !inRealm(rule.when.questId);});
+                opened+=before-gate.orderedPrevious.size();
+            }
+            if(opened)LOG_INFO("[LOCAL_QUEST_CHAIN] ",opened," predecessor requirements on quests absent from this realm accept never-done");
+        }
         std::sort(c->npcs.begin(), c->npcs.end(), byId);
         for(const auto& kit:c->vehicleKits)for(const auto& a:kit.abilities)
             if(a.spellId && !c->spell(a.spellId))throw std::runtime_error("Vehicle ability spell metadata missing");
@@ -5500,7 +5580,8 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
             const bool mana=p.resourceType==LocalResourceType::Mana;
             const bool wantsHealth=(use->instantHealth||use->regenHealth)&&p.health<p.maxHealth;
             const bool wantsMana=mana&&(use->instantMana||use->regenMana)&&p.mana<p.maxMana;
-            if(!wantsHealth&&!wantsMana)return reject("Health/resource are already full");
+            const bool immediateBuff=use->buffSpellId&&!use->buffDelayMs;
+            if(!wantsHealth&&!wantsMana&&!immediateBuff)return reject("Health/resource are already full");
             const uint32_t cooldown=std::max(use->cooldownMs,use->categoryCooldownMs);
             auto candidate=p;
             if(use->category&&cooldown) {
@@ -5519,6 +5600,7 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
                 r.x=candidate.x;r.y=candidate.y;r.cancelOnMove=use->cancelOnMove;r.cancelOnDamage=use->cancelOnDamage;
                 candidate.consumableRegens.push_back(r);
             }
+            if(immediateBuff)applyLocalConsumableBuff(candidate,*use);
             removeItem(candidate,cmd.id,1);stats(candidate,c,false);questStatus(candidate,c);
             p=std::move(candidate);
             LOG_INFO("[LOCAL_CONSUMABLE] player=",p.guid," item=",cmd.id," instant=",use->instantHealth,"/",use->instantMana,
@@ -5683,14 +5765,28 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
 }
 
 bool LocalGameplay::hunterPetSpell(LocalRealmPlayer& p,const LocalRealmCommand& cmd,
-        const std::vector<LocalRealmPlayer*>& players,std::string& result,std::string& why) {
+        const std::vector<LocalRealmPlayer*>& players,std::string& result,std::string& why,bool finishing) {
     auto& g=*impl_;const auto& c=content();
     const auto fail=[&](const char* reason){why=reason;return false;};
     if(p.classId!=3)return fail("Only hunters can do that");
     if(std::find(p.knownSpells.begin(),p.knownSpells.end(),cmd.id)==p.knownSpells.end())return fail("Spell is not learned");
     if(p.dead||p.ghost)return fail("Cannot cast while dead");
     if(p.flight.active||p.transportEntry)return fail("You can't do that right now");
-    if(p.castingSpellId)return fail("A spell is already being cast");
+    if(p.castingSpellId&&!finishing)return fail("A spell is already being cast");
+    if(finishing&&(p.castingSpellId!=cmd.id))return fail("Cast changed");
+    // Tame Beast channels, Revive and Dismiss Pet cast (Spell.dbc times):
+    // the checks below run when the cast starts and again when it completes.
+    const auto* def=content().spell(cmd.id);
+    const uint32_t castMs=def?def->castTimeMs:0;
+    const auto begin=[&](const char* what){
+        p.castingSpellId=cmd.id;p.castTarget=cmd.target;p.castRemainingMs=p.castTotalMs=castMs;
+        if(!++p.castSequence)++p.castSequence;
+        p.castPushbackMs=0;p.castPushbackCount=0;
+        p.castOriginX=p.x;p.castOriginY=p.y;p.castOriginZ=p.z;p.castOriginMap=p.mapId;p.castOriginInstance=p.instanceId;
+        p.castStatus=LocalCastStatus::Casting;p.globalCooldownMs=1500;
+        result=what;return true;
+    };
+    const auto done=[&]{if(finishing)clearCast(p,LocalCastStatus::Finished);if(!++p.castRevision)++p.castRevision;p.lastCastSpellId=cmd.id;p.lastCastTarget=cmd.target;};
     auto& h=p.hunterPet;
     auto* live=g.controlledPetOf(p.guid);
     const bool hunterLive=live&&live->summonSpellId==kLocalCallPet;
@@ -5712,15 +5808,16 @@ bool LocalGameplay::hunterPetSpell(LocalRealmPlayer& p,const LocalRealmCommand& 
             if(!family)return fail("That creature is not tameable");
             if(n->level>p.level)return fail("That creature is too high level to tame");
             if(distance2(p,*n)>30.f*30.f)return fail("Out of range");
-            const auto* def=c.npc(n->entry);
+            if(!finishing&&castMs)return begin(("Taming "+n->name).c_str());
+            const auto* npcDef=c.npc(n->entry);
             const LocalHunterPet previous=h;
-            h={};h.entry=n->entry;h.displayId=n->displayId?n->displayId:def?def->displayId:0;h.family=family;
+            h={};h.entry=n->entry;h.displayId=n->displayId?n->displayId:npcDef?npcDef->displayId:0;h.family=family;
             h.name=n->name.substr(0,96);
             if(!g.spawnHunterPet(p,100,players)){h=previous;return fail("The beast could not be tamed");}
             if(p.attackTarget==n->guid)p.attackTarget=0;
             LOG_INFO("[LOCAL_HUNTER_PET] owner=",p.guid," action=tame npc=",n->guid," entry=",n->entry," family=",unsigned(family)," level=",unsigned(n->level));
             g.npcForceDespawn(*n,players);
-            result="Tamed "+h.name;return true;
+            done();result="Tamed "+h.name;return true;
         }
         case kLocalCallPet:
             if(!h.entry)return fail("You do not have a pet");
@@ -5728,10 +5825,11 @@ bool LocalGameplay::hunterPetSpell(LocalRealmPlayer& p,const LocalRealmCommand& 
             if(hunterLive)return fail("Your pet is already out");
             if(live)return fail("You already control a summoned creature");
             if(!g.spawnHunterPet(p,100,players))return fail("Your pet could not be called");
-            result="Called "+h.name;return true;
+            done();result="Called "+h.name;return true;
         case kLocalDismissPet:
             if(!hunterLive)return fail("You do not have a pet out");
-            h.active=false;g.retirePet(live->guid,"dismissed",players);
+            if(!finishing&&castMs)return begin("Dismissing pet");
+            h.active=false;g.retirePet(live->guid,"dismissed",players);done();
             LOG_INFO("[LOCAL_HUNTER_PET] owner=",p.guid," entry=",h.entry," action=dismiss");
             result="Dismissed "+h.name;return true;
         case kLocalRevivePet:
@@ -5739,7 +5837,9 @@ bool LocalGameplay::hunterPetSpell(LocalRealmPlayer& p,const LocalRealmCommand& 
             if(!h.entry)return fail("You do not have a pet");
             if(!h.dead)return fail("Your pet is not dead");
             if(live&&!hunterLive)return fail("You already control a summoned creature");
+            if(!finishing&&castMs)return begin("Reviving pet");
             if(!g.spawnHunterPet(p,15,players))return fail("Your pet could not be revived");
+            done();
             result="Revived "+h.name;return true;
     }
     return fail("Unknown pet spell");
@@ -5751,7 +5851,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     const auto reject=[&](const std::string& reason){result=reason;if(finishing)clearCast(p,LocalCastStatus::Failed);return false;};
     const auto* d=c.spell(cmd.id);
     if(d&&d->formId&&p.formSpellId==d->id)return reject("This form or stance is already active");
-    if(localHunterPetSpell(cmd.id)){std::string why;if(hunterPetSpell(p,cmd,players,result,why))return true;return reject(why);}
+    if(localHunterPetSpell(cmd.id)){std::string why;if(hunterPetSpell(p,cmd,players,result,why,finishing))return true;return reject(why);}
     if(d && d->npcOnly)return reject("NPC spell cannot be cast by a player");
     if(d && d->triggeredOnly)return reject("Triggered spell cannot be cast directly");
     if(d && d->passive)return reject("Passive talents cannot be cast");
@@ -5844,8 +5944,11 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // the reference reads (Unit::GetCreatureType, Unit.cpp:11485).
     const auto* rangeTarget=n?c.npc(n->entry):nullptr;
     const float targetReach=n?localCreatureCombatReach(rangeTarget):kLocalDefaultCombatReach;
-    if((d->damage||d->periodicDamage||d->snarePercent||d->controlProfile||d->stormstrikeProfile==1)&&!d->areaRadius) {
+    if((d->damage||d->weaponDamage||d->interruptCast||d->periodicDamage||d->snarePercent||d->controlProfile||d->stormstrikeProfile==1)&&!d->areaRadius) {
         if(!n||n->dead||!canAttack(p,*n))return reject("Choose a living enemy");
+        // TargetAuraState HEALTHLESS_20_PERCENT (Execute, Kill Shot).
+        if(d->targetMaxHealthPct&&uint64_t(n->health)*100>uint64_t(n->maxHealth)*d->targetMaxHealthPct)
+            return reject("Target needs to be below "+std::to_string(d->targetMaxHealthPct)+"% health");
         if(!localSpellTargetInRange(p,c,*d,n->mapId,n->instanceId,n->x,n->y,n->z,targetReach,!finishing))
             return reject("Spell target out of effective range");
         // SpellInfo::CheckTarget, SpellInfo.cpp:1819-1825: a creature whose type
@@ -6141,7 +6244,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // defect rather than an unimplemented feature. A positive spell never rolls:
     // the reference returns SPELL_MISS_NONE for one on a non-hostile target.
     const bool magicHitRoll=!meleeRoll&&n&&d->clientSpell&&d->sourceDamageClass==1&&
-        (d->damage||d->periodicDamage||d->snarePercent||d->controlProfile)&&!d->heal&&!d->periodicHeal;
+        (d->damage||d->weaponDamage||d->interruptCast||d->periodicDamage||d->snarePercent||d->controlProfile)&&!d->heal&&!d->periodicHeal;
     // P04 creature template immunity. WorldObject::SpellHitResult asks
     // Creature::IsImmunedToSpell FIRST (Object.cpp:3746-3751), before the melee
     // or magic roll and before Spell::DoSpellHitOnUnit ever reads a diminishing
@@ -6150,7 +6253,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // (canAttack above), which is the `casterFriendly` clause's constant. The
     // cost is paid below exactly as for a miss: there is no SPELL_FAILED_IMMUNE.
     const auto* targetDefinition=n?c.npc(n->entry):nullptr;
-    const bool hostileCast=n&&!n->dead&&(d->damage||d->periodicDamage||d->snarePercent||d->controlProfile||meleeSpecial||d->dispelProfile);
+    const bool hostileCast=n&&!n->dead&&(d->damage||d->weaponDamage||d->interruptCast||d->periodicDamage||d->snarePercent||d->controlProfile||meleeSpecial||d->dispelProfile);
     const bool templateImmune=hostileCast&&targetDefinition&&localNpcImmuneToSpell(*targetDefinition,*n,*d,false);
     // Spell.cpp:2413-2416: the effect slots the template strips from a cast
     // that still lands. Bit k is column 71+k; the snare rides slot 0 on both
@@ -6352,7 +6455,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // an aggregated amount (slot 255) has no single slot to strip and is
     // measured to carry no effect mechanic on any accepted definition.
     const bool directStripped=d->directEffectSlot<3&&(strippedEffects&(1u<<d->directEffectSlot));
-    if(d->damage&&!directStripped) {
+    if((d->damage||d->weaponDamage)&&!directStripped) {
         uint32_t baseAmount=d->meleeSpecialProfile?localMeleeSpecialAmount(localMeleeStats(p,c).attackPower,d->damage):
             localComboAmount(p,c,*d,localSpellEffectAmountAfterTalents(p,c,*d,spellAmount(p,*d,false),false,spentCombo),spentCombo,extraEnergy,false,true);
         // Spell::EffectSchoolDMG's warrior branch (SpellEffects.cpp:360-369):
@@ -6581,7 +6684,12 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if (!++p.castRevision) ++p.castRevision;
     p.lastCastSpellId=d->id;p.lastCastTarget=healed?healed->guid:cmd.target;
     clearCast(p,LocalCastStatus::Finished);
-    if(!d->damage&&!d->heal) {
+    // SPELL_EFFECT_INTERRUPT_CAST: the creature's cast or channel stops.
+    if(d->interruptCast)if(auto* victim=g.npc(cmd.target);victim&&!victim->dead&&victim->npcCastingSpellId) {
+        LOG_INFO("[LOCAL_INTERRUPT] player=",p.guid," spell=",d->id," npc=",victim->guid," stopped=",victim->npcCastingSpellId);
+        g.npcCancelChannelOrCast(*victim);
+    }
+    if(!d->damage&&!d->weaponDamage&&!d->heal) {
         LocalCombatEvent hitEvent{0,p.guid,healed?healed->guid:cmd.target,d->id,p.mapId,p.instanceId,0,0,0,LocalCombatEventKind::SpellHit};
         hitEvent.positiveSpell=bool(healed)||d->formId||d->mountDisplayId;hitEvent.spellTypeMask=4;
         hitEvent.attackType=d->sourceDamageClass==1?LocalCombatAttackType::Magic:
@@ -7097,7 +7205,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
         }
         changed=advanceLocalRunes(p->runeCooldownMs,ms)||changed;
         changed=advanceLocalRegeneration(*p,elapsedMs,localCombatActive(*p,g.npcs),localRegenerationRates(*p,content()))||changed;
-        changed=advanceLocalConsumables(*p,elapsedMs)||changed;
+        changed=advanceLocalConsumables(*p,content(),elapsedMs)||changed;
         changed=g.syncHunterPet(*p,players)||changed;
         // A flight owns the character's position for its duration. Combat,
         // casting and NPC aggro are all suppressed by the same rule that
@@ -7452,6 +7560,25 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                     (float(weapon.first)+(float(weapon.second)-float(weapon.first))*roll)*scale,0.0f,1000000.0f));
                 g.damageNpcByPet(*target,summon,*owner,raw,players,outcome,
                     outcome==LocalMeleeOutcome::Block?localCreatureBlockValue(*target):0);
+                // A hunter's beast spends 25 focus on its family's basic
+                // attack (Bite, Claw or Smack) whenever it has the focus: the
+                // rank its level has reached, BasePoints+1..+DieSides physical.
+                const auto& cc=content();
+                if(summon.summonSpellId==kLocalCallPet&&!target->dead&&summon.power>=25&&
+                   owner->hunterPet.family&&cc.petFamilyAttack[owner->hunterPet.family]) {
+                    const auto& ranks=cc.petBasicRanks[cc.petFamilyAttack[owner->hunterPet.family]-1];
+                    const LocalWorldContent::PetBasicRank* rank=nullptr;
+                    for(const auto& r:ranks)if(r.level<=summon.level)rank=&r;
+                    if(rank) {
+                        summon.power-=25;
+                        const auto hit=localRollPetMelee(summon,*target,g.meleeRoll());
+                        const float mult=hit==LocalMeleeOutcome::Critical?2.0f:1.0f;
+                        const uint32_t amount=uint32_t((float(rank->low)+float(rank->high-rank->low)*float(g.meleeRoll())/9999.0f)*mult);
+                        g.damageNpcByPet(*target,summon,*owner,amount,players,hit,
+                            hit==LocalMeleeOutcome::Block?localCreatureBlockValue(*target):0);
+                        LOG_INFO("[LOCAL_HUNTER_PET] pet=",summon.guid," basic attack spell=",rank->spellId," damage=",amount," focus=",summon.power);
+                    }
+                }
                 changed=true;
             }
         }

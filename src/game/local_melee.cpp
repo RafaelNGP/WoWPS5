@@ -135,6 +135,8 @@ static uint32_t armorFromAttributes(const LocalRealmPlayer& p,const LocalWorldCo
         if(base)baseArmor+=adjusted;else flatArmor+=adjusted;
         flatArmor+=std::max(0.f,extra);
     }
+    // Scroll of Protection, Elixir of Defense: bonus armor (TOTAL_VALUE).
+    for(const auto& b:p.consumableBuffs)if(b.remainingMs&&b.armor>0)flatArmor+=float(b.armor);
     // Player::_ApplyItemBonuses keeps bonus/miscellaneous armor in TOTAL_VALUE.
     // Bear form and Thick Hide multiply only the equipment BASE_VALUE, before
     // agility, flat equipment armor and Mark of the Wild are added.
@@ -206,6 +208,11 @@ LocalMeleeStats localMeleeStats(const LocalRealmPlayer& p,const LocalWorldConten
         for(size_t i=0;i<5;++i)s.attributes[i]=std::clamp(s.attributes[i]+item->stats[i],0,1000000);
         ap+=item->stats[5];blockValue+=item->stats[14];
         for(size_t i=0;i<8;++i)s.ratings[i]=std::clamp(s.ratings[i]+item->stats[6+i],0,1000000);
+    }
+    // Elixirs, flasks, scrolls and Well Fed (consumables.json buffs).
+    for(const auto& b:p.consumableBuffs)if(b.remainingMs) {
+        for(size_t i=0;i<5;++i)s.attributes[i]=std::clamp(s.attributes[i]+b.stats[i],0,1000000);
+        ap+=b.attackPower;
     }
     // The active form's boost spells multiply total stats exactly as a talent
     // does (aura 137; SpellAuraEffects.cpp:1350-1445 casts them on entry), so
@@ -409,6 +416,7 @@ uint32_t localRegenerationAuraManaPer5(const LocalRealmPlayer& p,const LocalWorl
 LocalResourcePools localResourcePools(const LocalRealmPlayer& p,const LocalWorldContent& c){
     LocalResourcePools pools;const auto* base=classPool(p);const auto stats=localMeleeStats(p,c);
     int64_t flatHealth=0,flatMana=0;
+    for(const auto& b:p.consumableBuffs)if(b.remainingMs&&b.health>0)flatHealth+=b.health;
     for(size_t slot=0;slot<p.equipment.size();++slot){const auto id=p.equipment[slot];const auto* item=id?c.item(id):nullptr;
         if(!item||!localEquipmentFits(item->inventoryType,item->slot,slot))continue;
         uint64_t owned=0;for(const auto& stack:p.inventory)if(stack.itemId==id)owned+=stack.count;

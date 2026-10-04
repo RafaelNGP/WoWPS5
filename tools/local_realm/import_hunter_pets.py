@@ -41,6 +41,7 @@ def main():
     spells, string = dbc(args.dbc_dir / 'Spell.dbc')
     icons, icon_string = dbc(args.dbc_dir / 'SpellIcon.dbc')
     cast_times = {k: v[1][1] for k, v in dbc(args.dbc_dir / 'SpellCastTimes.dbc')[0].items()}
+    durations = {k: v[1][1] for k, v in dbc(args.dbc_dir / 'SpellDuration.dbc')[0].items()}
     with tempfile.TemporaryDirectory() as tmp, tarfile.open(args.sources) as tar:
         tar.extract('creature_template.sql', tmp, filter='data')
         templates = list(sql_rows(Path(tmp) / 'creature_template.sql', 'creature_template'))
@@ -52,12 +53,35 @@ def main():
     for spell_id, level in sorted(PET_SPELLS.items()):
         u, _ = spells[spell_id]
         icon = icon_string(icons[u[ICON]][0][1]) if u[ICON] in icons else ''
+        cast_ms = max(0, cast_times.get(u[CAST_TIME_INDEX], 0))
+        if not cast_ms and spell_id == 1515: cast_ms = max(0, durations.get(u[40], 0))  # the Tame Beast channel
         out_spells.append({'id': spell_id, 'name': string(u[NAME])[:64], 'icon': icon[:128], 'level': level,
-                           'castMs': max(0, cast_times.get(u[CAST_TIME_INDEX], 0)), 'cooldownMs': u[RECOVERY]})
+                           'castMs': cast_ms, 'cooldownMs': u[RECOVERY]})
+    # Basic attacks (Bite, Claw, Smack): which one a family learns comes from
+    # its pet skill line (CreatureFamily.dbc SkillLine) in SkillLineAbility.dbc;
+    # every rank is a 25-focus physical hit of BasePoints+1..+DieSides.
+    families, _ = dbc(args.dbc_dir / 'CreatureFamily.dbc')
+    abilities, _ = dbc(args.dbc_dir / 'SkillLineAbility.dbc')
+    by_line = {}
+    for u, _ in abilities.values(): by_line.setdefault(u[1], []).append(u[2])
+    basic_names = ('Bite', 'Claw', 'Smack')
+    ranks = {}
+    for spell_id, (u, s) in spells.items():
+        name = string(u[NAME])
+        if name in basic_names and u[71] == 2 and u[42] == 25 and u[41] == 2:
+            ranks.setdefault(name, []).append({'spellId': spell_id, 'level': u[39],
+                                               'low': s[80] + 1, 'high': s[80] + max(1, s[74])})
+    for name in ranks: ranks[name].sort(key=lambda r: r['level'])
+    family_attack = []
+    for fid, (u, _) in sorted(families.items()):
+        kinds = {string(spells[sid][0][NAME]) for line in (u[5], u[6]) for sid in by_line.get(line, []) if sid in spells}
+        kind = next((k for k in basic_names if k in kinds), None)
+        if kind: family_attack.append({'family': fid, 'attack': kind})
     doc = {'schemaVersion': 1, 'sourceCommit': PINNED_COMMIT, 'clientBuild': 12340,
-           'spells': out_spells, 'beasts': beasts}
+           'spells': out_spells, 'beasts': beasts, 'familyAttacks': family_attack,
+           'basicAttacks': [{'name': k, 'ranks': v} for k, v in sorted(ranks.items())]}
     args.output.write_text(json.dumps(doc, separators=(',', ':'), sort_keys=True) + '\n')
-    print(json.dumps({'spells': [s['name'] for s in out_spells], 'beasts': len(beasts)}))
+    print(json.dumps({'spells': [s['name'] for s in out_spells], 'beasts': len(beasts), 'familyAttacks': len(family_attack)}))
 
 
 if __name__ == '__main__':
