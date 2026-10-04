@@ -1293,6 +1293,13 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         }
         classBuffSpell=any&&shape&&!u(spell335::ProcFlags)&&!u(spell335::ProcCharges);
     }
+    // A ground area: SPELL_EFFECT_PERSISTENT_AREA_AURA (27) at the destination
+    // (28) or the caster (18), with a fixed radius.
+    if(!creatureCaster)for(uint32_t e=0;e<3&&!d.groundRadius;++e)if(u(71+e)==27&&(u(86+e)==28||u(86+e)==18||u(86+e)==16)) {
+        const auto radius=ClientSpellTables::lookup(t.radiusIndex,u(92+e));
+        const float r=t.radii&&radius>=0?t.radii->getFloat(radius,1):0.f;
+        if(std::isfinite(r)&&r>0&&r<=30){d.groundRadius=r;d.groundAtCaster=u(86+e)==18;}
+    }
     if(creatureCaster){decodeCreatureEffects(t,row,d,unavailable);harm=!d.npcPositive;healing=d.npcPositive;}
     else for(uint32_t effect=0;effect<3;++effect) {
         const auto type=u(71+effect); if(!type) continue;
@@ -1304,6 +1311,15 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         if(areaAura){buffTarget=kSourceTargetUnitCaster;continue;}
         if(d.formId||formBoost||formResource)continue; // Exact outer profile verified above; local form rules own its effects.
         if(bloodthirst && effect==1){harm=true;continue;} // Reviewed destination dummy arms internal aura.
+        if(d.groundRadius&&type==27) {
+            // The area's own periodic damage; its dummy, snare and slow ride along.
+            if(u(95+effect)==3&&d.durationMs&&u(98+effect)>0&&u(98+effect)<=d.durationMs&&!d.periodicDamage) {
+                const int32_t gb=i(80+effect),gd=i(74+effect);
+                if(gb>=0&&gb<100000&&gd>=0&&gd<100000){d.periodicEffectSlot=uint8_t(effect);d.periodicDamage=uint32_t(gb+1);
+                    d.periodicDamageMax=uint32_t(gb+std::max(1,gd));d.periodicIntervalMs=u(98+effect);harm=true;}
+            }
+            continue;
+        }
         if(classBuffSpell) {
             const auto au=u(95+effect),tg=u(86+effect);const int32_t amount=i(80+effect)+1,misc=i(110+effect);
             if(amount>0&&amount<=100000) {
@@ -1317,7 +1333,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             continue;
         }
         const auto target=u(86+effect), secondary=u(89+effect);
-        if(!arcaneExplosion && !(type==5&&target==1&&secondary==17) && (secondary || (target!=1&&target!=6&&target!=21&&target!=25&&!(chainHeal&&target==45)))) unavailable("Area or scripted targeting is not implemented");
+        if(!arcaneExplosion && !(type==5&&target==1&&secondary==17) && !(d.groundRadius&&type==2&&target==16&&!secondary) && (secondary || (target!=1&&target!=6&&target!=21&&target!=25&&!(chainHeal&&target==45)))) unavailable("Area or scripted targeting is not implemented");
         if(type==6 && (u(95+effect)==3 || u(95+effect)==8) && (u(spell335::ProcFlags)||u(spell335::ProcCharges)||u(116+effect)))
             unavailable("Periodic proc, charge or triggered effects are not implemented");
         if(snare&&(effect==0||(effect==2&&d.snareZeroHealingMarker))){harm=true;continue;}

@@ -955,6 +955,11 @@ struct LocalSpellDefinition {
     /// A player channel (Mind Flay, Drain Life, Drain Soul): its periodic
     /// effect runs while the caster keeps channelling; moving ends both.
     bool channel=false,periodicLeech=false,soulShardOnKill=false;
+    /// A ground area (Blizzard, Rain of Fire, Consecration...): its periodic
+    /// damage lands on every enemy within groundRadius of the target (or of
+    /// the caster) when it is cast; a broken channel takes it back.
+    float groundRadius=0;
+    bool groundAtCaster=false;
     /// Spell reagents (Spell.dbc Reagent/ReagentCount): checked when the cast
     /// starts and consumed when it completes.
     std::array<uint32_t,8> reagentItems{};

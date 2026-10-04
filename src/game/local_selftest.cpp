@@ -296,6 +296,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 5, "Power Word: Fortitude", 3}, {1, 1, "Battle Shout", 3}, {1, 9, "Felsteed", 4},
             {1, 8, "Arcane Brilliance", 3}, {4, 11, "Gift of the Wild", 3},
             {1, 9, "Drain Life", 0}, {1, 8, "Arcane Missiles", 0}, {1, 5, "Mind Flay", 0}, {1, 8, "Teleport: Stormwind", 5},
+            {1, 8, "Blizzard", 0}, {1, 2, "Consecration", 0}, {1, 9, "Rain of Fire", 0},
         };
         size_t passed = 0;
         for (const auto& a : abilities) {
@@ -404,7 +405,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, interrupts, taunts, spells, conjuring, stat buffs, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, interrupts, taunts, spells, conjuring, stat buffs, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.

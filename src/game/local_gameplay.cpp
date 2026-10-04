@@ -2646,7 +2646,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         // which range type a spell has, which facings it accepts and which
         // creature types and combat states it may be cast at.
         hash(d.sourceRangeFlags);hash(d.sourceFacingFlags);hash(d.targetCreatureType);
-        hash(uint32_t(d.weaponDamage)|uint32_t(d.normalizedWeapon)<<1|uint32_t(d.interruptCast)<<2|uint32_t(d.taunt)<<3);hash(d.weaponPercent);hash(d.targetMaxHealthPct);hash(d.createItemId);hash(d.createItemCount);hash(uint32_t(d.channel)|uint32_t(d.periodicLeech)<<1|uint32_t(d.soulShardOnKill)<<2|uint32_t(d.teleport)<<3);for(size_t r=0;r<d.reagentItems.size();++r){hash(d.reagentItems[r]);hash(d.reagentCounts[r]);}
+        hash(uint32_t(d.weaponDamage)|uint32_t(d.normalizedWeapon)<<1|uint32_t(d.interruptCast)<<2|uint32_t(d.taunt)<<3);hash(d.weaponPercent);hash(d.targetMaxHealthPct);hash(d.createItemId);hash(d.createItemCount);hash(uint32_t(d.channel)|uint32_t(d.periodicLeech)<<1|uint32_t(d.soulShardOnKill)<<2|uint32_t(d.teleport)<<3|uint32_t(d.groundAtCaster)<<4);{uint32_t gr;std::memcpy(&gr,&d.groundRadius,4);hash(gr);}for(size_t r=0;r<d.reagentItems.size();++r){hash(d.reagentItems[r]);hash(d.reagentCounts[r]);}
         hash(uint32_t(d.classBuff));for(auto v:d.classBuffStats)hash(uint32_t(v));hash(uint32_t(d.classBuffAttackPower));hash(uint32_t(d.classBuffArmor));hash(uint32_t(d.classBuffHealth));
         hash(uint32_t(d.sourceOnlyPeacefulTargets));
         // P05 line of sight : two peers must agree on which casts are
@@ -6635,6 +6635,19 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         if(damageSlot<g.periodicDamage.size())g.periodicDamage[damageSlot]=aura;else{damageSlot=g.periodicDamage.size();g.periodicDamage.push_back(aura);}
         sweepNoStack(g.periodicDamage,damageSlot,[&](size_t i){return g.periodicDamage[i].spell;},
             [&](size_t i){return g.periodicDamage[i].owner;},[&](size_t i){return g.periodicDamage[i].target==n->guid;},[](size_t){});
+        // A ground area spreads the same aura to the other enemies inside it.
+        if(d->groundRadius) {
+            const float cx=d->groundAtCaster?p.x:n->x,cy=d->groundAtCaster?p.y:n->y,cz=d->groundAtCaster?p.z:n->z;
+            size_t spread=0;
+            for(auto& other:g.npcs)if(spread<12&&other.guid!=n->guid&&!other.dead&&other.health&&other.mapId==p.mapId&&other.instanceId==p.instanceId&&
+                canAttack(p,other)&&distance2(cx,cy,cz,other.x,other.y,other.z)<=d->groundRadius*d->groundRadius&&g.periodicDamage.size()<MaxNpcs*8) {
+                auto copy=aura;copy.target=other.guid;copy.targetEpoch=other.combatEpoch;copy.stacks=1;
+                std::erase_if(g.periodicDamage,[&](const auto& a){return a.owner==p.guid&&a.spell==d->id&&a.target==other.guid;});
+                g.periodicDamage.push_back(copy);++spread;
+                if(!other.targetGuid)other.targetGuid=p.guid;
+            }
+            LOG_INFO("[LOCAL_GROUND_AREA] player=",p.guid," spell=",d->id," radius=",d->groundRadius," extra targets=",spread);
+        }
     }
     if(buff){
         // Cast-phase charge removal and direct-hit procs may erase or append
