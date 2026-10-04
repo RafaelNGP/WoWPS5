@@ -941,9 +941,20 @@ struct LocalSpellDefinition {
     bool comboFinisher=false,weaponDamage=false,normalizedWeapon=false,requiresBehind=false;
     /// SPELL_EFFECT_INTERRUPT_CAST (68): stops the creature's current cast.
     bool interruptCast=false;
+    /// SPELL_EFFECT_ATTACK_ME (114): Taunt, Growl, Hand of Reckoning.
+    bool taunt=false;
     /// TargetAuraState AURA_STATE_HEALTHLESS_20_PERCENT (2): castable only on
     /// a target at or below this health percentage (Execute, Kill Shot).
     uint8_t targetMaxHealthPct=0;
+    /// Class stat buffs (Power Word: Fortitude, Arcane Intellect, Mark of the
+    /// Wild, Battle Shout...): primary stats (aura 29), attack power (99),
+    /// physical armor (22) and maximum health (34), carried as a timed aura.
+    bool classBuff=false;
+    std::array<int32_t,5> classBuffStats{};
+    int32_t classBuffAttackPower=0,classBuffArmor=0,classBuffHealth=0;
+    /// SPELL_EFFECT_CREATE_ITEM (24): conjured food, water, mana gems.
+    uint32_t createItemId=0;
+    uint16_t createItemCount=0;
     uint16_t weaponPercent=100;
     float directPerCombo=0,periodicPerCombo=0,extraEnergyMultiplier=0;
     uint64_t requiredForms=0,excludedForms=0;

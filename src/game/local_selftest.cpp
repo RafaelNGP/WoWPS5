@@ -247,21 +247,28 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         p.flight.active = true; world.tick(0.05f, players); p.flight.active = false;
         for (int i = 0; i < 4; ++i) world.tick(0.05f, players);
         SELFTEST_CHECK(livePet() && livePet()->entry == 2031);
-        // The pet fights beside its hunter: the owner attacks a boar, the pet joins and damages it.
+        // The pet fights beside its hunter: the owner attacks a beast, the pet
+        // joins, damages it and spends focus on its basic attack. Nearest
+        // living target first; up to three targets (one may evade or be taken).
         {
-            const LocalRealmNpc* boar = nullptr;
-            for (int i = 0; i < 200 && !boar; ++i) { world.tick(0.05f, players);
-                for (const auto& n : world.npcs()) if ((n.entry == 1984 || n.entry == 2031) && !n.dead && std::hypot(n.x - p.x, n.y - p.y) < 60) { boar = &n; break; } }
-            SELFTEST_CHECK(boar);
-            const uint64_t boarGuid = boar->guid; const uint32_t before = boar->maxHealth;
-            p.x = boar->x + 1; p.y = boar->y; p.z = boar->z; ++p.positionRevision;
-            world.execute(p, {LocalAction::Attack, boarGuid, 0}, players, result);
             bool petEngaged = false, boarHurt = false, focusSpent = false;
-            for (int i = 0; i < 600 && !(petEngaged && boarHurt && focusSpent); ++i) {
-                p.health = p.maxHealth; world.tick(0.05f, players);
-                if (const auto* v = livePet(); v && v->targetGuid == boarGuid) petEngaged = true;
-                if (const auto* v = livePet(); v && v->power < v->maxPower) focusSpent = true;
-                for (const auto& n : world.npcs()) if (n.guid == boarGuid && (n.dead || n.health < before)) boarHurt = true;
+            std::set<uint64_t> tried;
+            for (int round = 0; round < 3 && !(petEngaged && boarHurt && focusSpent); ++round) {
+                const LocalRealmNpc* boar = nullptr; float bestD = 1e30f;
+                for (int i = 0; i < 200 && !boar; ++i) { world.tick(0.05f, players);
+                    for (const auto& n : world.npcs()) if ((n.entry == 1984 || n.entry == 2031) && !n.dead && !tried.count(n.guid)) {
+                        const float d = std::hypot(n.x - p.x, n.y - p.y); if (d < bestD && d < 80) { bestD = d; boar = &n; } } }
+                if (!boar) break;
+                const uint64_t boarGuid = boar->guid; const uint32_t before = boar->maxHealth; tried.insert(boarGuid);
+                p.x = boar->x + 1; p.y = boar->y; p.z = boar->z; ++p.positionRevision;
+                world.execute(p, {LocalAction::Attack, boarGuid, 0}, players, result);
+                petEngaged = boarHurt = false;
+                for (int i = 0; i < 600 && !(petEngaged && boarHurt && focusSpent); ++i) {
+                    p.health = p.maxHealth; world.tick(0.05f, players);
+                    if (const auto* v = livePet(); v && v->targetGuid == boarGuid) petEngaged = true;
+                    if (const auto* v = livePet(); v && v->power < v->maxPower) focusSpent = true;
+                    for (const auto& n : world.npcs()) if (n.guid == boarGuid && (n.dead || n.health < before)) boarHurt = true;
+                }
             }
             SELFTEST_CHECK(petEngaged && boarHurt);
             SELFTEST_CHECK(focusSpent); // Claw/Bite/Smack spends 25 focus.
@@ -277,13 +284,16 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         uint32_t arrows = 0;
         for (const auto& m : kLocalAuctionItems) if (m.itemClass == 6 && m.subClass == 2 && m.requiredLevel <= 1 && c.item(m.id)) { arrows = m.id; break; }
         SELFTEST_CHECK(bow && sword2h && arrows);
-        struct Ability { uint8_t race, cls; const char* name; bool interrupt; };
+        // kind: 0 damages the enemy, 1 lands (interrupt, taunt), 2 creates an
+        // item, 3 raises the caster's stats, 4 mounts the caster.
+        struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
             {4, 3, "Arcane Shot", false}, {4, 3, "Aimed Shot", false}, {4, 3, "Raptor Strike", false},
             {1, 4, "Kick", true}, {1, 6, "Icy Touch", false}, {1, 6, "Plague Strike", false}, {1, 6, "Blood Strike", false},
             {1, 6, "Mind Freeze", true}, {1, 8, "Counterspell", true}, {1, 8, "Frostfire Bolt", false}, {11, 7, "Earth Shock", false},
-            {1, 9, "Haunt", false},
+            {1, 9, "Haunt", false}, {4, 3, "Serpent Sting", 0}, {1, 1, "Taunt", 1}, {1, 8, "Conjure Water", 2},
+            {1, 5, "Power Word: Fortitude", 3}, {1, 1, "Battle Shout", 3}, {1, 9, "Felsteed", 4},
         };
         size_t passed = 0;
         for (const auto& a : abilities) {
@@ -299,6 +309,9 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             const auto& content = arena.content();
             uint32_t spellId = 0;
             for (auto id : p.knownSpells) if (const auto* d = content.spell(id); d && d->name == a.name && d->unsupportedReason.empty()) spellId = id;
+            // Mounts come from the class trainer, not the level progression.
+            if (!spellId && a.kind == 4) for (const auto& d : content.spells)
+                if (d.name == a.name && d.mountDisplayId && (d.allowableClasses & (1u << (a.cls - 1)))) { spellId = d.id; p.knownSpells.push_back(d.id); break; }
             if (!spellId) { out << "FAIL class ability " << a.name << ": not in the level 80 spellbook\n"; return false; }
             // Weapons the ability needs.
             p.inventory.push_back({a.cls == 3 ? bow : sword2h, 1, 20});
@@ -308,6 +321,20 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             for (const auto& stack : std::vector<LocalItemStack>(p.inventory))
                 if (const auto* m = localAuctionMetadata(stack.itemId); m && m->itemClass == 2)
                     arena.execute(p, {LocalAction::EquipItem, 0, stack.itemId}, players, result);
+            if (a.kind >= 2) {
+                const auto meleeBefore = localMeleeStats(p, content); const auto healthBefore = p.maxHealth; const auto items = p.inventory.size();
+                p.ridingSkill = 150; p.mana = p.maxMana; p.globalCooldownMs = 0;
+                bool ok = arena.execute(p, {LocalAction::CastSpell, p.guid, spellId}, players, result);
+                for (int t = 0; t < 200 && p.castingSpellId; ++t) arena.tick(0.05f, players);
+                arena.tick(0.05f, players);
+                const auto meleeAfter = localMeleeStats(p, content);
+                if (a.kind == 2) ok = ok && p.inventory.size() > items;
+                if (a.kind == 3) ok = ok && (meleeAfter.attackPower > meleeBefore.attackPower || p.maxHealth > healthBefore ||
+                                             meleeAfter.attributes[3] > meleeBefore.attributes[3]);
+                if (a.kind == 4) ok = ok && p.mountSpellId == spellId;
+                if (!ok) { out << "FAIL class ability " << a.name << ": " << result << "\n"; return false; }
+                ++passed; continue;
+            }
             // A living enemy beside the character, faced.
             std::vector<uint64_t> foes;
             for (int i = 0; i < 200 && foes.empty(); ++i) { arena.tick(0.05f, players);
@@ -344,13 +371,21 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 arena.tick(0.05f, players);
                 const LocalRealmNpc* after = nullptr;
                 for (const auto& v : arena.npcs()) if (v.guid == foeGuid) after = &v;
-                landed = a.interrupt ? p.lastCastSpellId == spellId : (!after || after->dead || after->health < before);
+                if (a.kind == 1) landed = p.lastCastSpellId == spellId;
+                else if (a.kind == 0) {
+                    // A damage-over-time spell lands its first tick a few seconds later.
+                    for (int t = 0; t < 90 && after && !after->dead && after->health >= before; ++t) {
+                        p.health = p.maxHealth; arena.tick(0.05f, players); after = nullptr;
+                        for (const auto& v : arena.npcs()) if (v.guid == foeGuid) after = &v;
+                    }
+                    landed = !after || after->dead || after->health < before;
+                }
                 last = result;
             }
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities cast in combat (weapon strikes, shots, interrupts, spells)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, interrupts, taunts, spells, conjuring, stat buffs, class mounts)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.

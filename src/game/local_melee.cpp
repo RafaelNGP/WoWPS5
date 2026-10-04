@@ -137,6 +137,8 @@ static uint32_t armorFromAttributes(const LocalRealmPlayer& p,const LocalWorldCo
     }
     // Scroll of Protection, Elixir of Defense: bonus armor (TOTAL_VALUE).
     for(const auto& b:p.consumableBuffs)if(b.remainingMs&&b.armor>0)flatArmor+=float(b.armor);
+    for(const auto& a:p.statAuras)if(a.remainingMs&&a.mapId==p.mapId&&a.instanceId==p.instanceId)
+        if(const auto* d=c.spell(a.spellId);d&&d->classBuff&&d->classBuffArmor>0)flatArmor+=float(d->classBuffArmor);
     // Player::_ApplyItemBonuses keeps bonus/miscellaneous armor in TOTAL_VALUE.
     // Bear form and Thick Hide multiply only the equipment BASE_VALUE, before
     // agility, flat equipment armor and Mark of the Wild are added.
@@ -214,6 +216,12 @@ LocalMeleeStats localMeleeStats(const LocalRealmPlayer& p,const LocalWorldConten
         for(size_t i=0;i<5;++i)s.attributes[i]=std::clamp(s.attributes[i]+b.stats[i],0,1000000);
         ap+=b.attackPower;
     }
+    // Class stat buffs (Power Word: Fortitude, Battle Shout...) held as timed auras.
+    for(const auto& a:p.statAuras)if(a.remainingMs&&a.mapId==p.mapId&&a.instanceId==p.instanceId)
+        if(const auto* d=c.spell(a.spellId);d&&d->classBuff) {
+            for(size_t i=0;i<5;++i)s.attributes[i]=std::clamp(s.attributes[i]+d->classBuffStats[i],0,1000000);
+            ap+=d->classBuffAttackPower;
+        }
     // The active form's boost spells multiply total stats exactly as a talent
     // does (aura 137; SpellAuraEffects.cpp:1350-1445 casts them on entry), so
     // the two multipliers compose in one truncation, the way the source's
@@ -417,6 +425,8 @@ LocalResourcePools localResourcePools(const LocalRealmPlayer& p,const LocalWorld
     LocalResourcePools pools;const auto* base=classPool(p);const auto stats=localMeleeStats(p,c);
     int64_t flatHealth=0,flatMana=0;
     for(const auto& b:p.consumableBuffs)if(b.remainingMs&&b.health>0)flatHealth+=b.health;
+    for(const auto& a:p.statAuras)if(a.remainingMs&&a.mapId==p.mapId&&a.instanceId==p.instanceId)
+        if(const auto* d=c.spell(a.spellId);d&&d->classBuff&&d->classBuffHealth>0)flatHealth+=d->classBuffHealth;
     for(size_t slot=0;slot<p.equipment.size();++slot){const auto id=p.equipment[slot];const auto* item=id?c.item(id):nullptr;
         if(!item||!localEquipmentFits(item->inventoryType,item->slot,slot))continue;
         uint64_t owned=0;for(const auto& stack:p.inventory)if(stack.itemId==id)owned+=stack.count;

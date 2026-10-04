@@ -1266,6 +1266,20 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         if(!creatureCaster&&u(86+effect)==6&&!u(89+effect)&&(type==6||type==64)){setAside.push_back(reason);return true;}
         return false;
     };
+    // A class stat buff: every effect an aura on the caster, a friendly target
+    // or the caster's party/raid, and at least one of them primary stats (29)
+    // or attack power (99). Party/raid forms land on the caster here (and on a
+    // friendly target when cast at one); other auras in it are set aside.
+    bool classBuffSpell=false;
+    if(!creatureCaster&&d.durationMs) {
+        bool any=false,shape=true;
+        for(uint32_t e=0;e<3;++e) if(u(71+e)) {
+            const auto ty=u(71+e),au=u(95+e),tg=u(86+e);
+            if((ty!=6&&ty!=35&&ty!=65)||u(89+e)||u(116+e)||(tg!=1&&tg!=21&&tg!=25&&tg!=20&&tg!=22&&tg!=30&&tg!=31&&tg!=56&&tg!=57&&tg!=0))shape=false;
+            if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99)any=true;
+        }
+        classBuffSpell=any&&shape&&!u(spell335::ProcFlags)&&!u(spell335::ProcCharges);
+    }
     if(creatureCaster){decodeCreatureEffects(t,row,d,unavailable);harm=!d.npcPositive;healing=d.npcPositive;}
     else for(uint32_t effect=0;effect<3;++effect) {
         const auto type=u(71+effect); if(!type) continue;
@@ -1277,6 +1291,18 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         if(areaAura){buffTarget=kSourceTargetUnitCaster;continue;}
         if(d.formId||formBoost||formResource)continue; // Exact outer profile verified above; local form rules own its effects.
         if(bloodthirst && effect==1){harm=true;continue;} // Reviewed destination dummy arms internal aura.
+        if(classBuffSpell) {
+            const auto au=u(95+effect),tg=u(86+effect);const int32_t amount=i(80+effect)+1,misc=i(110+effect);
+            if(amount>0&&amount<=100000) {
+                if(au==29){for(int k=0;k<5;++k)if(misc==-1||misc==k)d.classBuffStats[size_t(k)]+=amount;}
+                else if(au==99)d.classBuffAttackPower+=amount;
+                else if(au==22&&(misc&1))d.classBuffArmor+=amount;
+                else if(au==34)d.classBuffHealth+=amount;
+            }
+            d.classBuff=true;buff=true;
+            buffTarget=(tg==21||tg==25)?tg:(buffTarget?buffTarget:1);
+            continue;
+        }
         const auto target=u(86+effect), secondary=u(89+effect);
         if(!arcaneExplosion && (secondary || (target!=1&&target!=6&&target!=21&&target!=25&&!(chainHeal&&target==45)))) unavailable("Area or scripted targeting is not implemented");
         if(type==6 && (u(95+effect)==3 || u(95+effect)==8) && (u(spell335::ProcFlags)||u(spell335::ProcCharges)||u(116+effect)))
@@ -1448,19 +1474,26 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             else {d.dispelProfile=1;d.dispelAttempts=uint8_t(low);harm=true;}
         } else if(type==68&&target==6&&!secondary) {
             d.interruptCast=true;harm=true;
+        } else if(type==114&&target==6&&!secondary) {
+            d.taunt=true;harm=true;
+        } else if(type==24&&!creatureCaster&&(target==1||target==0)&&!secondary&&u(107+effect)) {
+            // Spell::EffectCreateItem into the caster's bags.
+            if(d.createItemId||low>200)unavailable("Repeated or oversized item creation is not implemented");
+            else {d.createItemId=u(107+effect);d.createItemCount=uint16_t(std::max(1u,low));}
         } else {
             const auto reason="Unsupported effect "+std::to_string(type)+(type==6?" / aura "+std::to_string(u(95+effect)):"");
             if(!rider(effect,reason))unavailable(reason);
         }
     }
     if(!setAside.empty()) {
-        const bool directHit=(d.damage||d.weaponDamage||d.interruptCast)&&!healing&&!buff&&!d.controlProfile;
+        const bool directHit=(d.damage||d.weaponDamage||d.interruptCast||d.taunt||d.periodicDamage)&&!healing&&!buff&&!d.controlProfile;
         if(!directHit)unavailable(setAside.front());
     }
     if(harm&&!d.schoolMask&&(!creatureCaster||d.damage||d.periodicDamage))unavailable("Damaging spell has no school");
     if(buff&&(harm||healing)) unavailable("Mixed stat buffs and other effects are not implemented");
     if(harm&&healing) unavailable("Mixed hostile/friendly spells are not implemented");
-    if(!harm&&!healing&&!buff&&!d.formId&&!formBoost&&!formResource&&!summonPet&&!areaAura&&!d.controlProfile) unavailable("No supported direct or periodic damage/healing effect");
+    if(!harm&&!healing&&!buff&&!d.formId&&!formBoost&&!formResource&&!summonPet&&!areaAura&&!d.controlProfile&&!d.createItemId) unavailable("No supported direct or periodic damage/healing effect");
+    if(d.createItemId&&(harm||healing||buff))unavailable("Item creation beside other effects is not implemented");
     if(!creatureCaster){d.healingSelfOnly=healingTarget==1;d.buffSelfOnly=d.formId!=0||formBoost||formResource||buffTarget==1;}
     const auto rangeRow=ClientSpellTables::lookup(t.rangeIndex,u(46));
     if(rangeRow<0) unavailable("Range record missing");
@@ -1489,7 +1522,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
 
 // Ground mounts only: preserve the client's cast time, source creature and
 // run-speed aura. Flight, vehicle and scripted mount effects stay unsupported.
-inline bool decodeClientGroundMount(const ClientSpellTables& t,uint32_t row,LocalSpellDefinition& d) {
+// classMount: a class's own steed (Warhorse, Charger, Felsteed, Dreadsteed,
+// Acherus Deathcharger) carries one more effect, the summon sound script (77),
+// which has no gameplay of its own.
+inline bool decodeClientGroundMount(const ClientSpellTables& t,uint32_t row,LocalSpellDefinition& d,bool classMount=false) {
     const auto u=[&](uint32_t c){return t.spells->getUInt32(row,c);};
     const auto i=[&](uint32_t c){return t.spells->getInt32(row,c);};
     d.id=u(0);d.clientSpell=true;d.allowableClasses=0x5ff;d.resourceType=255;d.range=0;
@@ -1502,6 +1538,7 @@ inline bool decodeClientGroundMount(const ClientSpellTables& t,uint32_t row,Loca
     if(d.name.empty() || d.name.size()>96 || u(42) || u(43) || u(44) || u(45) || u(226))return false;
     for(unsigned e=0;e<3;++e) {
         if(!u(71+e))continue;
+        if(classMount&&u(71+e)==77)continue;
         if(u(71+e)!=6 || u(86+e)!=1 || u(89+e))return false;
         if(u(95+e)==78) {d.mountCreatureId=u(110+e);d.mountDisplayId=localMountDisplay(d.mountCreatureId);}
         else if(u(95+e)==32 && i(80+e)>=0 && i(80+e)<=199)d.mountSpeedPercent=uint32_t(i(80+e)+1);
@@ -2306,6 +2343,12 @@ inline LocalSpellImport importClientStarterSpells(
         // so a disagreement between the table and a profile would surface in
         // the audit census rather than silently pick a side.
         d.supercededBySpell=detail::localReferenceNextRank(d.id,row->supercededBy);
+        // A class mount goes through the ground-mount profile, restricted to its class.
+        if(LocalSpellDefinition mount;detail::decodeClientGroundMount(tables,entry.second,mount,true)) {
+            mount.allowableClasses=row->classMask;
+            out.audit.push_back({mount.id,mount.allowableClasses,false,"Supported decoder; imported class mount"});
+            out.spells.push_back(std::move(mount));continue;
+        }
         if(!detail::decodeClientSpell(tables,entry.second,d)) {
             out.audit.push_back({d.id,d.allowableClasses,false,d.unsupportedReason});++abilitiesRejected;continue;
         }

@@ -177,7 +177,7 @@ inline bool localRollProcBasisPoints(uint32_t chance,uint64_t& state) {
     return ((state*2685821657736338717ULL)>>32)%10000<chance;
 }
 inline bool localHasTimedAura(const LocalSpellDefinition& d) {
-    return !d.passive&&(d.buffHealth || d.buffArmor || d.buffAbsorb || d.proc.effect!=LocalProcEffect::None ||
+    return !d.passive&&(d.buffHealth || d.buffArmor || d.buffAbsorb || d.classBuff || d.proc.effect!=LocalProcEffect::None ||
         d.periodicHealMaxHealthPct || d.physicalDamageDonePct || d.damageTakenPct || d.arcaneBlastProfile==2);
 }
 inline bool validLocalProcDefinition(const LocalSpellDefinition& d,const LocalProcDefinition& p) {

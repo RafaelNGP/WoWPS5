@@ -1426,6 +1426,14 @@ struct LocalGameplay::Impl {
         if(!p||p->dead||!p->health||p->flight.active||p->transportEntry||p->mapId!=n.mapId||p->instanceId!=n.instanceId)return {};
         return {p->x,p->y,p->z,true,kLocalDefaultCombatReach};
     }
+    /// ThreatManager::tauntApply: the taunter's threat rises to the top of the
+    /// list and it becomes the creature's victim.
+    void tauntNpc(LocalRealmNpc& n,uint64_t guid) {
+        uint64_t top=0,mine=0;
+        for(const auto& entry:n.threat)if(entry.guid){top=std::max(top,entry.amount);if(entry.guid==guid)mine=entry.amount;}
+        addThreat(n,guid,top>mine?top-mine+1:1);
+        n.targetGuid=guid;
+    }
     void selectThreatTarget(LocalRealmNpc& n,const std::vector<LocalRealmPlayer*>& players) {
         uint64_t current=0;
         for(auto& entry:n.threat)if(entry.guid) {
@@ -2638,7 +2646,8 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         // which range type a spell has, which facings it accepts and which
         // creature types and combat states it may be cast at.
         hash(d.sourceRangeFlags);hash(d.sourceFacingFlags);hash(d.targetCreatureType);
-        hash(uint32_t(d.weaponDamage)|uint32_t(d.normalizedWeapon)<<1|uint32_t(d.interruptCast)<<2);hash(d.weaponPercent);hash(d.targetMaxHealthPct);
+        hash(uint32_t(d.weaponDamage)|uint32_t(d.normalizedWeapon)<<1|uint32_t(d.interruptCast)<<2|uint32_t(d.taunt)<<3);hash(d.weaponPercent);hash(d.targetMaxHealthPct);hash(d.createItemId);hash(d.createItemCount);
+        hash(uint32_t(d.classBuff));for(auto v:d.classBuffStats)hash(uint32_t(v));hash(uint32_t(d.classBuffAttackPower));hash(uint32_t(d.classBuffArmor));hash(uint32_t(d.classBuffHealth));
         hash(uint32_t(d.sourceOnlyPeacefulTargets));
         // P05 line of sight : two peers must agree on which casts are
         // exempt from the test before they can agree on the test's answer.
@@ -5860,6 +5869,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(d&&!localTimedDamageTalentReady(p,c,*d))return reject("Learn the required damage talent first");
     if(!d||std::find(p.knownSpells.begin(),p.knownSpells.end(),cmd.id)==p.knownSpells.end())return reject("Spell is not learned");
     if(p.dead)return reject("Cannot cast while dead");
+    if(d->createItemId){auto probe=p;if(!c.item(d->createItemId)||!addItem(probe,c,d->createItemId,d->createItemCount))return reject("Inventory is full");}
     if(d->mountDisplayId) {
         if((p.classId==11||p.classId==7)&&p.formSpellId)return reject("Leave your current form before mounting");
         if(!finishing && p.mountSpellId==d->id) {p.mountSpellId=0;result="Dismounted";return true;}
@@ -5944,7 +5954,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // the reference reads (Unit::GetCreatureType, Unit.cpp:11485).
     const auto* rangeTarget=n?c.npc(n->entry):nullptr;
     const float targetReach=n?localCreatureCombatReach(rangeTarget):kLocalDefaultCombatReach;
-    if((d->damage||d->weaponDamage||d->interruptCast||d->periodicDamage||d->snarePercent||d->controlProfile||d->stormstrikeProfile==1)&&!d->areaRadius) {
+    if((d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->periodicDamage||d->snarePercent||d->controlProfile||d->stormstrikeProfile==1)&&!d->areaRadius) {
         if(!n||n->dead||!canAttack(p,*n))return reject("Choose a living enemy");
         // TargetAuraState HEALTHLESS_20_PERCENT (Execute, Kill Shot).
         if(d->targetMaxHealthPct&&uint64_t(n->health)*100>uint64_t(n->maxHealth)*d->targetMaxHealthPct)
@@ -6244,7 +6254,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // defect rather than an unimplemented feature. A positive spell never rolls:
     // the reference returns SPELL_MISS_NONE for one on a non-hostile target.
     const bool magicHitRoll=!meleeRoll&&n&&d->clientSpell&&d->sourceDamageClass==1&&
-        (d->damage||d->weaponDamage||d->interruptCast||d->periodicDamage||d->snarePercent||d->controlProfile)&&!d->heal&&!d->periodicHeal;
+        (d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->periodicDamage||d->snarePercent||d->controlProfile)&&!d->heal&&!d->periodicHeal;
     // P04 creature template immunity. WorldObject::SpellHitResult asks
     // Creature::IsImmunedToSpell FIRST (Object.cpp:3746-3751), before the melee
     // or magic roll and before Spell::DoSpellHitOnUnit ever reads a diminishing
@@ -6253,7 +6263,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // (canAttack above), which is the `casterFriendly` clause's constant. The
     // cost is paid below exactly as for a miss: there is no SPELL_FAILED_IMMUNE.
     const auto* targetDefinition=n?c.npc(n->entry):nullptr;
-    const bool hostileCast=n&&!n->dead&&(d->damage||d->weaponDamage||d->interruptCast||d->periodicDamage||d->snarePercent||d->controlProfile||meleeSpecial||d->dispelProfile);
+    const bool hostileCast=n&&!n->dead&&(d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->periodicDamage||d->snarePercent||d->controlProfile||meleeSpecial||d->dispelProfile);
     const bool templateImmune=hostileCast&&targetDefinition&&localNpcImmuneToSpell(*targetDefinition,*n,*d,false);
     // Spell.cpp:2413-2416: the effect slots the template strips from a cast
     // that still lands. Bit k is column 71+k; the snare rides slot 0 on both
@@ -6684,6 +6694,12 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if (!++p.castRevision) ++p.castRevision;
     p.lastCastSpellId=d->id;p.lastCastTarget=healed?healed->guid:cmd.target;
     clearCast(p,LocalCastStatus::Finished);
+    if(d->createItemId&&addItem(p,c,d->createItemId,d->createItemCount))
+        LOG_INFO("[LOCAL_CREATE_ITEM] player=",p.guid," spell=",d->id," item=",d->createItemId," count=",d->createItemCount);
+    if(d->taunt)if(auto* victim=g.npc(cmd.target);victim&&!victim->dead) {
+        g.tauntNpc(*victim,p.guid);
+        LOG_INFO("[LOCAL_TAUNT] player=",p.guid," spell=",d->id," npc=",victim->guid);
+    }
     // SPELL_EFFECT_INTERRUPT_CAST: the creature's cast or channel stops.
     if(d->interruptCast)if(auto* victim=g.npc(cmd.target);victim&&!victim->dead&&victim->npcCastingSpellId) {
         LOG_INFO("[LOCAL_INTERRUPT] player=",p.guid," spell=",d->id," npc=",victim->guid," stopped=",victim->npcCastingSpellId);
