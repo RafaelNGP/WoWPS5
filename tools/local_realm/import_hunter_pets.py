@@ -57,6 +57,18 @@ def main():
         if not cast_ms and spell_id == 1515: cast_ms = max(0, durations.get(u[40], 0))  # the Tame Beast channel
         out_spells.append({'id': spell_id, 'name': string(u[NAME])[:64], 'icon': icon[:128], 'level': level,
                            'castMs': cast_ms, 'cooldownMs': u[RECOVERY]})
+    # Mend Pet: periodic heal (aura 8) on the hunter's pet (target 5), ranked.
+    mend = []
+    for spell_id, (u, s) in sorted(spells.items()):
+        if string(u[NAME]) == 'Mend Pet' and u[86] == 5 and u[71] == 6 and u[95] == 8 and u[98]:
+            mend.append({'spellId': spell_id, 'level': u[39], 'perTick': s[80] + 1, 'intervalMs': u[98],
+                         'durationMs': max(0, durations.get(u[40], 0)), 'manaPct': u[204]})
+    mend.sort(key=lambda r: r['level'])
+    for k, r in enumerate(mend):
+        u = spells[r['spellId']][0]
+        icon = icon_string(icons[u[ICON]][0][1]) if u[ICON] in icons else ''
+        out_spells.append({'id': r['spellId'], 'name': 'Mend Pet', 'icon': icon[:128], 'level': r['level'], 'castMs': 0,
+                           'cooldownMs': 0, 'next': mend[k + 1]['spellId'] if k + 1 < len(mend) else 0})
     # Basic attacks (Bite, Claw, Smack): which one a family learns comes from
     # its pet skill line (CreatureFamily.dbc SkillLine) in SkillLineAbility.dbc;
     # every rank is a 25-focus physical hit of BasePoints+1..+DieSides.
@@ -78,7 +90,7 @@ def main():
         kind = next((k for k in basic_names if k in kinds), None)
         if kind: family_attack.append({'family': fid, 'attack': kind})
     doc = {'schemaVersion': 1, 'sourceCommit': PINNED_COMMIT, 'clientBuild': 12340,
-           'spells': out_spells, 'beasts': beasts, 'familyAttacks': family_attack,
+           'spells': out_spells, 'beasts': beasts, 'familyAttacks': family_attack, 'mendPet': mend,
            'basicAttacks': [{'name': k, 'ranks': v} for k, v in sorted(ranks.items())]}
     args.output.write_text(json.dumps(doc, separators=(',', ':'), sort_keys=True) + '\n')
     print(json.dumps({'spells': [s['name'] for s in out_spells], 'beasts': len(beasts), 'familyAttacks': len(family_attack)}))

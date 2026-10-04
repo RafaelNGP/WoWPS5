@@ -272,9 +272,21 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             }
             SELFTEST_CHECK(petEngaged && boarHurt);
             SELFTEST_CHECK(focusSpent); // Claw/Bite/Smack spends 25 focus.
+            // Mend Pet: refused at full health, heals a hurt beast over time.
+            SELFTEST_CHECK(c.mendPetRank(136) && c.mendPetRank(136)->perTick == 25);
+            if (std::find(p.knownSpells.begin(), p.knownSpells.end(), 136u) == p.knownSpells.end()) p.knownSpells.push_back(136);
+            p.level = 12; p.mana = p.maxMana; p.globalCooldownMs = 0;
+            if (const auto* v = livePet(); v && v->health < v->maxHealth) {
+                const auto before = v->health;
+                SELFTEST_CHECK(world.execute(p, {LocalAction::CastSpell, v->guid, 136}, players, result));
+                for (int i = 0; i < 70; ++i) world.tick(0.05f, players);
+                SELFTEST_CHECK(livePet() && livePet()->health > before);
+            } else if (livePet()) {
+                SELFTEST_CHECK(!world.execute(p, {LocalAction::CastSpell, livePet()->guid, 136}, players, result) && result.find("full health") != std::string::npos);
+            }
             SELFTEST_CHECK(c.petFamilyAttack[2] == 2 && c.petFamilyAttack[1] == 1 && c.petBasicRanks[1].size() == 11);
         }
-        out << "PASS hunter pets: " << c.tameableBeasts.size() << " tameable beasts; tame Young Nightsaber (20 s channel, broken by moving), one-pet rule, dismiss, call, return after travel, fights beside the hunter with its family's basic attack\n";
+        out << "PASS hunter pets: " << c.tameableBeasts.size() << " tameable beasts; tame Young Nightsaber (20 s channel, broken by moving), one-pet rule, dismiss, call, return after travel, fights beside the hunter with its family's basic attack, Mend Pet\n";
     }
 
     // ---- 2c. Class abilities from the client's own Spell.dbc, cast in combat.

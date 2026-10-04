@@ -901,6 +901,8 @@ struct LocalGameplay::Impl {
     // local tick can ever read.
     struct PeriodicDamage { uint64_t owner=0,target=0;uint32_t spell=0,remaining=0,next=0,interval=0,damage=0,mapId=0,instanceId=0;uint8_t stacks=1;uint64_t targetEpoch=0;uint16_t critChanceBasisPoints=0; };
     std::vector<PeriodicDamage> periodicDamage;
+    struct PetHeal { uint64_t pet=0; uint32_t perTick=0,interval=0,next=0,remaining=0; };
+    std::vector<PetHeal> petHeals; // Mend Pet on a hunter's beast.
     struct PendingIgnite {uint64_t owner=0,target=0,epoch=0;uint32_t map=0,instance=0,delay=400,damage=0,parent=0;uint64_t sourceSequence=0,rootSequence=0;uint8_t depth=0;};
     std::vector<PendingIgnite> pendingIgnites;
     struct PeriodicHeal {
@@ -2684,7 +2686,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         // The hunter pet spells belong to the hunter_pets.json rules; the
         // generic importer has no channel/summon support for them and would
         // replace a working definition with an unsupported one.
-        if(existing!=c.spells.end()&&localHunterPetSpell(d.id))continue;
+        if(existing!=c.spells.end()&&(localHunterPetSpell(d.id)||c.mendPetRank(d.id)))continue;
         if(existing==c.spells.end())c.spells.push_back(d);else *existing=d;
     }
     std::sort(c.spells.begin(),c.spells.end(),[](const auto& a,const auto& b){return a.id<b.id;});
@@ -3361,12 +3363,21 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
                 if(!entry||!family||(!c->tameableBeasts.empty()&&c->tameableBeasts.back().first>=entry))throw std::runtime_error("Invalid tameable beast row");
                 c->tameableBeasts.emplace_back(entry,uint8_t(family));
             }
-            for(const auto& v:array(pets,"spells",16,true)) {
+            for(const auto& v:array(pets,"mendPet",32)) {
+                LocalWorldContent::MendPetRank r;r.spellId=number(v,"spellId",0,UINT32_MAX);r.level=uint8_t(number(v,"level",0,80));
+                r.perTick=number(v,"perTick",0,100000);r.intervalMs=number(v,"intervalMs",0,60000);r.durationMs=number(v,"durationMs",0,600000);
+                r.manaPct=uint8_t(number(v,"manaPct",0,100));
+                if(!r.spellId||!r.perTick||!r.intervalMs||r.durationMs<r.intervalMs)throw std::runtime_error("Invalid Mend Pet rank");
+                c->mendPetRanks.push_back(r);
+            }
+            std::sort(c->mendPetRanks.begin(),c->mendPetRanks.end(),[](const auto& a,const auto& b){return a.spellId<b.spellId;});
+            for(const auto& v:array(pets,"spells",32,true)) {
                 // Owned by the hunter pet rules in executeCastSpell, never by
                 // the generic spell pipeline; the definition gives the
                 // spellbook, trainer and action bar a name, icon and level.
                 LocalSpellDefinition d;d.id=number(v,"id",0,UINT32_MAX);
-                if(!localHunterPetSpell(d.id))throw std::runtime_error("Unknown hunter pet spell");
+                if(!localHunterPetSpell(d.id)&&!c->mendPetRank(d.id))throw std::runtime_error("Unknown hunter pet spell");
+                d.supercededBySpell=number(v,"next",0,UINT32_MAX);
                 d.name=label(v,"name",64);d.iconPath=label(v,"icon",128,false);
                 d.clientSpell=true;d.allowableClasses=1u<<2;d.spellLevel=uint16_t(number(v,"level",1,80));d.baseLevel=d.spellLevel;
                 d.castTimeMs=number(v,"castMs",0,60000);d.cooldownMs=number(v,"cooldownMs",0,3600000);d.range=30;
@@ -5884,6 +5895,25 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // A channel's effect was applied when it began; its natural end is quiet.
     if(finishing&&d&&d->channel&&p.castingSpellId==d->id){clearCast(p,LocalCastStatus::Finished);result="Channel ended";return true;}
     if(localHunterPetSpell(cmd.id)){std::string why;if(hunterPetSpell(p,cmd,players,result,why,finishing))return true;return reject(why);}
+    if(const auto* mend=c.mendPetRank(cmd.id)) {
+        // Mend Pet: SPELL_AURA_PERIODIC_HEAL on the hunter's beast.
+        if(std::find(p.knownSpells.begin(),p.knownSpells.end(),cmd.id)==p.knownSpells.end())return reject("Spell is not learned");
+        if(p.dead||p.ghost)return reject("Cannot cast while dead");
+        if(p.castingSpellId)return reject("A spell is already being cast");
+        if(p.globalCooldownMs)return reject("Not ready yet");
+        auto* pet=g.controlledPetOf(p.guid);
+        if(!pet||pet->dead||pet->summonSpellId!=kLocalCallPet)return reject("You do not have a pet out");
+        if(pet->health>=pet->maxHealth)return reject("Your pet is at full health");
+        if(distance2(p.x,p.y,p.z,pet->x,pet->y,pet->z)>45.f*45.f)return reject("Your pet is too far away");
+        const uint32_t cost=uint32_t(uint64_t(localResourcePools(p,c).baseMana)*mend->manaPct/100);
+        if(p.resourceType==LocalResourceType::Mana&&p.mana<cost)return reject("Not enough mana");
+        if(p.resourceType==LocalResourceType::Mana)p.mana-=cost;
+        std::erase_if(g.petHeals,[&](const auto& h){return h.pet==pet->guid;});
+        g.petHeals.push_back({pet->guid,mend->perTick,mend->intervalMs,mend->intervalMs,mend->durationMs});
+        p.globalCooldownMs=1500;if(!++p.castRevision)++p.castRevision;p.lastCastSpellId=cmd.id;p.lastCastTarget=pet->guid;
+        LOG_INFO("[LOCAL_HUNTER_PET] owner=",p.guid," mend pet spell=",cmd.id," perTick=",mend->perTick," cost=",cost);
+        result="Mending "+pet->name;return true;
+    }
     if(d && d->npcOnly)return reject("NPC spell cannot be cast by a player");
     if(d && d->triggeredOnly)return reject("Triggered spell cannot be cast directly");
     if(d && d->passive)return reject("Passive talents cannot be cast");
@@ -7159,6 +7189,15 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
     }
     advanceDamageAuras(igniteElapsed);
     for(auto& pending:g.pendingIgnites)pending.delay-=std::min(igniteElapsed,pending.delay);
+    for(auto& heal:g.petHeals) {
+        auto* pet=g.pet(heal.pet);
+        if(!pet||pet->dead){heal.remaining=0;continue;}
+        auto left=std::min(elapsedMs,heal.remaining);heal.remaining-=left;
+        while(heal.next<=left&&heal.interval){left-=heal.next;heal.next=heal.interval;
+            pet->health=uint32_t(std::min<uint64_t>(pet->maxHealth,uint64_t(pet->health)+heal.perTick));changed=true;}
+        heal.next=left<heal.next?heal.next-left:0;
+    }
+    std::erase_if(g.petHeals,[](const auto& h){return !h.remaining;});
     for(auto& aura:g.periodicHeals) {
         auto* owner=g.player(aura.owner,players);auto* target=g.player(aura.target,players);
         if(!owner||owner->dead||!target||target->dead||!target->health||

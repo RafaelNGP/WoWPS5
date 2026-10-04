@@ -2025,6 +2025,13 @@ struct LocalWorldContent {
     std::vector<LocalConsumable> consumables; // Sorted by itemId.
     std::vector<LocalConsumableSpell> consumableSpells; // Sorted by id.
     std::vector<std::pair<uint32_t,uint8_t>> tameableBeasts; // Creature entry, pet family; sorted.
+    /// Mend Pet ranks (hunter_pets.json): a periodic heal on the hunter's beast.
+    struct MendPetRank { uint32_t spellId=0,perTick=0,intervalMs=0,durationMs=0; uint8_t level=0,manaPct=0; };
+    std::vector<MendPetRank> mendPetRanks; // Sorted by spellId.
+    const MendPetRank* mendPetRank(uint32_t spellId) const {
+        const auto it=std::lower_bound(mendPetRanks.begin(),mendPetRanks.end(),spellId,[](const auto& r,uint32_t id){return r.spellId<id;});
+        return it!=mendPetRanks.end()&&it->spellId==spellId?&*it:nullptr;
+    }
     struct SpellDestination { uint32_t spellId=0,mapId=0; float x=0,y=0,z=0,orientation=0; };
     std::vector<SpellDestination> spellDestinations; // Sorted by spellId.
     const SpellDestination* spellDestination(uint32_t spellId) const {
