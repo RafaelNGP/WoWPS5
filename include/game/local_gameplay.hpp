@@ -1292,6 +1292,13 @@ struct LocalSpellDefinition {
     // armor percentage off, and the effect slots (bit k = column 71+k).
     int32_t targetDebuffAttackPower = 0, targetDebuffResistance = 0, targetDebuffDamageTakenPct = 0, targetDebuffCastSpeedPct = 0;
     uint8_t targetDebuffResistanceSchool = 0, targetDebuffDamageTakenSchool = 0, targetDebuffArmorPct = 0, targetDebuffEffectMask = 0;
+    // A control broken by accumulated damage rather than by the first point
+    // (Fear: proc flags without AURA_INTERRUPT_FLAG_TAKE_DAMAGE): the share of
+    // the creature's maximum health it absorbs (AuraEffect::CalculateAmount's
+    // CountPctFromMaxHealth(10)). And SPELL_ATTR5_SINGLE_TARGET_SPELL: one
+    // creature per caster holds it (Fear, Sap).
+    uint8_t controlDamageCapPct = 0;
+    bool controlSingleTarget = false;
 
     std::string iconPath, unsupportedReason;
 };
@@ -1595,6 +1602,7 @@ struct LocalNpcControl {
     uint64_t casterGuid=0;
     uint32_t casterRevision=0; // Authority-only: travel cancels the old encounter effect.
     uint8_t kind=0;            // LocalNpcControlKind
+    uint32_t damageLeft=0;     // Authority-only: Fear's damage cap still to absorb (controlDamageCapPct).
 };
 // A player's armor reduction on a creature (Expose Armor). Authority-only: the
 // armor curve runs on the authority, so it is neither saved nor replicated.

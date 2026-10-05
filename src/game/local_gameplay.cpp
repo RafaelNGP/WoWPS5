@@ -1763,6 +1763,22 @@ struct LocalGameplay::Impl {
             LOG_INFO("[LOCAL_CONTROL] broken npc=",n.guid," by spell=",exceptSpell,
                      " remaining=",n.controls.size());
     }
+    // A damage-capped control (Fear) on a TAKEN proc: each hit that dealt
+    // damage spends the cap snapshotted at application, and the hit that
+    // exceeds what is left removes it (Unit::ProcDamageAndSpellFor's
+    // MOD_FEAR/STUN/ROOT case: `damageLeft < damage` removes, else subtract).
+    // The control's own spell never spends it.
+    void spendNpcControlDamageCaps(LocalRealmNpc& n,uint32_t damage,uint32_t exceptSpell) {
+        if(!damage||n.controls.empty())return;
+        std::erase_if(n.controls,[&](auto& a){
+            const auto* d=content->spell(a.spellId);
+            if(!d||!d->controlDamageCapPct||(exceptSpell&&a.spellId==exceptSpell))return false;
+            if(a.damageLeft>=damage){a.damageLeft-=damage;return false;}
+            localDiminishingApply(n,localDiminishingGroupForSpell(*d,false),false,authorityClockMs);
+            LOG_INFO("[LOCAL_CONTROL] damage cap spent npc=",n.guid," spell=",a.spellId," damage=",damage);
+            return true;
+        });
+    }
     void damageNpc(LocalRealmNpc& n,LocalRealmPlayer& attacker,uint32_t damage,const std::vector<LocalRealmPlayer*>& players,bool physical=true,
             uint32_t spell=0,bool periodic=false,uint32_t procAura=0,const LocalSpellDefinition* threatSpell=nullptr,
             LocalMeleeOutcome outcome=LocalMeleeOutcome::Hit,bool offHand=false,uint32_t blockValue=0,uint32_t magicDamage=0,bool weaponModifiersApplied=false,bool rangedAuto=false,
@@ -1859,6 +1875,7 @@ struct LocalGameplay::Impl {
                 definition&&definition->sourceDamageClass==2?0x20u:definition&&definition->sourceDamageClass==3?0x200u:definition&&definition->sourceDamageClass==1?0x20000u:0x2000u;
             npcTakenDamage(n,attacker,damage,procFlag,players);
             if(n.dead)return;
+            spendNpcControlDamageCaps(n,damage,spell);
             if(n.npcInvincibleHp&&n.health>n.npcInvincibleHp&&damage>=n.health-n.npcInvincibleHp)damage=n.health-n.npcInvincibleHp;
         }
         if (damage && !spell && !procAura && attacker.resourceType == LocalResourceType::Rage)
@@ -1904,6 +1921,7 @@ struct LocalGameplay::Impl {
         const auto damage=schoolMask==kLocalVehiclePhysicalSchool?localArmorReducedDamage(raw,def->armor,hull.level):raw;
         auto effective=std::min(damage,victim.health);
         if(damage)breakNpcControlsOnDamage(victim,0,nullptr);
+        spendNpcControlDamageCaps(victim,damage,0);
         if(damage && !victim.lootOwner)victim.lootOwner=owner.guid;
         npcLowerPlayerDamageReq(victim,damage,true); // m_movedByPlayer
         addThreat(victim,hull.guid,std::max<uint64_t>(1,uint64_t(damage)*1000));selectThreatTarget(victim,players);
@@ -1924,6 +1942,7 @@ struct LocalGameplay::Impl {
         const auto blocked=std::min(damage,blockValue);damage-=blocked;
         if(localOutcomeNullifiesDamage(outcome))damage=0;
         if(!localOutcomeNullifiesDamage(outcome))breakNpcControlsOnDamage(n,0,nullptr);
+        spendNpcControlDamageCaps(n,damage,0);
         if(damage&&!n.lootOwner)n.lootOwner=owner.guid;
         npcLowerPlayerDamageReq(n,damage,false); // a pet lowers the requirement, a player must still strike
         addThreat(n,summon.guid,std::max<uint64_t>(1,uint64_t(damage)*1000));
@@ -2164,6 +2183,7 @@ struct LocalGameplay::Impl {
         if(n.dead||totem.dead||!content->npc(n.entry))return;
         auto effective=std::min(damage,n.health);
         if(damage)breakNpcControlsOnDamage(n,0,nullptr);
+        spendNpcControlDamageCaps(n,damage,0);
         if(damage&&!n.lootOwner)n.lootOwner=owner.guid;
         npcLowerPlayerDamageReq(n,damage,false);
         addThreat(n,owner.guid,std::max<uint64_t>(1,uint64_t(damage)*1000));selectThreatTarget(n,players);
@@ -2831,6 +2851,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(d.controlProfile);hash(d.controlEffectSlot);hash(d.armorDebuffPct);hash(d.armorDebuffEffectSlot);
         for(const auto* a:{&d.targetDebuffAttackPower,&d.targetDebuffResistance,&d.targetDebuffDamageTakenPct,&d.targetDebuffCastSpeedPct})hash(uint32_t(*a));
         hash(uint32_t(d.targetDebuffResistanceSchool)|uint32_t(d.targetDebuffDamageTakenSchool)<<8|uint32_t(d.targetDebuffArmorPct)<<16|uint32_t(d.targetDebuffEffectMask)<<24);
+        hash(uint32_t(d.controlDamageCapPct)|uint32_t(d.controlSingleTarget)<<8);
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -7129,6 +7150,19 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(d->controlProfile&&!n->dead&&!nullified&&!(strippedEffects&(1u<<d->controlEffectSlot))) {
         LocalNpcControl a{d->id,diminishedDurationMs,p.guid,p.positionRevision,
             uint8_t(d->controlProfile==2?LocalNpcControlKind::Silence:LocalNpcControlKind::Stun)};
+        // AuraEffect::CalculateAmount: a proc-flagged fear holds until it has
+        // absorbed this share of the creature's maximum health.
+        if(d->controlDamageCapPct)a.damageLeft=uint32_t(uint64_t(n->maxHealth)*d->controlDamageCapPct/100);
+        // SPELL_ATTR5_SINGLE_TARGET_SPELL (Unit::_AddAura): the caster's same
+        // control (any rank, Aura::IsSingleTargetWith) leaves every other
+        // creature as it lands here.
+        if(d->controlSingleTarget)for(auto& other:g.npcs)if(&other!=n)std::erase_if(other.controls,[&](const auto& o){
+            const auto* od=c.spell(o.spellId);
+            if(o.casterGuid!=p.guid||!od||!localSameRankChain(c,*od,*d))return false;
+            localDiminishingApply(other,localDiminishingGroupForSpell(*od,false),false,g.authorityClockMs);
+            LOG_INFO("[LOCAL_CONTROL] single target moved npc=",other.guid," spell=",o.spellId," to npc=",n->guid);
+            return true;
+        });
         const bool replacing=controlSlot<n->controls.size();
         auto replacedGroup=LocalDiminishingGroup::None;
         if(replacing) {

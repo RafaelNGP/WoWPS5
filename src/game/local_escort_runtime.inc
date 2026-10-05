@@ -88,6 +88,7 @@ void damageEscortByNpc(LocalRealmNpc& guide,LocalRealmNpc& attacker,LocalRealmPl
     const auto damage=localArmorReducedDamage(std::min(attackerDef->damage,1000000u),guideDef->armor,attacker.level);
     const auto effective=std::min(damage,guide.health);guide.health-=effective;guide.dead=!guide.health;
     if(damage)breakNpcControlsOnDamage(guide,0,nullptr);
+    spendNpcControlDamageCaps(guide,damage,0);
     owner.escort.guideHealth=guide.health;
     LocalCombatEvent event{0,attacker.guid,guide.guid,0,guide.mapId,guide.instanceId,damage,effective,0,LocalCombatEventKind::NpcMelee,guide.dead};
     event.schoolMask=1;event.attackType=LocalCombatAttackType::Melee;emitCombatEvent(event,players);
@@ -106,6 +107,7 @@ void damageNpcByEscort(LocalRealmNpc& enemy,LocalRealmNpc& guide,LocalRealmPlaye
     const auto damage=localArmorReducedDamage(std::min(guideDef->damage,1000000u),enemyDef->armor,guide.level);
     auto effective=std::min(damage,enemy.health);
     if(damage)breakNpcControlsOnDamage(enemy,0,nullptr);
+    spendNpcControlDamageCaps(enemy,damage,0);
     if(damage && !enemy.lootOwner)enemy.lootOwner=owner.guid;
     // The authored escort guide fights on its owner's behalf (the local 2.23
     // rule: its kills reward the owner), so its damage counts as the owner's

@@ -412,7 +412,10 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // the builder does not kill it. 26 is a curse that lands as the
         // warlock's creature aura with its amounts; Curse of the Elements
         // follows a Curse of Weakness and takes its place (one curse per
-        // warlock on a target).
+        // warlock on a target). 27 is Fear: held with a damage cap of 10% of
+        // the creature's health, moved off the first creature when the same
+        // warlock fears a second (one target at a time), and broken by the
+        // Shadow Bolts that spend the cap (each hit spends what it dealt).
         struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
@@ -436,6 +439,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27},
         };
         size_t passed = 0;
         for (const auto& a : abilities) {
@@ -572,6 +576,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 p.mana = a.kind == 6 ? 0 : p.maxMana; p.runeCooldownMs.fill(0); p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear();
                 p.health = p.maxHealth;
                 if (a.kind >= 23 && a.kind <= 25) { auto& sturdy = const_cast<LocalRealmNpc&>(*n); sturdy.maxHealth = sturdy.health = 100000; }
+                if (a.kind == 27) { auto& sturdy = const_cast<LocalRealmNpc&>(*n); sturdy.maxHealth = sturdy.health = 20000; }
                 const uint32_t before = n->health;
                 if (a.kind == 15) p.attackTarget = foeGuid;
                 if (a.kind == 19) {
@@ -678,6 +683,48 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     if (!landed) result = std::string("curse ") + (curse ? "held" : "missing") + (other ? ", first curse kept" : "") + " armor " + std::to_string(armor) + (curse ? " ap " + std::to_string(curse->attackPower) + " pct " + std::to_string(curse->armorPct) + " ms " + std::to_string(curse->remainingMs) : std::string()) +
                                        (sd ? " def ap " + std::to_string(sd->targetDebuffAttackPower) + " pct " + std::to_string(sd->targetDebuffArmorPct) + " ms " + std::to_string(sd->durationMs) : std::string()) + " (" + result + ")";
                 }
+                else if (a.kind == 27) {
+                    const auto feared = [&](uint64_t guid) -> const LocalNpcControl* {
+                        for (const auto& v : arena.npcs()) if (v.guid == guid && !v.dead) for (const auto& s : v.controls) if (s.spellId == spellId) return &s;
+                        return nullptr; };
+                    const auto npcAt = [&](uint64_t guid) -> const LocalRealmNpc* { for (const auto& v : arena.npcs()) if (v.guid == guid) return &v; return nullptr; };
+                    const auto castAt = [&](uint64_t guid, uint32_t id) {
+                        p.mana = p.maxMana; p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear();
+                        if (const auto* m = npcAt(guid)) p.orientation = std::atan2(m->y - p.y, m->x - p.x);
+                        const bool ok = arena.execute(p, {LocalAction::CastSpell, guid, id}, players, result);
+                        for (int t = 0; t < 120 && p.castingSpellId; ++t) { p.health = p.maxHealth; arena.tick(0.05f, players); }
+                        arena.tick(0.05f, players); return ok; };
+                    const auto* f = feared(foeGuid);
+                    landed = f && f->damageLeft == 2000 && f->kind == uint8_t(LocalNpcControlKind::Stun);
+                    if (!landed) { result = "fear " + (f ? std::to_string(f->remainingMs) + "ms cap " + std::to_string(f->damageLeft) : std::string("missing")) + " (" + result + ")"; last = result; continue; }
+                    // One target at a time: the same warlock's Fear on a second creature.
+                    uint64_t target = foeGuid;
+                    // A second creature within reach of where the warlock stands: walking off
+                    // would let the first one leave combat and drop its fear on its own.
+                    for (const auto& m : arena.npcs()) if (target == foeGuid && m.guid != foeGuid && m.hostile && !m.dead && m.health &&
+                                                          std::hypot(m.x - p.x, m.y - p.y) < 18 && localSpellCreatureTypeAllowed(*content.spell(spellId), localNpcCreatureType(m.entry))) {
+                        auto& sturdy = const_cast<LocalRealmNpc&>(m); sturdy.maxHealth = sturdy.health = 20000;
+                        const bool cast = castAt(m.guid, spellId);
+                        if (std::getenv("ABILITY_VERBOSE")) out << "  second fear " << foeGuid << " -> " << m.guid << ": first " << (feared(foeGuid) != nullptr) << " second " << (feared(m.guid) != nullptr) << " (" << result << ")\n";
+                        if (cast && feared(m.guid)) target = m.guid;
+                    }
+                    if (target == foeGuid || feared(foeGuid)) { landed = false; result = std::string("second fear ") + (target == foeGuid ? "did not land" : "left the first one feared") + " (" + result + ")"; last = result; break; }
+                    uint32_t bolt = 0;
+                    for (auto id : p.knownSpells) if (const auto* sd = content.spell(id); sd && sd->name == "Shadow Bolt" && sd->unsupportedReason.empty()) bolt = id;
+                    bool spent = false; int bolts = 0;
+                    for (; bolts < 12 && feared(target); ++bolts) {
+                        const auto left = feared(target)->damageLeft; const auto* m = npcAt(target); const auto hp = m ? m->health : 0;
+                        castAt(target, bolt);
+                        const auto* m2 = npcAt(target); const auto* g = feared(target);
+                        const auto dealt = m2 && hp > m2->health ? hp - m2->health : 0;
+                        if (g && dealt) spent = spent || (g->damageLeft + dealt == left);
+                        if (std::getenv("ABILITY_VERBOSE")) out << "  bolt " << bolts << " dealt " << dealt << " left " << (g ? g->damageLeft : 0) << "\n";
+                    }
+                    landed = bolt && spent && !feared(target);
+                    if (!landed) result = "bolt=" + std::to_string(bolt) + " spent=" + std::to_string(spent) + " after " + std::to_string(bolts) + " bolts still feared=" + std::to_string(feared(target) != nullptr) + " (" + result + ")";
+                    last = result;
+                    break;
+                }
                 else if (a.kind == 11) {
                     // A level 80 Ambush can kill a start-zone creature outright: then no points remain.
                     const bool killed = !after || after->dead;
@@ -696,7 +743,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, armor reductions, curses, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, fears, armor reductions, curses, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.

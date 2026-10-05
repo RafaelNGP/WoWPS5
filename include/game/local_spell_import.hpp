@@ -1179,7 +1179,16 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         else if(!(u(71+k)==6&&u(95+k)==33&&u(86+k)==6))confuseOther=true;
     }
     confuseControl=confuseControl&&!confuseOther&&!creatureCaster;
-    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&d.id!=1784) // Stealth: its damage and attack breaks are the form rule
+    // Fear: SPELL_AURA_MOD_FEAR on one hostile unit beside the run-speed aura
+    // the reference gives the fleeing target. Held as an incapacitation like
+    // Blind, so the speed has nothing to act on and is set aside. Its taken-
+    // damage proc flags are the reference's damage cap (CalculateAmount gives
+    // a proc-flagged MOD_FEAR/STUN/ROOT 10% of the target's maximum health,
+    // spent by each damaging hit until it runs out), not a proc to install.
+    const bool fearControl=!creatureCaster&&u(71)==6&&u(95)==7&&u(86)==6&&!u(89)&&!u(116)&&
+        u(72)==6&&u(96)==31&&u(87)==6&&!u(90)&&!u(117)&&!u(73)&&!u(spell335::ProcCharges)&&
+        !(u(spell335::AuraInterruptFlags)&kLocalAuraInterruptTakeDamage);
+    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&d.id!=1784) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
     // Spell.dbc column 38 is BaseLevel and column 39 is SpellLevel
     // (DBCStructure.h:1679-1680). previously both this field and d.spellLevel
@@ -1400,6 +1409,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         // Clip, Concussive Shot, Curse of Exhaustion): its slow percentage
         // through the creature snare the Frost spells use.
         if(confuseControl&&type==6&&u(95+effect)==33&&u(86+effect)==6&&!u(89+effect)&&!u(116+effect))continue;
+        if(fearControl&&effect==1)continue; // Fear's run speed (verified above).
         // A warlock curse on one hostile creature (Curse of Weakness, of the
         // Elements, of Tongues): fixed stat auras that land as one creature
         // aura of the warlock's. MOD_ATTACK_POWER (99) and armor
@@ -1611,7 +1621,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if((target!=1&&target!=21&&target!=25&&!(chainHeal&&target==45))||(healingTarget&&healingTarget!=target))
                 unavailable("Mixed or hostile healing targets are not implemented");
             healingTarget=target;
-        } else if(type==6&&(u(95+effect)==12||u(95+effect)==27||(confuseControl&&u(95+effect)==5))) {
+        } else if(type==6&&(u(95+effect)==12||u(95+effect)==27||(confuseControl&&u(95+effect)==5)||(fearControl&&u(95+effect)==7))) {
             // P04 control auras, admitted only in the narrow shape every
             // reachable client spell already has: one aura effect, a single
             // hostile unit target, a real fixed duration, no proc definition,
@@ -1627,6 +1637,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 const auto type=u(71+k);
                 if(k==effect||!type||type==80)return true;
                 if(confuseControl&&type==6&&u(95+k)==33&&u(86+k)==6)return true; // Blind's slow
+                if(fearControl&&k==1)return true; // Fear's run speed
                 if(type==2&&k<effect&&u(86+k)==6&&!u(89+k))return true;
                 if(d.comboFinisher&&type==3&&u(86+k)==1)return true;
                 return d.comboFinisher&&type==6&&u(95+k)==87&&u(86+k)==6&&!i(80+k)&&!u(74+k);
@@ -1637,7 +1648,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             else if(target!=6)unavailable("Area or scripted targeting is not implemented");
             else if(!controlMs||controlMs>600000)
                 unavailable("A control without a real fixed duration is not implemented");
-            else if((u(spell335::ProcFlags)&&!damageBrokenControl)||u(spell335::ProcCharges)||u(116+effect))
+            else if((u(spell335::ProcFlags)&&!damageBrokenControl&&!fearControl)||u(spell335::ProcCharges)||u(116+effect))
                 unavailable("Proc, charge or triggered control auras are not implemented");
             else if(u(spell335::ChannelInterruptFlags))
                 unavailable("Channelled control auras are not implemented");
@@ -1651,6 +1662,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             // Both rules were written here first and both were fabrications.
             else {
                 d.controlProfile=silence?2:1;d.controlEffectSlot=uint8_t(effect);harm=true;
+                if(fearControl)d.controlDamageCapPct=10;
+                d.controlSingleTarget=(u(9)&0x20u)!=0; // SPELL_ATTR5_SINGLE_TARGET_SPELL
             }
         } else if(type==38) {
             // P04 SPELL_EFFECT_DISPEL, admitted in one shape only. Spell::CheckCast
@@ -1692,6 +1705,11 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             d.chargeRage=uint16_t((base+1)/10); // Charge's script: tenths of rage.
         } else if(type==5&&!creatureCaster&&(target==1||target==0)&&(secondary==17||!secondary)) {
             d.teleport=true;
+        } else if(type==77&&!creatureCaster&&d.spellFamily==5&&target==6&&!secondary&&!i(80+effect)&&!u(74+effect)&&!u(116+effect)&&
+                  effect==2&&u(71)==6&&u(95)==3&&u(71+1)==2) {
+            // Immolate: a periodic fire aura, its opening hit, and a script
+            // effect with no handler and no amount (no SpellScript at the pin;
+            // Conflagrate's consumption is a talent's). It does nothing.
         } else if(type==77&&!creatureCaster&&d.teleport) {
             // The Teleport spells' script effect only plays the departure visual.
         } else if(type==24&&!creatureCaster&&(target==1||target==0)&&!secondary&&u(107+effect)) {
