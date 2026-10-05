@@ -2753,7 +2753,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         // creature types and combat states it may be cast at.
         hash(d.sourceRangeFlags);hash(d.sourceFacingFlags);hash(d.targetCreatureType);
         hash(uint32_t(d.weaponDamage)|uint32_t(d.normalizedWeapon)<<1|uint32_t(d.interruptCast)<<2|uint32_t(d.taunt)<<3|uint32_t(d.charge)<<4|uint32_t(d.outOfCombatOnly)<<5);hash(d.chargeRage);hash(d.weaponPercent);hash(d.targetMaxHealthPct);hash(d.createItemId);hash(d.createItemCount);hash(uint32_t(d.channel)|uint32_t(d.periodicLeech)<<1|uint32_t(d.soulShardOnKill)<<2|uint32_t(d.teleport)<<3|uint32_t(d.groundAtCaster)<<4);{uint32_t gr;std::memcpy(&gr,&d.groundRadius,4);hash(gr);}for(size_t r=0;r<d.reagentItems.size();++r){hash(d.reagentItems[r]);hash(d.reagentCounts[r]);}
-        hash(uint32_t(d.classBuff));for(auto v:d.classBuffStats)hash(uint32_t(v));hash(uint32_t(d.classBuffAttackPower));hash(uint32_t(d.classBuffArmor));hash(uint32_t(d.classBuffHealth));
+        hash(uint32_t(d.classBuff));for(auto v:d.classBuffStats)hash(uint32_t(v));hash(uint32_t(d.classBuffAttackPower));hash(uint32_t(d.classBuffArmor));hash(uint32_t(d.classBuffHealth));hash(uint32_t(d.classBuffSpeedPct));hash(uint32_t(d.classBuffDodgePct));
         hash(uint32_t(d.sourceOnlyPeacefulTargets));
         // P05 line of sight : two peers must agree on which casts are
         // exempt from the test before they can agree on the test's answer.

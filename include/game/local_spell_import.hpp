@@ -1297,7 +1297,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         for(uint32_t e=0;e<3;++e) if(u(71+e)) {
             const auto ty=u(71+e),au=u(95+e),tg=u(86+e);
             if((ty!=6&&ty!=35&&ty!=65)||u(89+e)||u(116+e)||(tg!=1&&tg!=21&&tg!=25&&tg!=20&&tg!=22&&tg!=30&&tg!=31&&tg!=56&&tg!=57&&tg!=0))shape=false;
-            if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99)any=true;
+            if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99||(tg==1&&(au==31||au==49)&&i(80+e)>=0))any=true;
         }
         classBuffSpell=any&&shape&&!u(spell335::ProcFlags)&&!u(spell335::ProcCharges);
     }
@@ -1346,6 +1346,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 else if(au==99)d.classBuffAttackPower+=amount;
                 else if(au==22&&(misc&1))d.classBuffArmor+=amount;
                 else if(au==34)d.classBuffHealth+=amount;
+                else if(au==31&&tg==1)d.classBuffSpeedPct+=amount;
+                else if(au==49&&tg==1)d.classBuffDodgePct+=amount;
             }
             d.classBuff=true;buff=true;
             buffTarget=(tg==21||tg==25)?tg:(buffTarget?buffTarget:1);

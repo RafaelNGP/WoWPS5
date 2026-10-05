@@ -232,10 +232,11 @@ LocalMeleeStats localMeleeStats(const LocalRealmPlayer& p,const LocalWorldConten
         ap+=b.attackPower;
     }
     // Class stat buffs (Power Word: Fortitude, Battle Shout...) held as timed auras.
+    int32_t buffDodge=0;
     for(const auto& a:p.statAuras)if(a.remainingMs&&a.mapId==p.mapId&&a.instanceId==p.instanceId)
         if(const auto* d=c.spell(a.spellId);d&&d->classBuff) {
             for(size_t i=0;i<5;++i)s.attributes[i]=std::clamp(s.attributes[i]+d->classBuffStats[i],0,1000000);
-            ap+=d->classBuffAttackPower;
+            ap+=d->classBuffAttackPower;buffDodge+=d->classBuffDodgePct;
         }
     // The active form's boost spells multiply total stats exactly as a talent
     // does (aura 137; SpellAuraEffects.cpp:1350-1445 casts them on entry), so
@@ -312,7 +313,7 @@ LocalMeleeStats localMeleeStats(const LocalRealmPlayer& p,const LocalWorldConten
     const auto views=localPlayerViewModifiers(p,1);
     const bool disarmed=views.disarmed;
     s.hit+=float(views.hitChancePct);
-    s.dodge=std::max(0.f,100*dodgeBase[idx]+s.base[1]*dodgeAgility+localFeralDodgePct(p,c)+diminish((agi-s.base[1])*dodgeAgility+bonus[1]+s.defense*.04f,dodgeCap[idx],k[idx])+float(views.dodgePct));
+    s.dodge=std::max(0.f,100*dodgeBase[idx]+s.base[1]*dodgeAgility+localFeralDodgePct(p,c)+diminish((agi-s.base[1])*dodgeAgility+bonus[1]+s.defense*.04f,dodgeCap[idx],k[idx])+float(views.dodgePct)+float(buffDodge));
     s.parry=canParry&&mh&&mh->itemClass==2&&!disarmed?std::max(0.f,5+diminish(bonus[2]+s.defense*.04f,parryCap[idx],k[idx])+float(views.parryPct)):0;
     s.block=shield?std::max(0.f,5+bonus[3]+s.defense*.04f+float(views.blockPct)):0;s.blockValue=shield?uint32_t(std::max(int64_t(0),blockValue+oh->block+str/2-10)):0;
     s.shieldBlockValue=uint32_t(std::max(int64_t(0),blockValue+(shield?int64_t(oh->block):0)+str/2-10));

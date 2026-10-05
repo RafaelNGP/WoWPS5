@@ -964,6 +964,7 @@ struct LocalSpellDefinition {
     bool classBuff=false;
     std::array<int32_t,5> classBuffStats{};
     int32_t classBuffAttackPower=0,classBuffArmor=0,classBuffHealth=0;
+    int32_t classBuffSpeedPct=0,classBuffDodgePct=0; // aura 31 (Sprint), aura 49 (Evasion)
     /// A player channel (Mind Flay, Drain Life, Drain Soul): its periodic
     /// effect runs while the caster keeps channelling; moving ends both.
     bool channel=false,periodicLeech=false,soulShardOnKill=false;

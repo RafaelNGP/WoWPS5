@@ -30,10 +30,18 @@ inline uint32_t localFeralDodgePct(const LocalRealmPlayer& p,const LocalWorldCon
         amount+=d->passiveFeralDodgePct;
     return std::min(100u,amount);
 }
+// The strongest class self-buff movement increase (Sprint, aura 31).
+inline uint32_t localClassBuffRunPct(const LocalRealmPlayer& p,const LocalWorldContent& c) {
+    uint32_t best=0;
+    for(const auto& a:p.statAuras)if(a.remainingMs&&a.mapId==p.mapId&&a.instanceId==p.instanceId)
+        if(const auto* d=c.spell(a.spellId);d&&d->classBuff)best=std::max(best,uint32_t(std::clamp(d->classBuffSpeedPct,0,500)));
+    return best;
+}
 inline float localFormRunPercent(const LocalRealmPlayer& p,const LocalWorldContent& c,uint32_t slowPercent=100) {
     const auto* f=localActiveForm(p);
-    if(!f||f->clazz!=11||f->form!=1)return localFormRunPercent(p,slowPercent);
-    uint32_t bonus=0;
+    const uint32_t buff=localClassBuffRunPct(p,c);
+    if(!f||f->clazz!=11||f->form!=1)return std::max(localFormRunPercent(p,slowPercent),(100.f+buff)*std::min(slowPercent,100u)/100.f);
+    uint32_t bonus=buff;
     for(auto [id,rank]:p.talents)if(const auto* d=localTalentSpell(c,id,rank);localFeralTalentReady(p,c,d))
         bonus=std::max(bonus,uint32_t(d->passiveCatRunPct));
     // Aura31 uses the strongest positive movement increase, followed by slows.
