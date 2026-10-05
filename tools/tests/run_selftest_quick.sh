@@ -18,6 +18,8 @@ srcs=(src/game/local_gameplay.cpp src/game/local_melee.cpp src/game/local_servic
       src/game/local_bots.cpp src/game/local_world_catalog.cpp src/game/shapeshift_forms.cpp src/game/local_selftest.cpp
       src/pipeline/dbc_loader.cpp src/core/logger.cpp tools/tests/local_class_items_quests_test.cpp)
 headers=0; [[ ! -f $out/.stamp ]] || [[ -n $(find "$root/include" -newer "$out/.stamp" -print -quit) ]] && headers=1
+source "$root/tools/ps5/console_lock.sh"
+build_lock "host self-test $(basename "$root")"
 pids=()
 for f in "${srcs[@]}"; do
     o=$out/$(basename "${f%.cpp}").o
@@ -30,6 +32,7 @@ fail=0; for p in "${pids[@]}"; do wait "$p" || fail=1; done
 ((fail)) && { echo "BUILD FAILED"; exit 2; }
 touch "$out/.stamp"
 "${CXX:-g++}" "$out"/*.o -pthread -o "$out/selftest" || { echo "LINK FAILED"; exit 2; }
+build_unlock
 cd "$root" && QUEST_ONLY=$quests timeout 2400 "$out/selftest" assets/local_realm/world.json assets/local_realm/catalog "$dbc" > "$out/run.log" 2>&1
 code=$?
 grep -av '^\[' "$out/run.log" | grep -E '^(PASS|FAIL|SKIP)|^  ' | cut -c1-240
