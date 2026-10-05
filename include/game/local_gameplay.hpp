@@ -894,13 +894,17 @@ struct LocalPassiveCastModifier {
     std::array<uint32_t,3> mask{};
 };
 static_assert(sizeof(LocalPassiveCastModifier)==20, "Bounded modifier record size");
+// Ice Block (45438): the one class buff that stuns its own holder (MOD_STUN
+// on the caster beside its immunities); cancelling it is how the mage leaves.
+inline constexpr uint32_t kLocalIceBlockSpell = 45438;
 // Auras the realm applies only as the after-hit of another spell's script,
 // with their client/server duration: Forbearance (SpellDuration 4), the
-// Avenging Wrath marker (9) and Divine Shield's exclude aura (spell_dbc, 25).
+// Avenging Wrath marker (9), Divine Shield's exclude aura (spell_dbc, 25)
+// and Ice Block's Hypothermia (9).
 struct LocalRealmMarkerAura { uint32_t id; const char* name; uint32_t durationMs; };
 inline const LocalRealmMarkerAura* localRealmMarkerAura(uint32_t id) {
     static constexpr LocalRealmMarkerAura markers[]={{25771,"Forbearance",120000},{61987,"Avenging Wrath Marker",30000},
-        {61988,"Divine Shield Exclude Aura",180000}};
+        {61988,"Divine Shield Exclude Aura",180000},{41425,"Hypothermia",30000}};
     for(const auto& m:markers)if(m.id==id)return &m;
     return nullptr;
 }

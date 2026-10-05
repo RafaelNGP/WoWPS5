@@ -425,7 +425,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // and the target held in horror. 32 is Divine Shield: immune to every
         // school, then Forbearance and the two markers refuse Divine
         // Protection and Avenging Wrath until they run out. 33 a damage-taken
-        // cut (Shield Wall).
+        // cut (Shield Wall). 34 is Ice Block: immune and held in place (no
+        // casts) until cancelled, then Hypothermia refuses another block.
         struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
@@ -449,7 +450,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
-            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34},
         };
         size_t passed = 0;
         // Incinerate carries the Immolate bonus (a quarter more on an Immolated target).
@@ -499,7 +500,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             }
             const uint32_t reagentBefore = [&] { const auto* sd = content.spell(spellId); uint32_t n = 0;
                 for (const auto& st : p.inventory) if (sd && st.itemId == sd->reagentItems[0]) n += st.count; return n; }();
-            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || (a.kind >= 12 && a.kind <= 14) || a.kind == 16 || a.kind == 20 || (a.kind >= 28 && a.kind <= 30) || a.kind == 32 || a.kind == 33) {
+            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || (a.kind >= 12 && a.kind <= 14) || a.kind == 16 || a.kind == 20 || (a.kind >= 28 && a.kind <= 30) || (a.kind >= 32 && a.kind <= 34)) {
                 const auto meleeBefore = localMeleeStats(p, content); const auto healthBefore = p.maxHealth; const auto items = p.inventory.size();
                 const auto armorBefore = localMeleeArmor(p, content);
                 const auto* autoShot = content.spell(75);
@@ -577,6 +578,21 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     ok = ok && awLater && !holds(25771);
                     if (!ok) result = "shielded low " + std::to_string(shieldedLow) + " exposed low " + std::to_string(exposedLow) + "/" + std::to_string(p.maxHealth) + " immunity " + std::to_string(sd ? sd->classBuffSchoolImmunity : 0) + " markers " + std::to_string(holds(25771)) + std::to_string(holds(61987)) + std::to_string(holds(61988)) +
                                       " second " + std::to_string(second) + " dp " + std::to_string(dp) + " aw " + std::to_string(aw) + " later " + std::to_string(awLater) + " (" + again + " / " + protection + " / " + wrath + ")";
+                }
+                if (a.kind == 34 && ok) {
+                    const auto holds = [&](uint32_t id) { for (const auto& s : p.statAuras) if (s.spellId == id && s.remainingMs) return true; return false; };
+                    uint32_t bolt = 0; for (auto k : p.knownSpells) if (const auto* kd = content.spell(k); kd && kd->name == "Frostbolt" && kd->unsupportedReason.empty()) bolt = k;
+                    std::string held, again;
+                    p.globalCooldownMs = 0; p.mana = p.maxMana;
+                    const bool castInBlock = arena.execute(p, {LocalAction::CastSpell, p.guid, bolt}, players, held);
+                    ok = holds(spellId) && holds(41425) && bolt && !castInBlock && held.find("stunned") != std::string::npos;
+                    std::string cancel;
+                    const bool cancelled = arena.execute(p, {LocalAction::CancelStatAura, 0, spellId}, players, cancel);
+                    p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear();
+                    const bool second = arena.execute(p, {LocalAction::CastSpell, p.guid, spellId}, players, again);
+                    ok = ok && cancelled && !holds(spellId) && !second;
+                    if (!ok) result = "block " + std::to_string(holds(spellId)) + " hypothermia " + std::to_string(holds(41425)) + " cast " + std::to_string(castInBlock) +
+                                      " cancelled " + std::to_string(cancelled) + " second " + std::to_string(second) + " (" + held + " / " + cancel + " / " + again + ")";
                 }
                 if (a.kind == 33 && ok) {
                     const auto* sd = content.spell(spellId);
@@ -868,7 +884,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, fears, armor reductions, curses, warlock armors, Life Tap, school wards, health leech, immunities and Forbearance, damage-taken cuts, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, fears, armor reductions, curses, warlock armors, Life Tap, school wards, health leech, immunities and Forbearance, damage-taken cuts, Ice Block, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.

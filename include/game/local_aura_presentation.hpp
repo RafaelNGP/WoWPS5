@@ -121,6 +121,8 @@ inline bool validLocalHarmfulAuraViews(const LocalRealmPlayer& p){
 inline uint8_t localPlayerControl(const LocalRealmPlayer& p){
     uint8_t mask=0;
     for(const auto& a:p.harmfulAuras)switch(a.controlKind){case 1:mask|=1;break;case 2:mask|=2;break;case 3:mask|=4;break;case 4:mask|=8;break;case 5:mask|=16;break;default:break;}
+    // Ice Block holds its own mage like a stun until it ends or is cancelled.
+    for(const auto& a:p.statAuras)if(a.spellId==kLocalIceBlockSpell&&a.remainingMs)mask|=1;
     return mask;
 }
 /// Whether a creature control keeps the character from moving on its own

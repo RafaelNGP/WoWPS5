@@ -1283,6 +1283,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if(!creatureCaster&&d.spellFamily==10&&(d.id==498||d.id==642||d.id==1022||d.id==5599||d.id==10278)) {
         d.forbearanceCheck=true;d.afterHitAuras={25771,61987,61988};
     }
+    // spell_mage_ice_block: Hypothermia (its ExcludeCasterAuraSpell) after the hit.
+    if(!creatureCaster&&d.id==kLocalIceBlockSpell&&d.spellFamily==3&&u(26)==41425)d.afterHitAuras={41425,0,0};
     // SPELL_ATTR0_ONLY_STEALTHED: the rogue openers also require Stealth's
     // form; Prowl (a cat-form aura) is not implemented, so Ravage and Pounce wait.
     if(!creatureCaster&&(u(4)&0x20000u)&&!(u(12)&(1u<<29)))d.onlyStealthed=true; // Ravage, Pounce: under Prowl
@@ -1417,6 +1419,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 else if(u(86+e)==1&&(au==79||au==87||au==136||au==118)&&misc==127)percentage=true;
                 else if(au==25&&u(86+e)!=1){} // Hand of Protection's pacify on its target
                 else if(au==108&&!amount){} // Avenging Wrath's empty spell modifier
+                else if(au==12&&u(86+e)==1&&d.id==kLocalIceBlockSpell){} // Ice Block's own stun (localPlayerControl)
                 else modelled=false;
             }
             any=percentage&&modelled;
