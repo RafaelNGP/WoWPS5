@@ -1506,6 +1506,16 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         if(confuseControl&&type==6&&u(95+effect)==33&&u(86+effect)==6&&!u(89+effect)&&!u(116+effect))continue;
         if(confuseControl&&type==6&&u(95+effect)==56&&effect==1){d.controlTransformEntry=u(110+effect);continue;} // Polymorph's model
         if(fearControl&&effect==1)continue; // Fear's run speed (verified above).
+        // Strangulate: an empty dummy aura (no script at the pin) beside the silence.
+        if(!creatureCaster&&d.id==47476&&type==6&&u(95+effect)==4&&!i(80+effect)&&!u(74+effect))continue;
+        // Empower Rune Weapon: two ACTIVATE_RUNE effects whose 47568 branch
+        // refreshes every rune, and a trigger of 53258, which no Spell.dbc at
+        // the pin carries (so the reference casts nothing there either).
+        if(!creatureCaster&&d.id==47568&&d.spellFamily==15) {
+            if(type==146&&u(86+effect)==1){d.runeRefresh=true;buff=true;buffTarget=1;}
+            else if(!(type==64&&ClientSpellTables::lookup(t.spellIndex,u(116+effect))<0))unavailable("Unreviewed Empower Rune Weapon row");
+            continue;
+        }
         // Raise Dead: its three effects are the script's (spell_dk_raise_dead);
         // the guardian, its lifetime and the reagent come from 46585 and 48289.
         if(!creatureCaster&&d.id==46584&&d.spellFamily==15) {
@@ -1815,6 +1825,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 if(type==2&&k<effect&&u(86+k)==6&&!u(89+k))return true;
                 if(horrorCoil&&type==9&&k==0)return true; // Death Coil's leech
                 if(rootControl&&k==1)return true; // Entangling Roots' DoT (its own branch)
+                if(d.id==47476&&type==6&&u(95+k)==4&&!i(80+k)&&!u(74+k))return true; // Strangulate's empty dummy
                 if(d.comboFinisher&&type==3&&u(86+k)==1)return true;
                 return d.comboFinisher&&type==6&&u(95+k)==87&&u(86+k)==6&&!i(80+k)&&!u(74+k);
             };

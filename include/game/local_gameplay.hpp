@@ -1450,6 +1450,9 @@ struct LocalSpellDefinition {
     // experience within the radius, or else from this reagent (48289's).
     uint32_t raiseDeadEntry = 0, raiseDeadDurationMs = 0, raiseDeadReagent = 0;
     float raiseDeadRadius = 0;
+    // Empower Rune Weapon (SPELL_EFFECT_ACTIVATE_RUNE, Spell::EffectActivateRune
+    // for 47568): every rune is ready again.
+    bool runeRefresh = false;
     // SPELL_AURA_REDUCE_PUSHBACK (149) on a class buff (Barkskin): percent.
     uint8_t classBuffPushbackPct = 0;
     // An absorb shield's RealPointsPerLevel (Ice Barrier): the amount is the
