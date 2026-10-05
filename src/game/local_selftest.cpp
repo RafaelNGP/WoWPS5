@@ -445,6 +445,10 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2},
         };
         size_t passed = 0;
+        // A level 4 warlock's Corruption (rank 1 carries an empty DUMMY beside its DoT).
+        const auto lowIt = std::find_if(clientSpells->begin(), clientSpells->end(), [](const auto& d) { return d.id == 172; });
+        if (const auto* low = lowIt == clientSpells->end() ? nullptr : &*lowIt; !low || !low->unsupportedReason.empty() || !low->periodicDamage) {
+            out << "FAIL class ability Corruption rank 1: " << (low ? low->unsupportedReason : std::string("missing")) << "\n"; return false; }
         for (const auto& a : abilities) {
             LocalGameplay arena; SELFTEST_CHECK(arena.loadContent(worldPath, error));
             SELFTEST_CHECK(arena.setStarterSpells(*clientSpells, "selftest", error));

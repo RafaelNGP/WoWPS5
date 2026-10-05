@@ -1424,6 +1424,11 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         // through the creature snare the Frost spells use.
         if(confuseControl&&type==6&&u(95+effect)==33&&u(86+effect)==6&&!u(89+effect)&&!u(116+effect))continue;
         if(fearControl&&effect==1)continue; // Fear's run speed (verified above).
+        // Corruption ranks 1-3 and 5: an empty DUMMY beside the shadow DoT, with
+        // no target, no amount and no handler at the pin (ranks 4 and 6+ do not
+        // carry it). It does nothing.
+        if(!creatureCaster&&d.spellFamily==5&&effect==1&&type==3&&!u(87)&&!u(90)&&!i(81)&&!u(75)&&!u(117)&&!u(73)&&
+           u(71)==6&&u(95)==3&&u(86)==6)continue;
         // A warlock curse on one hostile creature (Curse of Weakness, of the
         // Elements, of Tongues): fixed stat auras that land as one creature
         // aura of the warlock's. MOD_ATTACK_POWER (99) and armor
