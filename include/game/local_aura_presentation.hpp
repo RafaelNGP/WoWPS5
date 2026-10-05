@@ -177,7 +177,10 @@ inline bool validLocalHealingAuraViews(const LocalRealmPlayer& p){
 // Shared by the original UI command and focused host tests.
 inline uint64_t localSpellCommandTarget(const LocalSpellDefinition& s,const LocalRealmPlayer& self,
         uint64_t selected,const std::vector<LocalRealmPlayer>& players){
-    if(s.damage||s.periodicDamage||s.snarePercent)return selected;
+    // Every hostile single-target shape goes to the selection: a control or
+    // an armor reduction without damage (Kidney Shot, Sap, Expose Armor) too.
+    if(s.damage||s.periodicDamage||s.snarePercent||s.weaponDamage||s.interruptCast||s.taunt||s.charge||
+       s.controlProfile||s.armorDebuffPct||s.hostileDispelMask)return selected;
     if(s.id==kLocalTameBeast)return selected; // Tame Beast is cast at the beast.
     const bool friendly=((s.heal||s.periodicHeal)&&!s.healingSelfOnly)||
         ((s.buffHealth||s.buffArmor||s.buffAbsorb||s.proc.effect!=LocalProcEffect::None)&&!s.buffSelfOnly);

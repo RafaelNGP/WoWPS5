@@ -1282,6 +1282,9 @@ struct LocalSpellDefinition {
     // the longest the spell's timed effect can run with every talent that
     // lengthens it at its highest rank and five combo points. Zero until then.
     uint32_t durationCeilingMs = 0;
+    // SPELL_AURA_MOD_RESISTANCE_PCT (101) on the armor of one hostile creature
+    // (Expose Armor): the percentage taken off, and the effect slot it rides.
+    uint8_t armorDebuffPct = 0, armorDebuffEffectSlot = 0;
 
     std::string iconPath, unsupportedReason;
 };
@@ -1586,6 +1589,14 @@ struct LocalNpcControl {
     uint32_t casterRevision=0; // Authority-only: travel cancels the old encounter effect.
     uint8_t kind=0;            // LocalNpcControlKind
 };
+// A player's armor reduction on a creature (Expose Armor). Authority-only: the
+// armor curve runs on the authority, so it is neither saved nor replicated.
+struct LocalNpcArmorDebuff {
+    uint32_t spellId=0, remainingMs=0, durationMs=0;
+    uint64_t casterGuid=0;
+    uint8_t percent=0;
+};
+inline constexpr size_t kLocalMaxNpcArmorDebuffs = 4;
 struct LocalNpcThreatView {
     uint64_t viewerGuid=0,amount=0;
     uint32_t rawBasisPoints=0;uint16_t scaledBasisPoints=0;uint8_t status=0;bool present=false;
@@ -1826,6 +1837,7 @@ struct LocalRealmNpc {
     float fleeX=0, fleeY=0, fleeZ=0;
     uint64_t assistTargetGuid=0; // CallAssistance: attack this victim when the delay ends
     uint32_t assistDelayMs=0;
+    std::vector<LocalNpcArmorDebuff> armorDebuffs; // Authority-only; neither saved nor replicated.
 };
 
 // A realm command may commit gameplay and still fail its atomic character

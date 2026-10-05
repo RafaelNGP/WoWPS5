@@ -703,6 +703,12 @@ void GameHandler::syncLocalRealmNpc(const LocalRealmNpc& npc) {
             slot.durationMs=a.remainingMs;slot.maxDurationMs=d?d->durationMs:a.remainingMs;
             slot.casterGuid=a.casterGuid;slot.receivedAtMs=now;auras.push_back(slot);
         }
+        // Expose Armor: authority-only, so only the host's own view carries it.
+        for(const auto& a:npc.armorDebuffs) {
+            AuraSlot slot{};slot.spellId=a.spellId;slot.flags=0x9f;slot.level=npc.level;slot.charges=1;
+            slot.durationMs=a.remainingMs;slot.maxDurationMs=a.durationMs;
+            slot.casterGuid=a.casterGuid;slot.receivedAtMs=now;auras.push_back(slot);
+        }
         for(const auto& a:npc.damageAuras) {
             AuraSlot slot{};slot.spellId=a.spellId;slot.flags=0x9f;slot.level=npc.level;slot.charges=a.stacks;
             slot.durationMs=a.remainingMs;slot.maxDurationMs=a.durationMs;slot.casterGuid=a.casterGuid;slot.receivedAtMs=now;auras.push_back(slot);

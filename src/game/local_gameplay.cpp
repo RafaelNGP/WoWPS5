@@ -1673,7 +1673,7 @@ struct LocalGameplay::Impl {
         KillRewardPlan plan;
         if(rewarded&&!reserveKillFacts(n,killer,players,pendingScriptCommits,plan,true))return false;
         if(!rewarded)LOG_INFO("[LOCAL_GROUP_REWARD] npc=",n.guid," entry=",n.entry," refused: player damage ",n.npcPlayerDamage," of ",n.maxHealth/2," byPlayer=",n.npcDamagedByPlayer);
-        npcCancelChannelOrCast(n);n.health=0;n.dead=true;n.combatEpoch=allocateNpcEpoch();n.targetGuid=0;n.threat={};n.snares.clear();releaseNpcControls(n);n.diminishing.clear();n.damageAuras.clear();n.stormstrikeAuras.clear();n.lootable=rewarded&&(!def->loot.empty()||def->money);
+        npcCancelChannelOrCast(n);n.health=0;n.dead=true;n.combatEpoch=allocateNpcEpoch();n.targetGuid=0;n.threat={};n.snares.clear();n.armorDebuffs.clear();releaseNpcControls(n);n.diminishing.clear();n.damageAuras.clear();n.stormstrikeAuras.clear();n.lootable=rewarded&&(!def->loot.empty()||def->money);
         creatureTalk(n,LocalCreatureTalkEvent::Death,&killer,0,players);
         // 2.38: the creature's owned summons leave with it (RemoveAllControlled).
         npcSummonerDied(n,players);
@@ -1793,7 +1793,7 @@ struct LocalGameplay::Impl {
         // (Unit.cpp:2256-2267) - the cap is a function of the VICTIM's level.
         // 2.37: the creature's own MOD_RESISTANCE (armor) buffs add to the template's.
         if(physical)damage=localArmorReducedDamage(damage,
-            localArmorAfterPenetration(uint32_t(std::max<int64_t>(0,int64_t(def->armor)+npcBuffResistance(n,1))),uint8_t(std::min<uint32_t>(n.level,255)),
+            localArmorAfterPenetration(localNpcArmorAfterDebuffs(uint32_t(std::max<int64_t>(0,int64_t(def->armor)+npcBuffResistance(n,1))),n),uint8_t(std::min<uint32_t>(n.level,255)),
                                        localFormArmorPenetrationPct(attacker,*content)),attacker.level);
         // SpellAuraEffects.cpp:6355-6368 applies the periodic critical
         // multiplier AFTER armor, so the roll lives here rather than at the
@@ -1920,7 +1920,7 @@ struct LocalGameplay::Impl {
                         const std::vector<LocalRealmPlayer*>& players,LocalMeleeOutcome outcome,uint32_t blockValue) {
         if(n.dead||summon.dead)return;
         const auto* def=content->npc(n.entry);if(!def)return;
-        uint32_t damage=localArmorReducedDamage(std::min(raw,1000000u),def->armor,summon.level);
+        uint32_t damage=localArmorReducedDamage(std::min(raw,1000000u),localNpcArmorAfterDebuffs(def->armor,n),summon.level);
         const auto blocked=std::min(damage,blockValue);damage-=blocked;
         if(localOutcomeNullifiesDamage(outcome))damage=0;
         if(!localOutcomeNullifiesDamage(outcome))breakNpcControlsOnDamage(n,0,nullptr);
@@ -2828,7 +2828,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(d.mechanic);for(auto m:d.effectMechanic)hash(m);
         hash(d.auraInterruptFlags);hash(d.preventionType);
         hash(uint32_t(d.sourceDamageDoesNotBreakAuras));
-        hash(d.controlProfile);hash(d.controlEffectSlot);
+        hash(d.controlProfile);hash(d.controlEffectSlot);hash(d.armorDebuffPct);hash(d.armorDebuffEffectSlot);
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -6473,7 +6473,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // the reference reads (Unit::GetCreatureType, Unit.cpp:11485).
     const auto* rangeTarget=n?c.npc(n->entry):nullptr;
     const float targetReach=n?localCreatureCombatReach(rangeTarget):kLocalDefaultCombatReach;
-    if((d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->stormstrikeProfile==1)&&!d->areaRadius) {
+    if((d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->stormstrikeProfile==1)&&!d->areaRadius) {
         if(!n||n->dead||!canAttack(p,*n))return reject("Choose a living enemy");
         // TargetAuraState HEALTHLESS_20_PERCENT (Execute, Kill Shot).
         if(d->targetMaxHealthPct&&uint64_t(n->health)*100>uint64_t(n->maxHealth)*d->targetMaxHealthPct)
@@ -6681,6 +6681,15 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         if(controlSlot==n->controls.size()&&n->controls.size()>=kLocalMaxNpcControls)
             return reject("Too many active NPC controls");
     }
+    size_t armorDebuffSlot=n?n->armorDebuffs.size():0;
+    if(d->armorDebuffPct) {
+        if(!n||n->transportEntry||!talentedDuration||talentedDuration>600000||d->armorDebuffPct>99)
+            return reject("Invalid NPC armor reduction target or duration");
+        // One Expose Armor per creature: a second rogue's replaces the first.
+        armorDebuffSlot=size_t(std::find_if(n->armorDebuffs.begin(),n->armorDebuffs.end(),[&](const auto& a){return a.spellId==d->id;})-n->armorDebuffs.begin());
+        if(armorDebuffSlot==n->armorDebuffs.size()&&n->armorDebuffs.size()>=kLocalMaxNpcArmorDebuffs)
+            return reject("Too many active NPC armor reductions");
+    }
     size_t snareSlot=n?n->snares.size():0;
     if(d->snarePercent) {
         if(!n||n->transportEntry||!talentedDuration||talentedDuration>600000||d->snarePercent>99)
@@ -6755,6 +6764,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // with a cast time repeat the same validation at completion.
     if(d->snarePercent&&snareSlot==n->snares.size())n->snares.reserve(n->snares.size()+1);
     if(d->controlProfile&&controlSlot==n->controls.size())n->controls.reserve(n->controls.size()+1);
+    if(d->armorDebuffPct&&armorDebuffSlot==n->armorDebuffs.size())n->armorDebuffs.reserve(n->armorDebuffs.size()+1);
     if(d->stormstrikeProfile==1)n->stormstrikeAuras.reserve(kLocalMaxNpcStormstrikeAuras);
     if(triggeredAura||d->arcaneBlastProfile==1)p.statAuras.reserve(kLocalMaxStatAuras);
     if(buff&&buffSlot==healed->statAuras.size())healed->statAuras.reserve(healed->statAuras.size()+1);
@@ -6786,7 +6796,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // defect rather than an unimplemented feature. A positive spell never rolls:
     // the reference returns SPELL_MISS_NONE for one on a non-hostile target.
     const bool magicHitRoll=!meleeRoll&&n&&d->clientSpell&&d->sourceDamageClass==1&&
-        (d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile)&&!d->heal&&!d->periodicHeal;
+        (d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct)&&!d->heal&&!d->periodicHeal;
     // P04 creature template immunity. WorldObject::SpellHitResult asks
     // Creature::IsImmunedToSpell FIRST (Object.cpp:3746-3751), before the melee
     // or magic roll and before Spell::DoSpellHitOnUnit ever reads a diminishing
@@ -6795,7 +6805,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // (canAttack above), which is the `casterFriendly` clause's constant. The
     // cost is paid below exactly as for a miss: there is no SPELL_FAILED_IMMUNE.
     const auto* targetDefinition=n?c.npc(n->entry):nullptr;
-    const bool hostileCast=n&&!n->dead&&(d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||meleeSpecial||d->dispelProfile);
+    const bool hostileCast=n&&!n->dead&&(d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||meleeSpecial||d->dispelProfile);
     const bool templateImmune=hostileCast&&targetDefinition&&localNpcImmuneToSpell(*targetDefinition,*n,*d,false);
     // Spell.cpp:2413-2416: the effect slots the template strips from a cast
     // that still lands. Bit k is column 71+k; the snare rides slot 0 on both
@@ -7069,6 +7079,13 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         sweepNoStack(n->snares,snareSlot,[&](size_t i){return n->snares[i].spellId;},
             [&](size_t i){return n->snares[i].casterGuid;},[](size_t){return true;},[](size_t){});
         if(!n->targetGuid)n->targetGuid=p.guid;
+    }
+    if(d->armorDebuffPct&&!n->dead&&!nullified&&!(strippedEffects&(1u<<d->armorDebuffEffectSlot))) {
+        const LocalNpcArmorDebuff a{d->id,talentedDuration,talentedDuration,p.guid,d->armorDebuffPct};
+        if(armorDebuffSlot<n->armorDebuffs.size())n->armorDebuffs[armorDebuffSlot]=a;else n->armorDebuffs.push_back(a);
+        // A hostile aura puts the creature in combat with its caster.
+        g.addThreat(*n,p.guid,1);g.selectThreatTarget(*n,players);
+        LOG_INFO("[LOCAL_ARMOR_DEBUFF] npc=",n->guid," spell=",d->id," pct=",unsigned(a.percent)," ms=",a.remainingMs);
     }
     // A control that did not land applies nothing: Spell::DoSpellHitOnUnit is
     // only reached for a target the spell actually hit, so a missed stun is a
@@ -7913,7 +7930,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
             const auto* casting=content().spell(p->castingSpellId);
             bool invalidTarget=false;
             if(casting) {
-                if((casting->damage||casting->periodicDamage||casting->snarePercent)&&!casting->areaRadius) {
+                if((casting->damage||casting->periodicDamage||casting->snarePercent||casting->armorDebuffPct)&&!casting->areaRadius) {
                     const auto* target=g.npc(p->castTarget);
                     invalidTarget=!target||target->dead||!target->health||target->mapId!=p->mapId||target->instanceId!=p->instanceId||!canAttack(*p,*target);
                 } else if(casting->heal||casting->periodicHeal||localHasTimedAura(*casting)) {
@@ -8257,7 +8274,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
         // escort returns to its last point (its home) and resumes.
         if(!n.followGuid){n.x=n.homeX;n.y=n.homeY;n.z=n.homeZ;}
         if(n.npcMotion==1||n.npcMotion==5||n.npcMotion==3)g.npcMoveIdle(n);
-        n.snares.clear();g.releaseNpcControls(n);n.damageAuras.clear();n.stormstrikeAuras.clear();
+        n.snares.clear();n.armorDebuffs.clear();g.releaseNpcControls(n);n.damageAuras.clear();n.stormstrikeAuras.clear();
         if(n.npcSpellTimerInitialized)g.smartEvade(n,players);
     };
     // 2.38: the dynamic objects of persistent area auras.
@@ -8283,6 +8300,8 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
         for(auto& a:n.snares)a.remainingMs-=std::min(a.remainingMs,elapsedMs);
         std::erase_if(n.snares,[](const auto& a){return !a.remainingMs;});
         changed=changed||hadSnares;
+        for(auto& a:n.armorDebuffs)a.remainingMs-=std::min(a.remainingMs,elapsedMs);
+        std::erase_if(n.armorDebuffs,[&](const auto& a){return !a.remainingMs||n.dead;});
         // P04 controls follow the snare's lifecycle exactly: the same caster
         // eligibility, the same revision invalidation, the same expiry.
         const bool hadControls=!n.controls.empty();
@@ -8653,7 +8672,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                 localApplyDeathDurability(*target, 0.10);
                 stats(*target, content(), false);
                 g.selectThreatTarget(n,players);
-                if(!n.targetGuid){n.threat={};n.combatEpoch=g.allocateNpcEpoch();n.lootOwner=0;n.health=n.maxHealth;n.x=n.homeX;n.y=n.homeY;n.z=n.homeZ;n.snares.clear();g.releaseNpcControls(n);n.damageAuras.clear();n.stormstrikeAuras.clear();}}
+                if(!n.targetGuid){n.threat={};n.combatEpoch=g.allocateNpcEpoch();n.lootOwner=0;n.health=n.maxHealth;n.x=n.homeX;n.y=n.homeY;n.z=n.homeZ;n.snares.clear();n.armorDebuffs.clear();g.releaseNpcControls(n);n.damageAuras.clear();n.stormstrikeAuras.clear();}}
             else {
                 target->health-=damage;
                 if(!localMeleeAvoided(outcome)&&g.meleeRoll()<1000){

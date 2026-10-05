@@ -43,7 +43,7 @@ inline uint32_t localSpellCriticalAmount(const LocalSpellDefinition* d,uint32_t 
 // previously (the source audit section 2.3, D6/D7).
 inline bool localMeleeClassSpellRoll(const LocalSpellDefinition& d) {
     return d.clientSpell&&d.sourceDamageClass==2&&!d.comboProfile&&!d.meleeSpecialProfile&&!d.stormstrikeProfile&&
-        !d.passive&&!d.triggeredOnly&&(d.damage||d.periodicDamage||d.snarePercent||d.controlProfile)&&!d.heal&&!d.periodicHeal;
+        !d.passive&&!d.triggeredOnly&&(d.damage||d.periodicDamage||d.snarePercent||d.controlProfile||d.armorDebuffPct)&&!d.heal&&!d.periodicHeal;
 }
 // Unit::MeleeSpellHitResult :3351 - a FULL block is rolled only for
 // SPELL_ATTR3_COMPLETELY_BLOCKED without the computed CU_DIRECT_DAMAGE. Every

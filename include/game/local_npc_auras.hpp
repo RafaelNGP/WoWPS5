@@ -56,6 +56,12 @@ inline bool localNpcSilenced(const LocalRealmNpc& n) {
         if(a.remainingMs&&a.kind==uint8_t(LocalNpcControlKind::Silence))return true;
     return false;
 }
+// Expose Armor on a creature: each SPELL_AURA_MOD_RESISTANCE_PCT on armor
+// scales the total (UNIT_MOD_ARMOR, TOTAL_PCT), after the flat buffs.
+inline uint32_t localNpcArmorAfterDebuffs(uint32_t armor,const LocalRealmNpc& n) {
+    for(const auto& a:n.armorDebuffs)if(a.remainingMs&&a.percent)armor=uint32_t(uint64_t(armor)*(100u-std::min<uint32_t>(99,a.percent))/100u);
+    return armor;
+}
 // The longest a control can hold: talents and combo points included once the
 // content is loaded (durationCeilingMs), the bare spell before that.
 inline uint32_t localControlDurationCeiling(const LocalSpellDefinition& d) {

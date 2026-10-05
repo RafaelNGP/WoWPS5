@@ -1167,6 +1167,18 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // them). No proc effect or trigger exists, so the break is the whole rule.
     const bool damageBrokenControl=!creatureCaster&&d.spellFamily==8&&u(71)==6&&u(95)==12&&u(86)==6&&
         !u(72)&&!u(73)&&!u(116)&&!u(spell335::ProcCharges)&&(u(spell335::AuraInterruptFlags)&kLocalAuraInterruptTakeDamage);
+    // Blind: SPELL_AURA_MOD_CONFUSE on one hostile unit. The confused creature
+    // is held as an incapacitation (it neither moves nor acts), so the slow
+    // that rides beside the confuse - the reference's pace for the wander -
+    // has nothing to slow and is set aside with it. Only that whole shape: a
+    // confuse beside a strike (Scatter Shot) keeps its own older handling.
+    bool confuseControl=false,confuseOther=false;
+    for(unsigned k=0;k<3;++k) {
+        if(!u(71+k))continue;
+        if(u(71+k)==6&&u(95+k)==5&&u(86+k)==6&&!u(89+k))confuseControl=true;
+        else if(!(u(71+k)==6&&u(95+k)==33&&u(86+k)==6))confuseOther=true;
+    }
+    confuseControl=confuseControl&&!confuseOther&&!creatureCaster;
     if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&d.id!=1784) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
     // Spell.dbc column 38 is BaseLevel and column 39 is SpellLevel
@@ -1387,6 +1399,15 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         // SPELL_AURA_MOD_DECREASE_SPEED on one hostile target (Hamstring, Wing
         // Clip, Concussive Shot, Curse of Exhaustion): its slow percentage
         // through the creature snare the Frost spells use.
+        if(confuseControl&&type==6&&u(95+effect)==33&&u(86+effect)==6&&!u(89+effect)&&!u(116+effect))continue;
+        // SPELL_AURA_MOD_RESISTANCE_PCT on the armor of one hostile target
+        // (Expose Armor): a fixed percentage for the aura's duration, which a
+        // finisher draws from its combo points.
+        if(!creatureCaster&&type==6&&u(95+effect)==101&&u(110+effect)==1&&u(86+effect)==6&&!u(89+effect)&&!u(116+effect)&&
+           !d.armorDebuffPct&&u(74+effect)<=1&&f(77+effect)==0&&i(80+effect)+int32_t(u(74+effect))<0&&i(80+effect)+int32_t(u(74+effect))>-100&&
+           (d.durationMs||d.comboDurationMaxMs)&&std::max(d.durationMs,d.comboDurationMaxMs)<=600000&&!u(spell335::ProcFlags)&&!u(spell335::ProcCharges)) {
+            d.armorDebuffPct=uint8_t(-(i(80+effect)+int32_t(u(74+effect))));d.armorDebuffEffectSlot=uint8_t(effect);harm=true;continue;
+        }
         if(!creatureCaster&&!snare&&type==6&&u(95+effect)==33&&u(86+effect)==6&&!u(89+effect)&&!d.snarePercent&&
            i(80+effect)<-1&&i(80+effect)>=-100&&d.durationMs&&d.durationMs<=600000&&!u(116+effect)&&u(46)!=1) { // range 1: a talent's triggered daze
             d.snarePercent=uint8_t(-(i(80+effect)+1));harm=true;continue;
@@ -1570,7 +1591,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if((target!=1&&target!=21&&target!=25&&!(chainHeal&&target==45))||(healingTarget&&healingTarget!=target))
                 unavailable("Mixed or hostile healing targets are not implemented");
             healingTarget=target;
-        } else if(type==6&&(u(95+effect)==12||u(95+effect)==27)) {
+        } else if(type==6&&(u(95+effect)==12||u(95+effect)==27||(confuseControl&&u(95+effect)==5))) {
             // P04 control auras, admitted only in the narrow shape every
             // reachable client spell already has: one aura effect, a single
             // hostile unit target, a real fixed duration, no proc definition,
@@ -1585,13 +1606,14 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             const auto riderOk=[&](uint32_t k){
                 const auto type=u(71+k);
                 if(k==effect||!type||type==80)return true;
+                if(confuseControl&&type==6&&u(95+k)==33&&u(86+k)==6)return true; // Blind's slow
                 if(type==2&&k<effect&&u(86+k)==6&&!u(89+k))return true;
                 if(d.comboFinisher&&type==3&&u(86+k)==1)return true;
                 return d.comboFinisher&&type==6&&u(95+k)==87&&u(86+k)==6&&!i(80+k)&&!u(74+k);
             };
             const auto controlMs=std::max(d.durationMs,d.comboDurationMaxMs);
             if(d.controlProfile)unavailable("Mixed control auras are not implemented");
-            else if(effect&&!(u(71)==2&&!silence))unavailable("A control aura outside the first effect is not implemented");
+            else if(effect&&!(u(71)==2&&!silence)&&!(confuseControl&&u(71)==6&&u(95)==33))unavailable("A control aura outside the first effect is not implemented");
             else if(target!=6)unavailable("Area or scripted targeting is not implemented");
             else if(!controlMs||controlMs>600000)
                 unavailable("A control without a real fixed duration is not implemented");
