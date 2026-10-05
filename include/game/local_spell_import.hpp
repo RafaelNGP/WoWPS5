@@ -1282,9 +1282,14 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // the warlock family (its SpellScript, spell_warl_life_tap, does the work).
     const bool lifeTap=!creatureCaster&&u(41)==0xFFFFFFFEu&&!u(42)&&!u(43)&&!u(44)&&!u(204)&&d.spellFamily==5&&
         u(71)==3&&u(86)==1&&!u(89)&&!u(72)&&!u(73)&&u(74)==1&&i(80)>=0&&i(80)<100000&&std::isfinite(f(77))&&f(77)>=0&&f(77)<100;
-    if(u(41)!=0&&u(41)!=1&&u(41)!=3&&u(41)!=5&&u(41)!=6&&!lifeTap)
+    // Bloodrage: POWER_HEALTH costing a percent of base health, an ENERGIZE of
+    // rage on the warrior and a TRIGGER_SPELL of its rage-over-time aura.
+    const bool bloodrage=!creatureCaster&&d.spellFamily==4&&u(41)==0xFFFFFFFEu&&!u(42)&&!u(43)&&!u(44)&&u(204)>0&&u(204)<100&&
+        u(71)==30&&u(86)==1&&!u(89)&&u(110)==1&&u(72)==64&&u(87)==1&&!u(90)&&u(117)&&!u(73)&&!d.durationMs;
+    if(u(41)!=0&&u(41)!=1&&u(41)!=3&&u(41)!=5&&u(41)!=6&&!lifeTap&&!bloodrage)
         unavailable("This power system is not implemented");
     if(lifeTap)d.resourceType=0; // no cost: health is spent by the effect itself
+    if(bloodrage){d.resourceType=1;d.mana=0;d.healthCostBasePct=uint8_t(u(204));d.manaPercent=0;} // health, not rage, pays
     if(!creatureCaster&&(d.spellFamily==15||d.spellFamily==9)){bool periodic=false;const auto ap=localSpellApBonus(d.id,periodic);(periodic?d.periodicApPer100k:d.apBonusPer100k)=ap;}
     if(u(226)) {
         const auto runeRow=ClientSpellTables::lookup(t.runeCostIndex,u(226));
@@ -1782,6 +1787,24 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         // A heal at TARGET_UNIT_TARGET_CHAINHEAL_ALLY with no chain targets
         // (Healing Wave ranks 1-10) heals one ally, as TARGET_UNIT_TARGET_ALLY.
         const auto target=(u(86+effect)==45&&!chainHeal&&type==10&&u(104+effect)<=1&&!secondary)?21u:u(86+effect);
+        if(bloodrage) {
+            if(effect==0&&i(80)>=0&&i(80)<1000)d.energizeRage=uint8_t((i(80)+1)/10); // tenths of rage
+            else if(effect==1) {
+                const auto child=ClientSpellTables::lookup(t.spellIndex,u(117));
+                const auto cu=[&](uint32_t col){return child>=0?t.spells->getUInt32(uint32_t(child),col):0u;};
+                const auto ci=[&](uint32_t col){return child>=0?t.spells->getInt32(uint32_t(child),col):0;};
+                const auto durationRow=child>=0?ClientSpellTables::lookup(t.durationIndex,cu(40)):-1;
+                const int32_t duration=durationRow>=0?t.durations->getInt32(uint32_t(durationRow),1):0;
+                const int32_t tick=ci(80)+(cu(74)?1:0);
+                if(child>=0&&cu(71)==6&&cu(95)==24&&cu(86)==1&&cu(110)==1&&cu(98)>=1000&&tick>=10&&tick<1000&&
+                   cu(72)==6&&cu(96)==94&&cu(87)==1&&!cu(73)&&duration>0&&duration<=60000) {
+                    d.periodicRage=uint8_t(tick/10);d.periodicRageMs=cu(98);d.durationMs=uint32_t(duration);
+                    d.classBuff=true;buff=true;buffTarget=1;
+                } else unavailable("Unreviewed rage-over-time aura");
+            }
+            if(!d.energizeRage&&effect==0)unavailable("Unreviewed rage energize");
+            continue;
+        }
         if(frostNova&&arcaneExplosion&&effect==1){d.areaRoot=true;d.controlDamageCapPct=10;harm=true;continue;}
         if(areaFear) {
             if(effect==0) {

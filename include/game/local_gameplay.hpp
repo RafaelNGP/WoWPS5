@@ -1510,6 +1510,11 @@ struct LocalSpellDefinition {
     // like Fear (an incapacitation with a 10% damage cap).
     float areaFearRadius = 0;
     uint8_t areaMaxTargets = 0;
+    // Bloodrage: a POWER_HEALTH cost of this percent of base health
+    // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
+    // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.
+    uint8_t healthCostBasePct = 0, energizeRage = 0, periodicRage = 0;
+    uint32_t periodicRageMs = 0;
     // Frost Armor: Chilled, the PROC_TRIGGER_SPELL its holder puts on a
     // creature that lands a melee hit on it (spell_proc -168): the creature's
     // attack speed (aura 138) and movement (aura 33) slowed for its duration.
