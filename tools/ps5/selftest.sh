@@ -59,6 +59,7 @@ out=$logs/selftest-$(date +%Y%m%d-%H%M%S)
 mkdir -p "$out"
 exec > >(tee -a "$out/runner.log") 2>&1
 log() { echo "[$(date +%H:%M:%S)] $*"; }
+source "$root/tools/ps5/console_lock.sh"; ps5_lock "self-test"
 retry() {  # retry <tries> <command...>
     local n=$1 i; shift
     for ((i = 1; i <= n; i++)); do "$@" && return 0; log "attempt $i/$n failed: $*"; sleep 5; done

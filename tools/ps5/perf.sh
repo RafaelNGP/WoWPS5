@@ -16,6 +16,7 @@ out=$root/../logs/perf-$(date +%Y%m%d-%H%M%S)
 mkdir -p "$out"
 env=/data/wow_ps/wowps/config/env.txt
 log() { echo "[$(date +%H:%M:%S)] $*"; }
+source "$root/tools/ps5/console_lock.sh"; ps5_lock "perf"
 
 "$ps5" get "$env" "$out/env.orig.txt" > /dev/null || { log "cannot read env.txt"; exit 1; }
 grep -vE '^WOWEE_DEV_' "$out/env.orig.txt" > "$out/env.txt" || true
