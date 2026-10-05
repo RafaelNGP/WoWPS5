@@ -71,6 +71,9 @@ struct LocalRangedAmounts {
     bool active=false;
     uint32_t ammoId=0,schoolMask=1,basePeriodMs=0,periodMs=0;
     float low=0,high=0,hit=0,crit=0;
+    // The parts of the above: ranged attack power, the weapon's own damage
+    // range and the ammunition's DPS x weapon speed (Steady Shot, AP bonuses).
+    float attackPower=0,weaponLow=0,weaponHigh=0,ammoBonus=0;
 };
 inline bool localRangedAutoSpell(const LocalSpellDefinition& d) {
     return d.clientSpell&&((d.id==75&&d.rangedAutoProfile==1)||(d.id==5019&&d.rangedAutoProfile==2));
@@ -121,6 +124,7 @@ inline LocalRangedAmounts localRangedAmounts(const LocalRealmPlayer& p,const Loc
     const float seconds=weapon->delay/1000.f;
     const float bonus=float(ap/14)*seconds+ammoDps*seconds;
     a.low=weapon->damage[0]+bonus;a.high=weapon->damage[1]+bonus;
+    a.attackPower=float(ap);a.weaponLow=float(weapon->damage[0]);a.weaponHigh=float(weapon->damage[1]);a.ammoBonus=ammoDps*seconds;
     if(a.schoolMask&1) {
         const float factor=localTalentPhysicalDamageMultiplier(p,c)*localTimedDamageMultiplier(p,c,false)*
             localTalentWeaponDamageMultiplier(p,c,weapon->itemClass,weapon->subclass,weapon->inventoryType);

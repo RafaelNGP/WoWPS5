@@ -942,11 +942,24 @@ inline constexpr uint32_t kLocalIceBlockSpell = 45438;
 // The two death knight diseases, by spell_bonus_data at the pin: no base
 // damage (EffectBasePoints -1) and 0.06325 x attack power per tick.
 struct LocalDiseaseSpell { uint32_t id; const char* name; uint32_t apPer100k; std::array<uint32_t,3> familyFlags; };
-// spell_bonus_data ap_bonus rows of death knight spells at the pin, by the
-// player spell they apply to (Death and Decay's row is its triggered 52212).
-inline uint32_t localDeathKnightApBonus(uint32_t id,bool& periodic) {
+// spell_bonus_data ap_bonus / ap_dot_bonus rows at the pin, x100000, by the
+// player spell they apply to (Death and Decay's row is its triggered 52212):
+// the death knight's and the hunter's (whose rows are generated from the
+// table: Explosive Trap Effect carries both columns and is read as direct).
+inline uint32_t localSpellApBonus(uint32_t id,bool& periodic) {
     periodic=false;
     switch(id) {
+    case 3674:case 63668:case 63669:case 63670:case 63671:case 63672:periodic=true;return 2000; // Black Arrow (ap_dot_bonus)
+    case 13797:case 14298:case 14299:case 14300:case 14301:case 27024:case 49053:case 49054:periodic=true;return 2000; // Immolation Trap (ap_dot_bonus)
+    case 1978:case 13549:case 13550:case 13551:case 13552:case 13553:case 13554:case 13555:case 25295:case 27016:case 49000:case 49001:periodic=true;return 4000; // Serpent Sting (ap_dot_bonus)
+    case 3044:case 14281:case 14282:case 14283:case 14284:case 14285:case 14286:case 14287:case 27019:case 49044:case 49045:return 15000; // Arcane Shot
+    case 19306:case 20909:case 20910:case 27067:case 48998:case 48999:return 20000; // Counterattack
+    case 53352:return 16000; // Explosive Shot
+    case 13812:case 14314:case 14315:case 27026:case 49064:case 49065:return 10000; // Explosive Trap Effect
+    case 1495:case 14269:case 14270:case 14271:case 36916:case 53339:return 20000; // Mongoose Bite
+    case 2643:case 14288:case 14289:case 14290:case 25294:case 27021:case 49047:case 49048:return 20000; // Multi Shot
+    case 34120:case 49051:case 49052:case 56641:return 10000; // Steady Shot
+    case 42234:case 42243:case 42244:case 42245:case 58432:case 58433:return 8370; // Volley
     case 45477:case 49896:case 49903:case 49904:case 49909:return 10000;   // Icy Touch 0.1
     case 48721:case 49939:case 49940:case 49941:return 6000;               // Blood Boil 0.06
     case 49184:case 51409:case 51410:case 51411:return 20000;              // Howling Blast 0.2
@@ -1433,6 +1446,12 @@ struct LocalSpellDefinition {
     // attack-power term) for the death knight's spells, x100000: the direct
     // hit, and a ground area's tick (Death and Decay: its triggered 52212).
     uint32_t apBonusPer100k = 0, periodicApPer100k = 0;
+    // Unit::SpellDamageBonusDone's attack type for that term: a ranged weapon
+    // spell (IsRangedWeaponSpell) takes ranged attack power.
+    bool apBonusRanged = false;
+    // Steady Shot (Spell::EffectSchoolDMG's hunter branch): the ranged weapon's
+    // damage roll and the ammunition's DPS x weapon speed on top.
+    bool steadyShot = false;
     // Death Grip (spell_dk_death_grip on 49576): the creature is pulled in
     // front of the knight (49560's jump, 57604), its cast stops, and it is
     // taunted (49560's MOD_TAUNT and SPELL_EFFECT_ATTACK_ME).

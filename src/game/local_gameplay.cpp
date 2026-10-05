@@ -3149,7 +3149,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -7606,7 +7606,15 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if((d->damage||d->weaponDamage)&&!directStripped) {
         uint32_t baseAmount=d->meleeSpecialProfile?localMeleeSpecialAmount(localMeleeStats(p,c).attackPower,d->damage):
             localComboAmount(p,c,*d,localSpellEffectAmountAfterTalents(p,c,*d,spellAmount(p,*d,false),false,spentCombo),spentCombo,extraEnergy,false,true);
-        if(d->apBonusPer100k)baseAmount=uint32_t(std::min<int64_t>(1000000,int64_t(baseAmount)+int64_t(localMeleeStats(p,c).attackPower)*d->apBonusPer100k/100000));
+        if(d->apBonusPer100k||d->steadyShot) {
+            const auto* autoShot=c.spell(75);
+            const auto ranged=(d->apBonusRanged||d->steadyShot)&&autoShot?localRangedAmounts(p,c,*autoShot):LocalRangedAmounts{};
+            const float ap=d->apBonusRanged?ranged.attackPower:localMeleeStats(p,c).attackPower;
+            float extra=ap*float(d->apBonusPer100k)/100000.f;
+            if(d->steadyShot&&ranged.active)
+                extra+=ranged.weaponLow+float(g.meleeRoll(1000))/1000.f*(ranged.weaponHigh-ranged.weaponLow)+ranged.ammoBonus;
+            baseAmount=uint32_t(std::clamp<int64_t>(int64_t(baseAmount)+int64_t(extra),0,1000000));
+        }
         if(d->executeSpell)baseAmount+=uint32_t(float(extraEnergy)*d->extraEnergyMultiplier+float(localMeleeStats(p,c).attackPower)*0.20f);
         // Spell::EffectSchoolDMG's warrior branch (SpellEffects.cpp:360-369):
         // Shield Slam adds the caster's shield block value, soft-capped at
@@ -7846,7 +7854,11 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(d->periodicDamage&&n&&!n->dead&&!periodicStripped) {
 
         Impl::PeriodicDamage aura{p.guid,n->guid,d->id,talentedDuration,d->periodicIntervalMs,d->periodicIntervalMs,localSpellAmountAfterTalents(p,c,*d,localComboAmount(p,c,*d,localSpellEffectAmountAfterTalents(p,c,*d,scaledSpellAmount(p,*d,d->periodicDamage,d->periodicDamageMax,d->periodicDamagePerLevel),true,spentCombo),spentCombo,0,true,true),true),p.mapId,p.instanceId};
-        if(d->periodicApPer100k)aura.damage=uint32_t(std::min<int64_t>(1000000,int64_t(aura.damage)+int64_t(localMeleeStats(p,c).attackPower)*d->periodicApPer100k/100000));
+        if(d->periodicApPer100k) {
+            const auto* autoShot=c.spell(75);
+            const float ap=d->apBonusRanged&&autoShot?localRangedAmounts(p,c,*autoShot).attackPower:localMeleeStats(p,c).attackPower;
+            aura.damage=uint32_t(std::min<int64_t>(1000000,int64_t(aura.damage)+int64_t(ap*float(d->periodicApPer100k)/100000.f)));
+        }
         if(d->schoolMask&1)aura.damage=localPhysicalDamageAfterTalents(p,c,aura.damage);
         aura.targetEpoch=n->combatEpoch;
         aura.critChanceBasisPoints=localPeriodicCritChanceBasisPoints(&p,c,*d);

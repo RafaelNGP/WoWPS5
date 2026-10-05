@@ -1246,7 +1246,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if(u(41)!=0&&u(41)!=1&&u(41)!=3&&u(41)!=5&&u(41)!=6&&!lifeTap)
         unavailable("This power system is not implemented");
     if(lifeTap)d.resourceType=0; // no cost: health is spent by the effect itself
-    if(!creatureCaster&&d.spellFamily==15){bool periodic=false;const auto ap=localDeathKnightApBonus(d.id,periodic);(periodic?d.periodicApPer100k:d.apBonusPer100k)=ap;}
+    if(!creatureCaster&&(d.spellFamily==15||d.spellFamily==9)){bool periodic=false;const auto ap=localSpellApBonus(d.id,periodic);(periodic?d.periodicApPer100k:d.apBonusPer100k)=ap;}
     if(u(226)) {
         const auto runeRow=ClientSpellTables::lookup(t.runeCostIndex,u(226));
         if(runeRow<0) unavailable("SpellRuneCost record missing or incompatible");
@@ -1318,6 +1318,9 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if(i(68)>=0) {
         if(i(68)!=2&&i(68)!=4)unavailable("Unsupported spell equipment class");
         else {d.requiredItemClass=int8_t(i(68));d.requiredItemSubclasses=u(69);d.requiredInventoryTypes=u(70);}
+    // SpellInfo::IsRangedWeaponSpell: a ranged weapon requirement (bow, gun,
+    // crossbow, thrown) makes a hunter spell's attack-power term ranged.
+    d.apBonusRanged=!creatureCaster&&d.spellFamily==9&&d.requiredItemClass==2&&(d.requiredItemSubclasses&((1u<<2)|(1u<<3)|(1u<<16)|(1u<<18)));
     }
     for(uint32_t reagent=0;reagent<8;++reagent) if(i(52+reagent)>0) {
         if(creatureCaster||i(60+reagent)<=0||i(60+reagent)>200)unavailable("Spell reagents are not implemented");
@@ -1506,6 +1509,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         if(confuseControl&&type==6&&u(95+effect)==33&&u(86+effect)==6&&!u(89+effect)&&!u(116+effect))continue;
         if(confuseControl&&type==6&&u(95+effect)==56&&effect==1){d.controlTransformEntry=u(110+effect);continue;} // Polymorph's model
         if(fearControl&&effect==1)continue; // Fear's run speed (verified above).
+        // Steady Shot: its second effect is the dazed-target bonus, a DUMMY with
+        // no target the hunter branch of EffectSchoolDMG reads; creatures are
+        // never dazed by a hunter here, so only the weapon terms are taken.
+        if(!creatureCaster&&d.spellFamily==9&&(d.spellFamilyFlags[1]&0x1u)&&effect==1&&type==3&&!u(87)&&u(71)==2){d.steadyShot=true;continue;}
         // Strangulate: an empty dummy aura (no script at the pin) beside the silence.
         if(!creatureCaster&&d.id==47476&&type==6&&u(95+effect)==4&&!i(80+effect)&&!u(74+effect))continue;
         // Empower Rune Weapon: two ACTIVATE_RUNE effects whose 47568 branch

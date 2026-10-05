@@ -471,13 +471,19 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
-            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39}, {1, 8, "Polymorph", 40}, {4, 11, "Entangling Roots", 41}, {1, 6, "Icy Touch", 42}, {1, 6, "Plague Strike", 42}, {1, 6, "Blood Boil", 0}, {1, 6, "Death Coil", 0}, {1, 6, "Death Grip", 43}, {1, 6, "Pestilence", 44}, {1, 6, "Anti-Magic Shell", 45}, {1, 6, "Raise Dead", 46}, {1, 6, "Empower Rune Weapon", 47}, {1, 6, "Strangulate", 1},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39}, {1, 8, "Polymorph", 40}, {4, 11, "Entangling Roots", 41}, {1, 6, "Icy Touch", 42}, {1, 6, "Plague Strike", 42}, {1, 6, "Blood Boil", 0}, {1, 6, "Death Coil", 0}, {1, 6, "Death Grip", 43}, {1, 6, "Pestilence", 44}, {1, 6, "Anti-Magic Shell", 45}, {1, 6, "Raise Dead", 46}, {1, 6, "Empower Rune Weapon", 47}, {1, 6, "Strangulate", 1}, {3, 3, "Steady Shot", 0},
         };
         size_t passed = 0;
         // Incinerate carries the Immolate bonus (a quarter more on an Immolated target).
         if (const auto inc = std::find_if(clientSpells->begin(), clientSpells->end(), [](const auto& d) { return d.id == 47838; });
             inc == clientSpells->end() || !inc->immolateBonus || !inc->unsupportedReason.empty()) {
             out << "FAIL class ability Incinerate: no Immolate bonus\n"; return false; }
+        // Hunter shots take spell_bonus_data's ranged attack power share; Steady
+        // Shot adds the ranged weapon's roll and its ammunition.
+        for (const auto& [id, per100k, steady] : {std::tuple{49052u, 10000u, true}, std::tuple{49045u, 15000u, false}}) {
+            const auto it = std::find_if(clientSpells->begin(), clientSpells->end(), [&](const auto& d) { return d.id == id; });
+            if (it == clientSpells->end() || !it->unsupportedReason.empty() || it->apBonusPer100k != per100k || !it->apBonusRanged || it->steadyShot != steady) {
+                out << "FAIL class ability hunter shot " << id << ": ranged attack power terms " << (it == clientSpells->end() ? std::string("missing") : it->unsupportedReason + " ap " + std::to_string(it->apBonusPer100k) + " ranged " + std::to_string(it->apBonusRanged) + " steady " + std::to_string(it->steadyShot) + " itemClass " + std::to_string(int(it->requiredItemClass)) + " sub " + std::to_string(it->requiredItemSubclasses)) << "\n"; return false; } }
         // A level 1 shaman's Healing Wave (ranks 1-10 aim at the chain-heal ally target with no chain).
         if (const auto hw = std::find_if(clientSpells->begin(), clientSpells->end(), [](const auto& d) { return d.id == 331; });
             hw == clientSpells->end() || !hw->unsupportedReason.empty() || !hw->heal) {
