@@ -250,9 +250,13 @@ LocalMeleeStats localMeleeStats(const LocalRealmPlayer& p,const LocalWorldConten
     // does (aura 137; SpellAuraEffects.cpp:1350-1445 casts them on entry), so
     // the two multipliers compose in one truncation, the way the source's
     // single UNIT_FIELD_STAT write does.
+    // A class buff's MOD_TOTAL_STAT_PERCENTAGE (Blessing of Kings): the strongest one.
+    int32_t buffStatPct=0;
+    for(const auto& a:p.statAuras)if(a.remainingMs&&a.mapId==p.mapId&&a.instanceId==p.instanceId)
+        if(const auto* d=c.spell(a.spellId);d&&d->classBuff)buffStatPct=std::max(buffStatPct,d->classBuffStatPct);
     for(size_t i=0;i<s.attributes.size();++i)
         s.attributes[i]=int32_t(std::clamp(float(s.attributes[i])*localTalentTotalStatMultiplier(p,c,i)*
-                                           localFormBoostStatMultiplier(p,c,i),0.f,1000000.f));
+                                           localFormBoostStatMultiplier(p,c,i)*(1.f+float(buffStatPct)/100.f),0.f,1000000.f));
     const auto str=s.attributes[0],agi=s.attributes[1];
     const auto* form=localActiveForm(p);const bool druidFeral=form&&(form->form==1||form->form==5||form->form==8);
     const bool feral=druidFeral||(form&&form->form==16);

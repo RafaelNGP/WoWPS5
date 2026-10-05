@@ -1469,6 +1469,9 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 else if(au==61&&(d.id==2825||d.id==32182)){} // their MOD_SCALE: the model's size only
                 else if(au==140&&u(86+e)==1&&!misc&&amount>0&&amount<=100)percentage=true; // Rapid Fire
                 else if(au==66&&u(86+e)==1&&d.spellFamily==9)percentage=true; // Feign Death
+                else if(au==137&&misc==-1&&amount>0&&amount<=100)percentage=true; // Blessing of Kings
+                else if(au==166&&!amount){} // Kings' empty attack power percent
+                else if(au==85&&!misc&&amount>0&&amount<=100000)percentage=true; // Blessing of Wisdom: mana per 5
                 else if(au==21&&u(86+e)==1&&!misc&&amount>0&&amount<=100&&u(98+e)>=1000&&u(98+e)<5000)percentage=true; // Viper: mana %
                 else modelled=false;
             }
@@ -1690,6 +1693,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if((d.id==2825||d.id==32182)&&amount>0&&amount<=100){if(au==192)d.classBuffMeleeRangedHastePct=amount;else if(au==65)d.classBuffCastSpeedPct=amount;}
             if(au==140&&tg==1&&!misc&&amount>0&&amount<=100)d.classBuffRangedHastePct=amount; // Rapid Fire
             if(au==66&&tg==1&&d.spellFamily==9)d.classBuffFeignDeath=true; // Feign Death
+            if(au==137&&misc==-1&&amount>0&&amount<=100)d.classBuffStatPct=amount; // Blessing of Kings
+            if(au==85&&!misc&&amount>0&&amount<=100000&&!d.manaPer5)d.manaPer5=uint32_t(amount); // Blessing of Wisdom
             if(d.id==48707&&misc==126&&amount>0&&amount<=100){ // Anti-Magic Shell: its absorb pool and aura immunity
                 if(au==69){d.magicShellAbsorbPct=uint8_t(amount);d.buffAbsorb=1;d.absorbSchoolMask=126;}
                 else if(au==267){d.magicShellHealthPct=uint8_t(amount);d.classBuffAuraImmunitySchool=126;}

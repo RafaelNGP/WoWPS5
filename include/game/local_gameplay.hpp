@@ -1494,6 +1494,8 @@ struct LocalSpellDefinition {
     // 53407): needs an active seal (AURA_STATE_JUDGEMENT), unleashes it on the
     // target and lays this debuff there (20185, 20186, 20184).
     uint32_t judgementDebuff = 0;
+    // SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE (137) on every stat (Blessing of Kings).
+    int32_t classBuffStatPct = 0;
     // Death Grip (spell_dk_death_grip on 49576): the creature is pulled in
     // front of the knight (49560's jump, 57604), its cast stops, and it is
     // taunted (49560's MOD_TAUNT and SPELL_EFFECT_ATTACK_ME).

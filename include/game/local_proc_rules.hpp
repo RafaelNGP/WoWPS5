@@ -350,7 +350,9 @@ inline bool validLocalProcDefinition(const LocalSpellDefinition& d,const LocalPr
        d.durationMs>3600000 || d.absorbSchoolMask!=127 || d.passive ||
        d.buffHealth || d.buffArmor || d.damage || d.heal || d.periodicDamage || d.periodicHeal))return false;
     if(p.effect==LocalProcEffect::Ignite)return d.passive&&d.talentId==34&&d.talentRank>=1&&d.talentRank<=5&&d.allowableClasses==128&&!d.durationMs&&p.amount==8u*d.talentRank&&validLocalIgniteProc(p);
-    if(p.effect==LocalProcEffect::None)return !p.spellId&&!p.flags&&!p.charges&&!p.chance&&!p.cooldownMs&&!d.manaPer5&&
+    // A timed class buff's own mana per 5 (Blessing of Wisdom, aura 85) needs no proc.
+    if(p.effect==LocalProcEffect::None)return !p.spellId&&!p.flags&&!p.charges&&!p.chance&&!p.cooldownMs&&
+        (!d.manaPer5||(d.classBuff&&!d.passive&&d.durationMs&&d.durationMs<=3600000&&d.manaPer5<=100000))&&
         !p.amount&&!p.baseLevel&&!p.maxLevel&&!p.schoolMask&&!p.spellFamily&&
         !(p.spellFamilyFlags[0]|p.spellFamilyFlags[1]|p.spellFamilyFlags[2])&&!p.amountPerLevel&&!p.range&&
         !p.triggerSchoolMask&&!p.triggerSpellFamily&&!(p.triggerSpellFamilyFlags[0]|p.triggerSpellFamilyFlags[1]|p.triggerSpellFamilyFlags[2])&&
