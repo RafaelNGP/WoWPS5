@@ -439,6 +439,14 @@
         // the aura does not land (SPELL_MISS_IMMUNE).
         uint32_t duration=d.durationMs;
         auto drGroup=LocalDiminishingGroup::None;
+        // SPELL_AURA_MOD_IMMUNE_AURA_APPLY_SCHOOL (Anti-Magic Shell): no new aura
+        // of a school the holder's class buff names lands on it.
+        for(const auto& a:target.statAuras)if(a.remainingMs)if(const auto* bd=content->spell(a.spellId);bd&&bd->classBuff&&
+            (bd->classBuffAuraImmunitySchool&d.schoolMask)&&!(d.schoolMask&~uint32_t(bd->classBuffAuraImmunitySchool))) {
+            if(reportHit){hit.outcome=LocalMeleeOutcome::Immune;emitCombatEvent(hit,players);}
+            LOG_INFO("[LOCAL_NPC_AURA] immune (school aura) npc=",n.guid," spell=",d.id," target=",target.guid);
+            return LocalMeleeOutcome::Immune;
+        }
         if(d.npcPlayerControl&&d.mechanic&&d.mechanic<32) {
             // Unit::IsImmunedToSpellEffect: a class buff's mechanic immunity
             // (Fear Ward). A one-charge immunity is spent by the immune hit.

@@ -1234,6 +1234,9 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     d.baseLevel=u(38);d.maxLevel=u(37);d.cooldownMs=u(29);d.cooldownCategory=u(1);d.categoryCooldownMs=u(30);d.globalCooldownMs=u(206);
     // A creature takes no ordinary spell cooldown at the pin (Spell::SendSpellCooldown
     // returns before adding one), so its category metadata is not checked.
+    // A category recovery without a category (Anti-Magic Shell) is never
+    // applied by the reference (Spell::SendSpellCooldown keys it by category).
+    if(!creatureCaster&&d.id==48707&&d.categoryCooldownMs&&!d.cooldownCategory)d.categoryCooldownMs=0;
     if(d.cooldownCategory>100000||d.spellFamily>1000||(!creatureCaster&&d.categoryCooldownMs&&!d.cooldownCategory))unavailable("Invalid spell cooldown category metadata");
     if(d.resourceType==1||d.resourceType==6) d.mana=(d.mana+9)/10; // displayed rage/runic units
     // Life Tap: POWER_HEALTH with no cost, one DUMMY effect on the caster and
@@ -1455,6 +1458,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 else if(au==149&&u(86+e)==1&&misc==127&&amount>0&&amount<=100)percentage=true; // Barkskin: no pushback
                 else if(au==42&&inertProc){} // Barkskin's proc: chance 0, no spell_proc row
                 else if(au==4&&!amount&&d.id==48792){} // Icebound Fortitude's empty dummy
+                else if((au==69||au==267)&&d.id==48707&&misc==126&&amount>0&&amount<=100)percentage=true; // Anti-Magic Shell
                 else if(au==21&&u(86+e)==1&&!misc&&amount>0&&amount<=100&&u(98+e)>=1000&&u(98+e)<5000)percentage=true; // Viper: mana %
                 else modelled=false;
             }
@@ -1603,6 +1607,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(au==39&&misc>0&&misc<=127)d.classBuffSchoolImmunity|=uint8_t(misc); // Divine Shield, Hand of Protection
             if(au==77&&localControlMechanic(misc))d.classBuffMechanicImmunity|=1u<<misc; // Fear Ward
             if(au==149&&tg==1&&misc==127&&amount>0&&amount<=100)d.classBuffPushbackPct=uint8_t(amount); // Barkskin
+            if(d.id==48707&&misc==126&&amount>0&&amount<=100){ // Anti-Magic Shell: its absorb pool and aura immunity
+                if(au==69){d.magicShellAbsorbPct=uint8_t(amount);d.buffAbsorb=1;d.absorbSchoolMask=126;}
+                else if(au==267){d.magicShellHealthPct=uint8_t(amount);d.classBuffAuraImmunitySchool=126;}
+            }
             if(au==21&&tg==1&&!misc&&amount>0&&amount<=100&&u(98+effect)>=1000&&u(98+effect)<5000){d.classBuffManaPct=uint8_t(amount);d.classBuffManaIntervalMs=u(98+effect);}
             // Divine Shield's damage done and Divine Protection's damage taken.
             if(!presenceSpell&&tg==1&&misc==127&&amount<0&&amount>-100){if(au==79)d.classBuffDamagePct+=amount;else if(au==87)d.classBuffDamageTakenPct+=amount;}

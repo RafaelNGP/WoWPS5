@@ -2925,7 +2925,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);}hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);}hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -4842,7 +4842,7 @@ void LocalGameplay::initializePlayer(LocalRealmPlayer& p, bool fresh, uint8_t fo
                 }
                 hydrateLegacyLocalProcAmount(aura,p,*d);
                 aura.stacks=std::min(aura.stacks,d->maxAuraStacks);
-                aura.absorbRemaining=std::min(aura.absorbRemaining,d->wardProfile||d->buffAbsorbPerLevel!=0.f?1000000u:localStackedAuraAmount(d->buffAbsorb,aura.stacks));
+                aura.absorbRemaining=std::min(aura.absorbRemaining,d->wardProfile||d->buffAbsorbPerLevel!=0.f||d->magicShellHealthPct?1000000u:localStackedAuraAmount(d->buffAbsorb,aura.stacks));
                 if(d->buffAbsorb&&!aura.absorbRemaining)aura.remainingMs=0;
                 aura.procCharges=std::min(aura.procCharges,d->proc.charges);
                 aura.procCooldownMs=std::min(aura.procCooldownMs,d->proc.cooldownMs);
@@ -7447,7 +7447,8 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
             uint64_t(d->buffArmor)*uint32_t(100+localTalentCastModifier(p,c,*d,8,true))/100));
         if(buffSlot<healed->statAuras.size())
             a.stacks=nextLocalAuraStack(healed->statAuras[buffSlot].spellId,healed->statAuras[buffSlot].stacks,*d);
-        a.absorbRemaining=d->wardProfile?localWardAbsorbAmount(p,c,*d):d->buffAbsorbPerLevel!=0.f?
+        a.absorbRemaining=d->magicShellHealthPct?uint32_t(uint64_t(healed->maxHealth)*d->magicShellHealthPct/100):
+            d->wardProfile?localWardAbsorbAmount(p,c,*d):d->buffAbsorbPerLevel!=0.f?
             localStackedAuraAmount(scaledSpellAmount(p,*d,d->buffAbsorb,d->buffAbsorb,d->buffAbsorbPerLevel),a.stacks):localStackedAuraAmount(d->buffAbsorb,a.stacks);
         a.reflectChanceBasisPointsSnapshot=d->wardProfile?localWardReflectChanceBasisPoints(p,c,*d):0;
         a.procCharges=d->proc.charges;
@@ -7891,7 +7892,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
             else {
                 const auto activeMs=std::min(elapsedMs,a.remainingMs);
                 a.stacks=std::min(a.stacks,d->maxAuraStacks);if(!(d->classBuff&&d->indefiniteDuration))a.remainingMs-=activeMs;
-                a.absorbRemaining=std::min(a.absorbRemaining,d->wardProfile||d->buffAbsorbPerLevel!=0.f?1000000u:localStackedAuraAmount(d->buffAbsorb,a.stacks));
+                a.absorbRemaining=std::min(a.absorbRemaining,d->wardProfile||d->buffAbsorbPerLevel!=0.f||d->magicShellHealthPct?1000000u:localStackedAuraAmount(d->buffAbsorb,a.stacks));
                 if(d->buffAbsorb&&!a.absorbRemaining){a.remainingMs=0;continue;}
                 a.procCharges=std::min(a.procCharges,d->proc.charges);
                 a.procCooldownMs-=std::min(elapsedMs,a.procCooldownMs);

@@ -41,10 +41,16 @@ inline uint32_t localAbsorbDamage(LocalRealmPlayer& p,const LocalWorldContent& c
            unsigned(d->manaPerAbsorbMilli!=0)!=category)continue;
         // Wards store the caster-scaled absorb amount at application time.
         // Clamping that snapshot to raw DBC base points would erase spell power.
-        const auto absorbLimit=d->wardProfile||d->buffAbsorbPerLevel!=0.f?1000000u:
+        const auto absorbLimit=d->wardProfile||d->buffAbsorbPerLevel!=0.f||d->magicShellHealthPct?1000000u:
             localStackedAuraAmount(d->buffAbsorb,std::min(a.stacks,d->maxAuraStacks));
         a.absorbRemaining=std::min(a.absorbRemaining,absorbLimit);
         auto absorbed=std::min(damage,a.absorbRemaining);
+        // Anti-Magic Shell: only its percent of each hit, and 20% of what it
+        // absorbs back as runic power (displayed units: the reference's tenths / 10).
+        if(d->magicShellAbsorbPct){
+            absorbed=std::min(a.absorbRemaining,uint32_t(uint64_t(damage)*d->magicShellAbsorbPct/100));
+            if(p.resourceType==LocalResourceType::RunicPower)p.mana=std::min(p.maxMana,p.mana+absorbed*20/100/10);
+        }
         if(d->manaPerAbsorbMilli && absorbed) {
             if(p.resourceType!=LocalResourceType::Mana)continue;
             // The reference truncates mana cost per hit, then proportionally

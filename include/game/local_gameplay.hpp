@@ -1403,6 +1403,11 @@ struct LocalSpellDefinition {
     // Pestilence (spell_dk_pestilence): the knight's diseases on the target
     // are cast on every other enemy within this radius of it (effect 2's).
     float pestilenceRadius = 0;
+    // Anti-Magic Shell (spell_dk_anti_magic_shell_self): a pool of this share
+    // of maximum health, each magic hit absorbed up to this percent of it,
+    // 20% of what it absorbs returned as runic power; and no new aura of these
+    // schools lands on the holder (SPELL_AURA_MOD_IMMUNE_AURA_APPLY_SCHOOL).
+    uint8_t magicShellAbsorbPct = 0, magicShellHealthPct = 0, classBuffAuraImmunitySchool = 0;
     // SPELL_AURA_REDUCE_PUSHBACK (149) on a class buff (Barkskin): percent.
     uint8_t classBuffPushbackPct = 0;
     // An absorb shield's RealPointsPerLevel (Ice Barrier): the amount is the
