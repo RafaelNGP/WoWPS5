@@ -8004,6 +8004,10 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // the buff nor a new marker; the cast itself still happens.
     const bool skipHeld=healed&&std::any_of(d->skipIfHoldsAuras.begin(),d->skipIfHoldsAuras.end(),[&](uint32_t id){return id&&localHoldsStatAura(*healed,id);});
     if(buff&&!skipHeld){
+        // A paladin's other blessing on this target goes (spell_group 1010).
+        if(localPaladinBlessing(*d))std::erase_if(healed->statAuras,[&](const auto& a){
+            const auto* od=c.spell(a.spellId);
+            return a.casterGuid==p.guid&&a.spellId!=d->id&&od&&localPaladinBlessing(*od)&&!localSameRankChain(c,*od,*d);});
         // Cast-phase charge removal and direct-hit procs may erase or append
         // aura entries. Resolve the reserved buff by identity again, never by
         // an index captured before those callbacks.

@@ -682,6 +682,16 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     const bool kings = sd && sd->classBuffStatPct == 10;
                     const auto before = meleeBefore.attributes[0], after = meleeAfter.attributes[0];
                     ok = ok && sd && held && (kings ? after >= before + before / 10 - 1 && after > before : sd->manaPer5 > 0);
+                    // One blessing per paladin: Kings then Wisdom leaves only Wisdom.
+                    if (ok && kings) {
+                        uint32_t wisdom = 0; for (auto k : p.knownSpells) if (const auto* kd = content.spell(k); kd && kd->name == "Blessing of Wisdom" && kd->unsupportedReason.empty()) wisdom = k;
+                        p.globalCooldownMs = 0; p.mana = p.maxMana; std::string again;
+                        const bool cast = wisdom && arena.execute(p, {LocalAction::CastSpell, p.guid, wisdom}, players, again);
+                        bool kingsHeld = false, wisdomHeld = false;
+                        for (const auto& st : p.statAuras) if (st.remainingMs) { kingsHeld |= st.spellId == spellId; wisdomHeld |= st.spellId == wisdom; }
+                        ok = cast && wisdomHeld && !kingsHeld;
+                        if (!ok) result = "after Wisdom: kings " + std::to_string(kingsHeld) + " wisdom " + std::to_string(wisdomHeld) + " (" + again + ")";
+                    }
                     if (!ok) result = "held " + std::to_string(held) + " strength " + std::to_string(before) + "->" + std::to_string(after) + " mp5 " + std::to_string(sd ? sd->manaPer5 : 0) + " (" + result + ")";
                 }
                 if (a.kind == 51) {

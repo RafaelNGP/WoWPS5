@@ -1548,6 +1548,14 @@ struct LocalSpellDefinition {
 
     std::string iconPath, unsupportedReason;
 };
+// spell_group 1010 "Blessings" (SPELL_GROUP_STACK_RULE_EXCLUSIVE_FROM_SAME_
+// CASTER) over its groups 1002 Might, 1005 Wisdom, 1006 Kings, 1007
+// Sanctuary: one blessing of a paladin's on a target, keyed by first rank.
+inline bool localPaladinBlessing(const LocalSpellDefinition& d) {
+    const auto first=d.firstRankSpell?d.firstRankSpell:d.id;
+    for(uint32_t id:{19740u,25782u,56520u,19742u,25894u,56521u,20217u,25898u,20911u,25899u})if(first==id)return true;
+    return false;
+}
 // The charges an aura starts with: its proc's, or a class buff's hit charges.
 inline uint8_t localAuraChargeCap(const LocalSpellDefinition& d) { return d.proc.charges ? d.proc.charges : d.classBuffHitCharges; }
 struct LocalQuestObjective {
