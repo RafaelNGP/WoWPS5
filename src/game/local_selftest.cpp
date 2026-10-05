@@ -401,7 +401,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // Strike (both at level 20, so the builder does not kill the enemy), 19
         // a cat opener: refused outside Prowl, then struck from Prowl, 20 a
         // presence held until another presence replaces it, 21 an offensive
-        // dispel at a creature with no buff (SPELL_FAILED_NOTHING_TO_DISPEL).
+        // dispel at a creature with no buff (SPELL_FAILED_NOTHING_TO_DISPEL), 22
+        // a slowing totem beside the enemy.
         struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
@@ -421,7 +422,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 2, "Cleanse", 16}, {4, 11, "Cure Poison", 16},
             {1, 4, "Rupture", 17}, {1, 4, "Slice and Dice", 18}, {4, 11, "Ravage", 19},
             {1, 6, "Death Strike", 0}, {1, 6, "Obliterate", 0}, {1, 6, "Death and Decay", 0}, {1, 6, "Chains of Ice", 1},
-            {1, 6, "Blood Presence", 20}, {11, 7, "Purge", 21},
+            {1, 6, "Blood Presence", 20}, {11, 7, "Purge", 21}, {11, 7, "Earthbind Totem", 22},
         };
         size_t passed = 0;
         for (const auto& a : abilities) {
@@ -574,7 +575,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     p.mana = p.maxMana; p.globalCooldownMs = 0;
                     if (!p.comboPoints) { last = "no combo points from Sinister Strike (" + result + ")"; continue; }
                 }
-                if (!arena.execute(p, {LocalAction::CastSpell, a.kind == 15 || a.kind == 18 ? p.guid : foeGuid, spellId}, players, result)) {
+                if (!arena.execute(p, {LocalAction::CastSpell, a.kind == 15 || a.kind == 18 || a.kind == 22 ? p.guid : foeGuid, spellId}, players, result)) {
                     last = result;
                     if (a.kind == 21 && result.find("Nothing to dispel") != std::string::npos) { landed = true; break; }
                     if (std::getenv("ABILITY_VERBOSE")) out << "  " << a.name << " attempt " << attempt << ": " << result << " form=" << p.formSpellId << "\n";
@@ -604,6 +605,12 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 else if (a.kind == 6) landed = p.lastCastSpellId == spellId && after && std::hypot(after->x - p.x, after->y - p.y) < 6 &&
                                           p.mana > 0 && p.attackTarget == foeGuid;
                 else if (a.kind == 1) landed = p.lastCastSpellId == spellId;
+                else if (a.kind == 22) {
+                    const auto* t = content.totem(spellId);
+                    for (int i = 0; i < 20 && !landed; ++i) { arena.tick(0.05f, players);
+                        for (const auto& v : arena.npcs()) if (v.guid == foeGuid) for (const auto& s : v.snares) if (t && s.spellId == t->snareSpell) landed = true; }
+                    if (!landed) result = "the enemy beside the totem is not slowed";
+                }
                 else if (a.kind == 18) {
                     uint32_t held = 0; for (const auto& s : p.statAuras) if (s.spellId == spellId) held = s.remainingMs;
                     landed = !p.comboPoints && held > 6000;
@@ -627,7 +634,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, Prowl, presences, offensive dispels, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, Prowl, presences, offensive dispels, slowing totems, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.

@@ -2126,7 +2126,7 @@ struct LocalGameplay::Impl {
         const float angle=owner.orientation+kCorner[t->element&3];
         s.x=owner.x+2.f*std::cos(angle);s.y=owner.y+2.f*std::sin(angle);s.z=owner.z;s.orientation=owner.orientation;
         // An aura totem reaches its party at once; the others pulse after a period.
-        s.attackTimer=t->kind==LocalWorldContent::TotemKind::Aura||t->kind==LocalWorldContent::TotemKind::Attack?0.f:s.attackPeriodMs/1000.f;
+        s.attackTimer=t->kind==LocalWorldContent::TotemKind::Aura||t->kind==LocalWorldContent::TotemKind::Attack||t->kind==LocalWorldContent::TotemKind::PulseSnare?0.f:s.attackPeriodMs/1000.f;
         s.name=d.name;
         if(!validLocalPet(s))return false;
         pets.push_back(std::move(s));
@@ -2724,6 +2724,15 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         if(a.name.size()>6&&a.name.ends_with(" Totem"))a.name.resize(a.name.size()-6);
         a.classBuff=true;a.buffSelfOnly=true;a.durationMs=kLocalTotemAuraLeaseMs;
         a.classBuffStats=t.stats;a.classBuffArmor=int32_t(t.armor);a.manaPer5=t.mp5;
+        sorted.push_back(std::move(a));
+    }
+    // A slowing totem's area slow (Earthbind), held by the creatures it reaches.
+    for(const auto& t:c.totems)if(t.kind==LocalWorldContent::TotemKind::PulseSnare&&
+        !std::any_of(sorted.begin(),sorted.end(),[&](const auto& d){return d.id==t.snareSpell;})) {
+        LocalSpellDefinition a;a.id=t.snareSpell;a.clientSpell=true;a.allowableClasses=1u<<6;a.triggeredOnly=true;a.maxAuraStacks=1;
+        for(const auto& d:sorted)if(d.id==t.spellId){a.name=d.name;a.spellFamily=d.spellFamily;break;}
+        if(a.name.size()>6&&a.name.ends_with(" Totem"))a.name.resize(a.name.size()-6);
+        a.snarePercent=t.snarePct;a.durationMs=t.snareMs;
         sorted.push_back(std::move(a));
     }
     std::sort(sorted.begin(),sorted.end(),[](const auto& a,const auto& b){return a.id<b.id;});
@@ -3418,6 +3427,15 @@ bool LocalGameplay::tickTotem(LocalRealmPet& totem, LocalRealmPlayer& owner, uin
         for(auto& n:g.npcs)if(!n.dead&&n.health&&n.mapId==totem.mapId&&n.instanceId==totem.instanceId&&canAttack(owner,n)&&near(n.x,n.y,n.z,t->radius))
             {g.damageNpcByTotem(n,totem,owner,roll(),t->castSpell,t->school,players);changed=true;}
         break;
+    case LocalWorldContent::TotemKind::PulseSnare:
+        if(c.spell(t->snareSpell))for(auto& n:g.npcs)if(!n.dead&&n.health&&!n.transportEntry&&n.mapId==totem.mapId&&n.instanceId==totem.instanceId&&
+            canAttack(owner,n)&&near(n.x,n.y,n.z,t->radius)) {
+            auto it=std::find_if(n.snares.begin(),n.snares.end(),[&](const auto& s){return s.spellId==t->snareSpell&&s.casterGuid==owner.guid;});
+            if(it!=n.snares.end()){it->remainingMs=t->snareMs;it->casterRevision=owner.positionRevision;continue;}
+            if(n.snares.size()>=kLocalMaxNpcSnares)continue;
+            n.snares.push_back({t->snareSpell,t->snareMs,owner.guid,t->snarePct,owner.positionRevision});changed=true;
+        }
+        break;
     case LocalWorldContent::TotemKind::PulseHeal:
         for(auto* p:group)if(p->health<p->maxHealth) {
             const auto attempted=localPlayerHealingTaken(*p,roll());
@@ -3664,8 +3682,13 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
                 t.element=uint8_t(number(v,"element",0,3));t.level=uint8_t(number(v,"level",0,80));
                 const auto kind=label(v,"kind",16);
                 t.kind=kind=="attack"?LocalWorldContent::TotemKind::Attack:kind=="pulseDamage"?LocalWorldContent::TotemKind::PulseDamage:
-                    kind=="pulseHeal"?LocalWorldContent::TotemKind::PulseHeal:kind=="aura"?LocalWorldContent::TotemKind::Aura:LocalWorldContent::TotemKind{};
-                if(t.kind!=LocalWorldContent::TotemKind::Aura){t.low=number(v,"low",0,100000);t.high=number(v,"high",t.low,100000);if(t.high<t.low||!t.low)throw std::runtime_error("Invalid totem amount");}
+                    kind=="pulseHeal"?LocalWorldContent::TotemKind::PulseHeal:kind=="aura"?LocalWorldContent::TotemKind::Aura:
+                    kind=="pulseSnare"?LocalWorldContent::TotemKind::PulseSnare:LocalWorldContent::TotemKind{};
+                if(t.kind==LocalWorldContent::TotemKind::PulseSnare) {
+                    t.snareSpell=number(v,"snareSpell",0,UINT32_MAX);t.snarePct=uint8_t(number(v,"snarePct",0,99));t.snareMs=number(v,"snareMs",0,600000);
+                    if(!t.snareSpell||!t.snarePct||!t.snareMs)throw std::runtime_error("Invalid totem slow");
+                }
+                else if(t.kind!=LocalWorldContent::TotemKind::Aura){t.low=number(v,"low",0,100000);t.high=number(v,"high",t.low,100000);if(t.high<t.low||!t.low)throw std::runtime_error("Invalid totem amount");}
                 if(t.kind==LocalWorldContent::TotemKind::Attack)t.range=real(v,"range",0,1,100);
                 else t.radius=real(v,"radius",0,1,100);
                 if(t.kind==LocalWorldContent::TotemKind::Attack||t.kind==LocalWorldContent::TotemKind::PulseDamage)t.school=uint8_t(number(v,"school",0,6));

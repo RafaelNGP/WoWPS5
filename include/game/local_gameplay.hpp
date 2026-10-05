@@ -2065,9 +2065,10 @@ struct LocalWorldContent {
         return it!=mendPetRanks.end()&&it->spellId==spellId?&*it:nullptr;
     }
     /// Shaman totems (totems.json): what each totem summon rank puts down.
-    enum class TotemKind : uint8_t { Attack=1, PulseDamage=2, PulseHeal=3, Aura=4 };
+    enum class TotemKind : uint8_t { Attack=1, PulseDamage=2, PulseHeal=3, Aura=4, PulseSnare=5 };
     struct Totem {
-        uint32_t spellId=0,entry=0,displayId=0,castSpell=0,durationMs=0,periodMs=0,low=0,high=0,armor=0,mp5=0;
+        uint32_t spellId=0,entry=0,displayId=0,castSpell=0,durationMs=0,periodMs=0,low=0,high=0,armor=0,mp5=0,snareSpell=0,snareMs=0;
+        uint8_t snarePct=0;
         std::array<int32_t,5> stats{};
         float range=0,radius=0;
         uint8_t element=0,level=0,school=0;

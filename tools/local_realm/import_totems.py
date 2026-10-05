@@ -12,6 +12,7 @@ shapes are compiled:
   attack       a direct hit on one enemy (Searing Bolt): every cast, in range;
   pulseDamage  a periodic trigger of a caster-centred area hit (Magma Totem);
   pulseHeal    a periodic trigger of the party heal (Healing Stream);
+  pulseSnare   a periodic trigger of an area slow on enemies (Earthbind);
   aura         a party area aura of primary stats, armor or mana regeneration
                (Strength of Earth, Stoneskin, Mana Spring).
 
@@ -102,6 +103,9 @@ def main():
             elif tu[EFFECT] == 3 and tu[TARGET] == 20 and radius and string(tu[NAME]) == 'Healing Stream Totem':  # spell_sha_healing_stream_totem
                 low, high = amount(ts, 0)
                 row.update(kind='pulseHeal', low=low, high=high, periodMs=cu[AMPLITUDE], radius=radius)
+            elif tu[EFFECT] == 6 and tu[AURA] == 33 and tu[TARGET] in (22, 15) and radius and -100 < ts[BASE] + 1 < 0:
+                row.update(kind='pulseSnare', snareSpell=cu[TRIGGER], snarePct=-(ts[BASE] + 1),
+                           snareMs=max(0, durations.get(tu[DURATION], 0)), periodMs=cu[AMPLITUDE], radius=radius)
             else:
                 skipped[name] = f'periodic trigger {cu[TRIGGER]}'; continue
         elif cu[EFFECT] in (35, 65):
