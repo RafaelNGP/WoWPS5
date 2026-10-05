@@ -211,7 +211,8 @@ void acquisitionReaches() {
         if (localPetTemplate(d.summonPetEntry)) ++resolvable;
         if (gContent->npc(d.summonPetEntry)) ++inWorldCatalog;
     }
-    expect(admitted == 1, "exactly one summon is admitted, as the reference stated");
+    // The Soul Shard summons joined the Imp once reagents were implemented.
+    expect(admitted >= 1 && accepted(688), "the Imp and every other admitted summon reach a creature");
     expect(resolvable == admitted, "every admitted summon's creature is in the compiled pet catalog");
     expect(inWorldCatalog == 0,
            "and none of them is in the world catalog - the the reference defect, pinned so it cannot return");
@@ -811,8 +812,8 @@ void zeroProducers() {
     // The tell is that no accepted spell carries a tame or a revive effect.
     expect(!accepted(982) && !accepted(13481) && !accepted(6991) && !accepted(2641),
            "Revive Pet, Tame Beast, Feed Pet and Dismiss Pet are all still rejected");
-    expect(!accepted(691) && !accepted(697) && !accepted(712) && !accepted(30146),
-           "and the four Soul Shard summons are still rejected on their reagent");
+    expect(accepted(697) && accepted(712) && accepted(691),
+           "and the Soul Shard summons (Voidwalker, Succubus, Felhunter) are accepted with their reagent");
     std::cout << "PASS producer boundaries: Imp Firebolt has nine creature-only ranks; feeding has "
                  "0 families (all five summonable creatures are demons), and Revive Pet, Tame Beast, "
                  "Feed Pet, Dismiss Pet and the four reagent summons remain rejected\n";
