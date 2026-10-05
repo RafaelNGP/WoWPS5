@@ -82,6 +82,7 @@ inline PadPickupTarget padPickupTargetForName(std::string_view name) {
     // a pet or stance button is a different slot space with a different pickup,
     // and PickupAction on one of those numbers would move a real action.
     for (std::string_view prefix : {std::string_view("ActionButton"),
+                                    std::string_view("BonusActionButton"),
                                     std::string_view("MultiBarBottomLeftButton"),
                                     std::string_view("MultiBarBottomRightButton"),
                                     std::string_view("MultiBarRightButton"),

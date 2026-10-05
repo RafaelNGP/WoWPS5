@@ -319,8 +319,17 @@ LocalMeleeStats localMeleeStats(const LocalRealmPlayer& p,const LocalWorldConten
     s.hit+=float(views.hitChancePct);
     s.dodge=std::max(0.f,100*dodgeBase[idx]+s.base[1]*dodgeAgility+localFeralDodgePct(p,c)+diminish((agi-s.base[1])*dodgeAgility+bonus[1]+s.defense*.04f,dodgeCap[idx],k[idx])+float(views.dodgePct)+float(buffDodge));
     s.parry=canParry&&mh&&mh->itemClass==2&&!disarmed?std::max(0.f,5+diminish(bonus[2]+s.defense*.04f,parryCap[idx],k[idx])+float(views.parryPct)):0;
-    s.block=shield?std::max(0.f,5+bonus[3]+s.defense*.04f+float(views.blockPct)):0;s.blockValue=shield?uint32_t(std::max(int64_t(0),blockValue+oh->block+str/2-10)):0;
+    const bool shieldBlockActive=std::any_of(p.statAuras.begin(),p.statAuras.end(),[&](const auto& a){
+        if(a.remainingMs==0)return false;
+        if(a.spellId==2565)return true;
+        const auto* d=c.spell(a.spellId);
+        return d&&d->spellFamily==4&&(d->spellFamilyFlags[0]&0x1000u);
+    });
+    s.block=shield?(shieldBlockActive?100.f:std::max(0.f,5+bonus[3]+s.defense*.04f+float(views.blockPct))):0;
+    s.blockValue=shield?uint32_t(std::max(int64_t(0),blockValue+oh->block+str/2-10)):0;
+    if(shieldBlockActive)s.blockValue*=2;
     s.shieldBlockValue=uint32_t(std::max(int64_t(0),blockValue+(shield?int64_t(oh->block):0)+str/2-10));
+    if(shieldBlockActive)s.shieldBlockValue*=2;
     s.missBonus=diminish(s.defense*.04f,16,k[idx]);return s;
 }
 LocalSpellCritStats localSpellCritStats(const LocalRealmPlayer& p,const LocalWorldContent& c){

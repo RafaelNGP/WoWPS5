@@ -23,6 +23,12 @@ public:
     }
 
     [[nodiscard]] int getMainActionBarPage() const { return mainActionBarPage_; }
+    [[nodiscard]] int getEffectiveMainActionBarPage(uint32_t bonusBarOffset = 0) const {
+        if (mainActionBarPage_ == 1 && bonusBarOffset > 0) {
+            return 6 + static_cast<int>(bonusBarOffset);
+        }
+        return mainActionBarPage_;
+    }
     /// Told by the interface, which owns the page.
     void setMainActionBarPage(int page) {
         if (page >= 1 && page <= kFrameXmlActionBarPages) mainActionBarPage_ = page;

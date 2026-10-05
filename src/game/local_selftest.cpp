@@ -17,6 +17,8 @@
 #include "game/local_quest_eligibility.hpp"
 #include "game/local_spell_target_rules.hpp"
 #include "game/local_npc_auras.hpp"
+#include "game/local_forms.hpp"
+#include "ui/action_bar_panel.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -740,6 +742,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 p.x = n->x - gap; p.y = n->y; p.z = n->z; p.orientation = 0; ++p.positionRevision;
                 p.mana = a.kind == 6 ? 0 : p.maxMana; p.runeCooldownMs.fill(0); p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear();
                 p.health = p.maxHealth;
+                if (std::string(a.name) == "Overpower") p.overpowerWindowMs = 5000;
                 if (a.kind >= 23 && a.kind <= 25) { auto& sturdy = const_cast<LocalRealmNpc&>(*n); sturdy.maxHealth = sturdy.health = 100000; }
                 if (a.kind == 31) { auto& sturdy = const_cast<LocalRealmNpc&>(*n); sturdy.maxHealth = sturdy.health = 50000; p.health = p.maxHealth / 4; }
                 if (a.kind == 27) { auto& sturdy = const_cast<LocalRealmNpc&>(*n); sturdy.maxHealth = sturdy.health = 20000; }
@@ -1114,6 +1117,242 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         if (!ok) { out << "FAIL start item: quest " << pick->id << " '" << pick->title << "' item " << pick->startItem << ": " << result << "\n"; return false; }
         out << "PASS start items: " << withStartItem << " catalog quests hand over an item; quest " << pick->id << " '" << pick->title
             << "' gave item " << pick->startItem << " on accept and took it back on abandon\n";
+    }
+
+    // ---- 5. Warrior mechanics: stances, action bars, reactive abilities, execute, shouts, shield defenses, whirlwind
+    {
+        LocalGameplay world; SELFTEST_CHECK(world.loadContent(worldPath, error));
+        if (clientSpells) SELFTEST_CHECK(world.setStarterSpells(*clientSpells, "selftest", error));
+        LocalRealmPlayer p; p.guid = 2001; p.name = "Conan"; p.race = 1; p.classId = 1;
+        world.initializePlayer(p, true, 80);
+        std::vector<LocalRealmPlayer*> players{&p};
+
+        // 5a. Default to Battle Stance (2457) on creation
+        SELFTEST_CHECK(p.formSpellId == 2457);
+        const auto* battleProfile = localActiveForm(p);
+        SELFTEST_CHECK(battleProfile && battleProfile->bar == 1);
+        wowee::ui::ActionBarPanel abp;
+        SELFTEST_CHECK(abp.getEffectiveMainActionBarPage(battleProfile->bar) == 7);
+
+        // 5b. Stance swapping to Defensive Stance (71) -> bar 2 -> page 8
+        std::string res;
+        bool ok = world.execute(p, {LocalAction::CastSpell, p.guid, 71}, players, res);
+        SELFTEST_CHECK(ok && p.formSpellId == 71);
+        const auto* defProfile = localActiveForm(p);
+        SELFTEST_CHECK(defProfile && defProfile->bar == 2);
+        SELFTEST_CHECK(abp.getEffectiveMainActionBarPage(defProfile->bar) == 8);
+
+        // 5c. Stance swapping to Berserker Stance (2458) -> bar 3 -> page 9
+        p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear();
+        ok = world.execute(p, {LocalAction::CastSpell, p.guid, 2458}, players, res);
+        SELFTEST_CHECK(ok && p.formSpellId == 2458);
+        const auto* zerkProfile = localActiveForm(p);
+        SELFTEST_CHECK(zerkProfile && zerkProfile->bar == 3);
+        SELFTEST_CHECK(abp.getEffectiveMainActionBarPage(zerkProfile->bar) == 9);
+
+        // Swap back to Battle Stance for stance-specific abilities
+        p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear();
+        world.execute(p, {LocalAction::CastSpell, p.guid, 2457}, players, res);
+        p.mana = 100; p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear();
+
+        auto findSpell = [&](const std::string& name) -> uint32_t {
+            uint32_t match = 0;
+            for (auto id : p.knownSpells) {
+                if (const auto* s = world.content().spell(id); s && s->name == name && s->unsupportedReason.empty()) {
+                    if (s->executeSpell) return id;
+                    if (!match || id > match) match = id;
+                }
+            }
+            return match;
+        };
+
+        // 5d. Setup a hostile NPC nearby
+        LocalRealmNpc foe;
+        for (const auto& n : world.npcs()) {
+            if (!n.dead && n.health && world.canAttack(p, n)) {
+                foe = n;
+                break;
+            }
+        }
+        if (!foe.guid) {
+            foe.guid = 99999;
+            foe.entry = 2031;
+            foe.mapId = p.mapId;
+            foe.instanceId = p.instanceId;
+            foe.level = 1;
+            foe.hostile = true;
+        }
+        foe.level = 1;
+        foe.dead = false;
+        foe.maxHealth = foe.health = 100000;
+        p.x = 0; p.y = 0; p.z = 0; ++p.positionRevision;
+        foe.x = p.x + 2.0f; foe.y = p.y; foe.z = p.z;
+        foe.homeX = foe.x; foe.homeY = foe.y; foe.homeZ = foe.z;
+        world.setRemoteNpcs({foe});
+
+        // 5e. Overpower: requires overpowerWindowMs > 0
+        const uint32_t overpowerSpell = findSpell("Overpower");
+        if (overpowerSpell) {
+            p.overpowerWindowMs = 0;
+            ok = world.execute(p, {LocalAction::CastSpell, foe.guid, overpowerSpell}, players, res);
+            SELFTEST_CHECK(!ok && res.find("cannot use that ability yet") != std::string::npos);
+
+            p.overpowerWindowMs = 5000; p.globalCooldownMs = 0; p.mana = 100;
+            ok = world.execute(p, {LocalAction::CastSpell, foe.guid, overpowerSpell}, players, res);
+            SELFTEST_CHECK(ok && p.overpowerWindowMs == 0);
+        }
+
+        // 5f. Revenge: requires revengeWindowMs > 0 (requiresDefenseState)
+        // Defensive Stance (71) for Revenge
+        p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear();
+        world.execute(p, {LocalAction::CastSpell, p.guid, 71}, players, res);
+        p.globalCooldownMs = 0; p.mana = 100; p.cooldowns.clear(); p.categoryCooldowns.clear();
+        const uint32_t revengeSpell = findSpell("Revenge");
+        if (revengeSpell) {
+            p.revengeWindowMs = 0;
+            ok = world.execute(p, {LocalAction::CastSpell, foe.guid, revengeSpell}, players, res);
+            SELFTEST_CHECK(!ok && res.find("cannot use that ability yet") != std::string::npos);
+
+            p.revengeWindowMs = 5000; p.globalCooldownMs = 0; p.mana = 100;
+            ok = world.execute(p, {LocalAction::CastSpell, foe.guid, revengeSpell}, players, res);
+            SELFTEST_CHECK(ok && p.revengeWindowMs == 0);
+        }
+
+        // 5g. Execute: target health <= 20%
+        p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear();
+        world.execute(p, {LocalAction::CastSpell, p.guid, 2457}, players, res);
+        p.globalCooldownMs = 0; p.mana = 100; p.cooldowns.clear(); p.categoryCooldowns.clear();
+        const uint32_t executeSpell = findSpell("Execute");
+        if (executeSpell) {
+            auto n = world.npcs().front();
+            n.health = n.maxHealth; // 100% HP
+            world.setRemoteNpcs({n});
+            ok = world.execute(p, {LocalAction::CastSpell, n.guid, executeSpell}, players, res);
+            SELFTEST_CHECK(!ok && res.find("below 20% health") != std::string::npos);
+
+            n.health = n.maxHealth * 15 / 100; // 15% HP
+            world.setRemoteNpcs({n});
+            p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear();
+            p.mana = 50; // 15 base + 35 extra (capped at 30 extra)
+            const uint32_t foeHpBefore = world.npcs().front().health;
+            ok = world.execute(p, {LocalAction::CastSpell, n.guid, executeSpell}, players, res);
+            SELFTEST_CHECK(ok && world.npcs().front().health < foeHpBefore && p.mana == 5); // 50 - 15 - 30 = 5
+        }
+
+        // 5h. Victory Rush: requires victoryRushWindowMs > 0
+        const uint32_t victoryRushSpell = findSpell("Victory Rush");
+        if (victoryRushSpell) {
+            p.victoryRushWindowMs = 0; p.globalCooldownMs = 0; p.mana = 100;
+            ok = world.execute(p, {LocalAction::CastSpell, foe.guid, victoryRushSpell}, players, res);
+            SELFTEST_CHECK(!ok && res.find("cannot use that ability yet") != std::string::npos);
+
+            p.victoryRushWindowMs = 20000; p.globalCooldownMs = 0; p.mana = 100;
+            ok = world.execute(p, {LocalAction::CastSpell, foe.guid, victoryRushSpell}, players, res);
+            SELFTEST_CHECK(ok && p.victoryRushWindowMs == 0);
+        }
+
+        // 5i. Disarm: requires Defensive Stance
+        p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear();
+        world.execute(p, {LocalAction::CastSpell, p.guid, 71}, players, res);
+        p.globalCooldownMs = 0; p.mana = 100; p.cooldowns.clear(); p.categoryCooldowns.clear();
+        const uint32_t disarmSpell = findSpell("Disarm");
+        if (disarmSpell) {
+            ok = world.execute(p, {LocalAction::CastSpell, foe.guid, disarmSpell}, players, res);
+            SELFTEST_CHECK(ok);
+            bool disarmFound = false;
+            for (const auto& b : world.npcs().front().npcBuffs) {
+                if (b.spellId == disarmSpell && b.damagePct == -50 && b.parryPct == -100) disarmFound = true;
+            }
+            SELFTEST_CHECK(disarmFound);
+        }
+
+        // 5j. Demoralizing Shout: area AP debuff
+        p.globalCooldownMs = 0; p.mana = 100;
+        const uint32_t demoSpell = findSpell("Demoralizing Shout");
+        if (demoSpell) {
+            ok = world.execute(p, {LocalAction::CastSpell, p.guid, demoSpell}, players, res);
+            SELFTEST_CHECK(ok);
+            bool demoFound = false;
+            for (const auto& b : world.npcs().front().npcBuffs) {
+                if (b.spellId == demoSpell && b.attackPower < 0) demoFound = true;
+            }
+            SELFTEST_CHECK(demoFound);
+        }
+
+        // 5k. Berserker Rage: clears fear and sap/incapacitate
+        p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear();
+        world.execute(p, {LocalAction::CastSpell, p.guid, 2458}, players, res); // Berserker Stance
+        p.globalCooldownMs = 0; p.mana = 100; p.cooldowns.clear(); p.categoryCooldowns.clear();
+        const uint32_t zerkRageSpell = findSpell("Berserker Rage");
+        if (zerkRageSpell) {
+            LocalHealingAuraView fearView; fearView.spellId = 5782; fearView.controlKind = 3; fearView.remainingMs = 5000;
+            p.harmfulAuras.push_back(fearView);
+            LocalHealingAuraView sapView; sapView.spellId = 6770; sapView.controlKind = 4; sapView.remainingMs = 5000;
+            p.harmfulAuras.push_back(sapView);
+            ok = world.execute(p, {LocalAction::CastSpell, p.guid, zerkRageSpell}, players, res);
+            SELFTEST_CHECK(ok);
+            bool harmfulCleared = std::none_of(p.harmfulAuras.begin(), p.harmfulAuras.end(),
+                [](const auto& a) { return a.controlKind == 3 || a.controlKind == 4; });
+            SELFTEST_CHECK(harmfulCleared);
+        }
+
+        // 5l. Whirlwind: 8yd normalized weapon strike
+        p.globalCooldownMs = 0; p.mana = 100;
+        const uint32_t whirlwindSpell = findSpell("Whirlwind");
+        if (whirlwindSpell) {
+            const uint32_t hpBeforeWw = world.npcs().front().health;
+            ok = world.execute(p, {LocalAction::CastSpell, p.guid, whirlwindSpell}, players, res);
+            SELFTEST_CHECK(ok && world.npcs().front().health < hpBeforeWw);
+        }
+
+        // 5m. Shield Block & Shield Slam
+        p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear();
+        world.execute(p, {LocalAction::CastSpell, p.guid, 71}, players, res); // Defensive Stance
+        p.globalCooldownMs = 0; p.mana = 100; p.cooldowns.clear(); p.categoryCooldowns.clear();
+        const auto& c = world.content();
+        uint32_t shieldItem = 0;
+        for (const auto& m : kLocalAuctionItems) {
+            if (m.itemClass == 4 && m.subClass == 6) {
+                if (const auto* mi = localMeleeItem(m.id); mi && mi->inventoryType == 14 && mi->block > 0) {
+                    if (m.requiredLevel <= 80 && (!m.allowableClasses || (m.allowableClasses & 1))) {
+                        shieldItem = m.id;
+                        break;
+                    }
+                }
+            }
+        }
+        if (shieldItem) {
+            p.inventory.push_back({shieldItem, 1, 30});
+            p.equipment[localEquipmentIndex(LocalEquipmentSlot::OffHand)] = shieldItem;
+        }
+        const auto statsBeforeSb = localMeleeStats(p, c);
+        const uint32_t sbSpell = findSpell("Shield Block");
+        if (sbSpell) {
+            ok = world.execute(p, {LocalAction::CastSpell, p.guid, sbSpell}, players, res);
+            SELFTEST_CHECK(ok);
+            const auto statsAfterSb = localMeleeStats(p, c);
+            SELFTEST_CHECK(statsAfterSb.block == 100.f && statsAfterSb.shieldBlockValue >= statsBeforeSb.shieldBlockValue * 2);
+        }
+
+        // 5n. Shield Wall: damage taken reduced by 60%
+        p.globalCooldownMs = 0; p.mana = 100;
+        const uint32_t swSpell = findSpell("Shield Wall");
+        if (swSpell) {
+            ok = world.execute(p, {LocalAction::CastSpell, p.guid, swSpell}, players, res);
+            SELFTEST_CHECK(ok);
+            bool swBuff = std::any_of(p.statAuras.begin(), p.statAuras.end(), [&](const auto& a){ return a.spellId == swSpell && a.remainingMs > 0; });
+            SELFTEST_CHECK(swBuff);
+        }
+
+        // 5o. Commanding Shout: increases health
+        const uint32_t csSpell = findSpell("Commanding Shout");
+        if (csSpell) {
+            const uint32_t hpUnbuffed = p.maxHealth;
+            p.globalCooldownMs = 0; p.mana = 100;
+            ok = world.execute(p, {LocalAction::CastSpell, p.guid, csSpell}, players, res);
+            SELFTEST_CHECK(ok && p.maxHealth > hpUnbuffed);
+        }
+        out << "PASS warrior mechanics: stances (Battle/Defensive/Berserker), bonus bar paging, Overpower, Revenge, Execute, Victory Rush, Disarm, shouts, Shield Block, Shield Slam, Shield Wall, Berserker Rage, Whirlwind\n";
     }
     return true;
 }

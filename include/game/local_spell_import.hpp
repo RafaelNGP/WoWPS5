@@ -1277,6 +1277,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     const bool chargeSpell=!creatureCaster&&(u(71)==96||u(72)==96||u(73)==96);
     if(!creatureCaster)d.outOfCombatOnly=(u(4)&0x10000000u)!=0;
     if(!creatureCaster&&u(21)==2&&!u(20)&&!u(22)&&!u(23)&&!u(24)&&!u(25)&&!u(26)&&!u(27))d.targetMaxHealthPct=20;
+    else if(!creatureCaster&&u(20)==1&&d.spellFamily==4&&!u(21)&&!u(22)&&!u(23)&&!u(24)&&!u(25)&&!u(26)&&!u(27))d.requiresDefenseState=true;
+    else if(!creatureCaster&&u(20)==10&&d.spellFamily==4&&!u(21)&&!u(22)&&!u(23)&&!u(24)&&!u(25)&&!u(26)&&!u(27))d.requiresVictoryRush=true;
     // Stealth's CasterAuraStateNot 12 (Faerie Fire) never holds here: no
     // creature in this realm casts it on a player.
     else if(u(20)||u(21)||(u(22)&&!((d.id==1784||d.id==kLocalProwlSpell)&&u(22)==12))||u(23)||u(24)||u(25)||
@@ -1416,7 +1418,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(prowlSpell&&ty==6&&tg==1&&au==33)continue; // its slow
             if(presenceSpell&&ty==6&&tg==1&&(au==10||au==107||au==118))continue; // threat, global cooldown, marker
             if((ty!=6&&ty!=35&&ty!=65)||u(89+e)||(u(116+e)&&!(inertProc&&au==42))||(tg!=1&&tg!=21&&tg!=25&&tg!=20&&tg!=22&&tg!=30&&tg!=31&&tg!=56&&tg!=57&&tg!=0))shape=false;
-            if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99||(tg==1&&(au==31||au==49||au==124)&&i(80+e)>=0)||(tg==1&&au==22&&(i(110+e)&1)&&i(80+e)>=0)||(trackerSpell&&au==44)||(prowlSpell&&au==16)||(presenceSpell&&(au==79||au==142||au==138)))any=true;
+            if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99||(tg==1&&(au==31||au==49||au==124)&&i(80+e)>=0)||(tg==1&&au==22&&(i(110+e)&1)&&i(80+e)>=0)||(trackerSpell&&au==44)||(prowlSpell&&au==16)||(presenceSpell&&(au==79||au==142||au==138))||
+               (!creatureCaster&&d.spellFamily==4&&(((d.spellFamilyFlags[0]&0x1000u)&&tg==1&&(au==51||au==150))||((d.spellFamilyFlags[1]&0x80u)&&au==230))))any=true;
         }
         // Immunity and damage / healing percentages (Divine Shield, Divine
         // Protection, Hand of Protection, Avenging Wrath, Shield Wall) admit a
@@ -1507,6 +1510,36 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             else taken=false;
             if(taken){d.targetDebuffEffectMask|=uint8_t(1u<<effect);harm=true;continue;}
         }
+        // Demoralizing Shout: area attack-power debuff on enemies around caster
+        if(!creatureCaster&&d.spellFamily==4&&(d.spellFamilyFlags[0]&0x20000u)&&
+           type==6&&u(95+effect)==99&&u(86+effect)==22&&(u(89+effect)==15||!u(89+effect))&&!u(116+effect)&&
+           d.durationMs&&d.durationMs<=600000) {
+            const auto radius=ClientSpellTables::lookup(t.radiusIndex,u(92+effect));
+            const float r=t.radii&&radius>=0?t.radii->getFloat(radius,1):10.0f;
+            d.areaRadius=r>0?r:10.0f;
+            d.targetDebuffAttackPower=i(80+effect)+1;
+            d.targetDebuffEffectMask|=uint8_t(1u<<effect);
+            harm=true;continue;
+        }
+        // Disarm: remove weapons / parry on hostile single target
+        if(!creatureCaster&&d.spellFamily==4&&(d.spellFamilyFlags[0]&0x200u)&&type==6&&!u(116+effect)) {
+            if(effect==0&&u(95+effect)==67&&u(86+effect)==6&&!u(89+effect)) {
+                d.disarm=true;harm=true;continue;
+            }
+            if(effect>0&&(u(95+effect)==87||u(95+effect)==278))continue;
+        }
+        // Shield Block: 100% block chance + 100% block value self buff
+        if(!creatureCaster&&d.spellFamily==4&&(d.spellFamilyFlags[0]&0x1000u)&&type==6&&u(86+effect)==1&&!u(89+effect)&&
+           (u(95+effect)==51||u(95+effect)==150)) {
+            d.classBuff=true;buff=true;buffTarget=1;continue;
+        }
+        // Whirlwind: normalized weapon damage to enemies within 8 yards
+        if(!creatureCaster&&d.spellFamily==4&&(d.spellFamilyFlags[1]&0x4u)) {
+            if(effect==0&&type==121&&u(86+effect)==22&&u(89+effect)==15) {
+                directSlot(effect);d.weaponDamage=true;d.normalizedWeapon=true;d.areaRadius=8.0f;harm=true;continue;
+            }
+            if(effect==1&&type==64)continue;
+        }
         // SPELL_AURA_MOD_RESISTANCE_PCT on the armor of one hostile target
         // (Expose Armor): a fixed percentage for the aura's duration, which a
         // finisher draws from its combo points.
@@ -1551,7 +1584,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 if(au==29){for(int k=0;k<5;++k)if(misc==-1||misc==k)d.classBuffStats[size_t(k)]+=amount;}
                 else if(au==99)d.classBuffAttackPower+=amount;
                 else if(au==22&&(misc&1))d.classBuffArmor+=amount;
-                else if(au==34)d.classBuffHealth+=amount;
+                else if(au==34||(!creatureCaster&&d.spellFamily==4&&(d.spellFamilyFlags[1]&0x80u)&&au==230))d.classBuffHealth+=amount;
                 else if(au==31&&tg==1)d.classBuffSpeedPct+=amount;
                 else if(au==49&&tg==1)d.classBuffDodgePct+=amount;
                 else if(au==124&&tg==1)d.classBuffRangedAttackPower+=amount;
@@ -1792,6 +1825,9 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             d.charge=true;harm=true;
         } else if(chargeSpell&&type==3&&target==1&&!secondary&&base>=0&&base<1000) {
             d.chargeRage=uint16_t((base+1)/10); // Charge's script: tenths of rage.
+        } else if(!creatureCaster&&d.spellFamily==4&&(d.spellFamilyFlags[0]&0x20000000u)&&type==3&&target==6&&!secondary) {
+            directSlot(effect);d.damage=low;d.damageMax=high;d.executeSpell=true;harm=true;
+            d.extraEnergyMultiplier=f(216)*10.f;
         } else if(type==5&&!creatureCaster&&(target==1||target==0)&&(secondary==17||!secondary)) {
             d.teleport=true;
         } else if(type==77&&!creatureCaster&&d.spellFamily==5&&effect==0&&target==1&&!secondary&&!u(72)&&!u(73)&&localHealthstoneItem(d.id)) {

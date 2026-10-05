@@ -1726,8 +1726,13 @@ struct LocalGameplay::Impl {
         // ownership do not substitute for the actor who dealt the final hit.
         const auto blowGuid=actorGuid?actorGuid:killer.guid;
         const auto blowLevel=actorGuid?actorLevel:killer.level;
+        const bool xpEligible=rewarded&&localNpcExperienceTargetEligible(n.entry,killer.level,n.level);
+        if(xpEligible) {
+            killer.victoryRushWindowMs=20000;
+            if(auto* p=player(killer.guid,players))p->victoryRushWindowMs=20000;
+        }
         emitCombatEvent(localKillProcEvent(blowGuid,n.guid,n.mapId,n.instanceId,blowGuid==killer.guid,blowLevel,
-            rewarded&&localNpcExperienceTargetEligible(n.entry,killer.level,n.level)),players);
+            xpEligible),players);
         emitCombatEvent(localDeathProcEvent(n.guid,n.mapId,n.instanceId,false,n.level),players);
         return true;
     }
@@ -2909,6 +2914,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.weaponDamage)|uint32_t(d.normalizedWeapon)<<1|uint32_t(d.interruptCast)<<2|uint32_t(d.taunt)<<3|uint32_t(d.charge)<<4|uint32_t(d.outOfCombatOnly)<<5);hash(d.chargeRage);hash(d.weaponPercent);hash(d.targetMaxHealthPct);hash(d.createItemId);hash(d.createItemCount);hash(uint32_t(d.channel)|uint32_t(d.periodicLeech)<<1|uint32_t(d.soulShardOnKill)<<2|uint32_t(d.teleport)<<3|uint32_t(d.groundAtCaster)<<4);{uint32_t gr;std::memcpy(&gr,&d.groundRadius,4);hash(gr);}for(size_t r=0;r<d.reagentItems.size();++r){hash(d.reagentItems[r]);hash(d.reagentCounts[r]);}
         hash(uint32_t(d.classBuff));for(auto v:d.classBuffStats)hash(uint32_t(v));hash(uint32_t(d.classBuffAttackPower));hash(uint32_t(d.classBuffArmor));hash(uint32_t(d.classBuffHealth));hash(uint32_t(d.classBuffSpeedPct));hash(uint32_t(d.classBuffDodgePct));hash(uint32_t(d.classBuffRangedAttackPower));hash(d.trackCreatureMask);hash(d.totemEntry);hash(d.dispelMask);hash(d.hostileDispelMask);hash(uint32_t(d.classBuffMeleeHastePct));hash(uint32_t(d.classBuffDamagePct));hash(uint32_t(d.classBuffDamageTakenPct));hash(uint32_t(d.classBuffArmorPct));hash(d.comboDurationMaxMs);hash(uint32_t(d.onlyStealthed));
         hash(uint32_t(d.sourceOnlyPeacefulTargets));
+        hash(uint32_t(d.requiresDefenseState)|uint32_t(d.requiresVictoryRush)<<1|uint32_t(d.executeSpell)<<2|uint32_t(d.disarm)<<3);
         // P05 line of sight : two peers must agree on which casts are
         // exempt from the test before they can agree on the test's answer.
         hash(uint32_t(d.sourceIgnoreLineOfSight));
@@ -4824,6 +4830,14 @@ void LocalGameplay::initializePlayer(LocalRealmPlayer& p, bool fresh, uint8_t fo
         // Returning from an invalid/retired saved form keeps restored caster mana;
         // login migration is not a free refill of the new maximum.
     }
+    if(p.classId==1&&!p.formSpellId&&!p.dead) {
+        if(std::find(p.knownSpells.begin(),p.knownSpells.end(),2457)==p.knownSpells.end())
+            p.knownSpells.push_back(2457);
+        if(const auto* f=localFormProfile(2457)) {
+            enterLocalForm(p,*f,0);
+            stats(p,c,false);
+        }
+    }
     clearCast(p,LocalCastStatus::None);p.globalCooldownMs=0;clearLocalCombo(p);
     if(p.dead||!p.health)p.manaRegenDelayMs=p.resourceRegenRemainder=p.druidManaRemainder=0;
     p.castRevision=0;p.lastCastSpellId=0;p.lastCastTarget=0;
@@ -6475,6 +6489,12 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(!d->unsupportedReason.empty())return reject(d->name+": "+d->unsupportedReason);
     if(!localSpellFormReady(p,*d))return reject("This spell cannot be used in the current form or stance");
     if(d->onlyStealthed&&!localStealthed(p))return reject("You must be stealthed");
+    if(d->spellFamily==4&&(d->spellFamilyFlags[0]&0x4u)&&!p.overpowerWindowMs)
+        return reject("You cannot use that ability yet");
+    if(d->requiresDefenseState&&!p.revengeWindowMs)
+        return reject("You cannot use that ability yet");
+    if(d->requiresVictoryRush&&!p.victoryRushWindowMs)
+        return reject("You cannot use that ability yet");
     if(!localFormEnvironmentReady(p,*d))return reject("This form cannot be used while travelling or in this environment");
     if((d->meleeSpecialProfile||d->stormstrikeProfile)&&!validEquipment(p,c))return reject("Invalid equipped weapon state");
     if(!localSpellEquipmentReady(p,c,*d))return reject("Required spell equipment is not equipped");
@@ -6545,7 +6565,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // the reference reads (Unit::GetCreatureType, Unit.cpp:11485).
     const auto* rangeTarget=n?c.npc(n->entry):nullptr;
     const float targetReach=n?localCreatureCombatReach(rangeTarget):kLocalDefaultCombatReach;
-    if((d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask||d->stormstrikeProfile==1)&&!d->areaRadius) {
+    if((d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask||d->stormstrikeProfile==1||d->disarm)&&!d->areaRadius) {
         if(!n||n->dead||!canAttack(p,*n))return reject("Choose a living enemy");
         // TargetAuraState HEALTHLESS_20_PERCENT (Execute, Kill Shot).
         if(d->targetMaxHealthPct&&uint64_t(n->health)*100>uint64_t(n->maxHealth)*d->targetMaxHealthPct)
@@ -6596,7 +6616,8 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         if(!n||n->transportEntry||localStormstrikeSlot(*n,p.guid)>=kLocalMaxNpcStormstrikeAuras)return reject("No slot for the Stormstrike effect");
     }
     const uint8_t spentCombo=d->comboFinisher?p.comboPoints:0;
-    const uint32_t extraEnergy=d->comboProfile==uint8_t(LocalComboProfile::FerociousBite)?std::min(30u,p.mana-cost):0;
+    const uint32_t extraEnergy=d->comboProfile==uint8_t(LocalComboProfile::FerociousBite)?std::min(30u,p.mana-cost):
+        (d->executeSpell?std::min(30u,p.mana>=cost?p.mana-cost:0u):0);
     if(!validLocalProc(*d))return reject("Invalid proc definition");
     if(d->procCanCrit) {
         const auto* leaf=c.spell(d->proc.spellId);
@@ -6766,9 +6787,17 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // caster's other curse goes (SPELL_SPECIFIC_CURSE is exclusive per
     // caster) and another caster's rank of the same curse is replaced.
     size_t debuffSlot=n?n->npcBuffs.size():0;
-    if(d->targetDebuffEffectMask) {
+    if(d->targetDebuffEffectMask&&!d->areaRadius) {
         if(!n||n->transportEntry||!talentedDuration||talentedDuration>600000)
             return reject("Invalid NPC curse target or duration");
+        debuffSlot=stackSlot(n->npcBuffs.size(),[&](size_t i){return n->npcBuffs[i].spellId;},
+            [&](size_t i){return n->npcBuffs[i].casterGuid;},[](size_t){return true;});
+        if(debuffSlot==n->npcBuffs.size()&&n->npcBuffs.size()>=kLocalMaxNpcBuffs)
+            return reject("Too many active NPC auras");
+    }
+    if(d->disarm) {
+        if(!n||n->transportEntry||!talentedDuration||talentedDuration>600000)
+            return reject("Invalid NPC disarm target or duration");
         debuffSlot=stackSlot(n->npcBuffs.size(),[&](size_t i){return n->npcBuffs[i].spellId;},
             [&](size_t i){return n->npcBuffs[i].casterGuid;},[](size_t){return true;});
         if(debuffSlot==n->npcBuffs.size()&&n->npcBuffs.size()>=kLocalMaxNpcBuffs)
@@ -6787,13 +6816,16 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     size_t chainCount=1;
     chainNpcs[0]=n;chainPlayers[0]=healed;
     if(d->areaRadius) {
-        if(!std::isfinite(d->areaRadius)||d->areaRadius<=0||d->areaRadius>30||!d->damage||d->heal||d->chainTargets!=1||
+        if(!std::isfinite(d->areaRadius)||d->areaRadius<=0||d->areaRadius>30||(!d->damage&&!d->weaponDamage&&!d->targetDebuffAttackPower)||d->heal||d->chainTargets!=1||
            d->periodicDamage||d->periodicHeal||buff||d->snarePercent)return reject("Invalid caster-area spell profile");
         chainCount=0;
         for(auto& candidate:g.npcs) {
             if(candidate.dead||!candidate.health||candidate.mapId!=p.mapId||candidate.instanceId!=p.instanceId||!canAttack(p,candidate))continue;
             const auto dist=distance2(p,candidate);
-            if(std::isfinite(dist)&&dist<=d->areaRadius*d->areaRadius&&chainCount<chainNpcs.size())chainNpcs[chainCount++]=&candidate;
+            if(std::isfinite(dist)&&dist<=d->areaRadius*d->areaRadius&&chainCount<chainNpcs.size()){
+                if(d->weaponDamage&&chainCount>=4)break;
+                chainNpcs[chainCount++]=&candidate;
+            }
         }
         std::sort(chainNpcs.begin(),chainNpcs.begin()+chainCount,[](auto* a,auto* b){return a->guid<b->guid;});
     }
@@ -6849,7 +6881,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(d->snarePercent&&snareSlot==n->snares.size())n->snares.reserve(n->snares.size()+1);
     if(d->controlProfile&&controlSlot==n->controls.size())n->controls.reserve(n->controls.size()+1);
     if(d->armorDebuffPct&&armorDebuffSlot==n->armorDebuffs.size())n->armorDebuffs.reserve(n->armorDebuffs.size()+1);
-    if(d->targetDebuffEffectMask&&debuffSlot==n->npcBuffs.size())n->npcBuffs.reserve(n->npcBuffs.size()+1);
+    if((d->targetDebuffEffectMask||d->disarm)&&n&&debuffSlot==n->npcBuffs.size())n->npcBuffs.reserve(n->npcBuffs.size()+1);
     if(d->stormstrikeProfile==1)n->stormstrikeAuras.reserve(kLocalMaxNpcStormstrikeAuras);
     if(triggeredAura||d->arcaneBlastProfile==1)p.statAuras.reserve(kLocalMaxStatAuras);
     if(buff&&buffSlot==healed->statAuras.size())healed->statAuras.reserve(healed->statAuras.size()+1);
@@ -6881,7 +6913,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // defect rather than an unimplemented feature. A positive spell never rolls:
     // the reference returns SPELL_MISS_NONE for one on a non-hostile target.
     const bool magicHitRoll=!meleeRoll&&n&&d->clientSpell&&d->sourceDamageClass==1&&
-        (d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask)&&!d->heal&&!d->periodicHeal;
+        (d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask||d->disarm)&&!d->heal&&!d->periodicHeal;
     // P04 creature template immunity. WorldObject::SpellHitResult asks
     // Creature::IsImmunedToSpell FIRST (Object.cpp:3746-3751), before the melee
     // or magic roll and before Spell::DoSpellHitOnUnit ever reads a diminishing
@@ -6890,7 +6922,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // (canAttack above), which is the `casterFriendly` clause's constant. The
     // cost is paid below exactly as for a miss: there is no SPELL_FAILED_IMMUNE.
     const auto* targetDefinition=n?c.npc(n->entry):nullptr;
-    const bool hostileCast=n&&!n->dead&&(d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask||meleeSpecial||d->dispelProfile);
+    const bool hostileCast=n&&!n->dead&&(d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask||meleeSpecial||d->dispelProfile||d->disarm);
     const bool templateImmune=hostileCast&&targetDefinition&&localNpcImmuneToSpell(*targetDefinition,*n,*d,false);
     // Spell.cpp:2413-2416: the effect slots the template strips from a cast
     // that still lands. Bit k is column 71+k; the snare rides slot 0 on both
@@ -6909,6 +6941,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     auto meleeOutcome=templateImmune?LocalMeleeOutcome::Immune:
         meleeRoll?localRollPlayerMelee(p,*n,localMeleeStats(p,c),true,g.meleeRoll(),g.meleeRoll(),false,meleeRules):
         magicHitRoll?g.playerSpellHitOutcome(p,*n,*d):LocalMeleeOutcome::Hit;
+    if(meleeRoll&&meleeOutcome==LocalMeleeOutcome::Dodge)p.overpowerWindowMs=5000;
     // A full block (only reachable through localSpellFullyBlockable) is a
     // SPELL_MISS_BLOCK: no effect lands, and Spell::TakePower charges it in
     // full (Spell.cpp:5496, BLOCK is excluded from the refund).
@@ -6970,6 +7003,13 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     p.mountSpellId=d->mountDisplayId?d->id:0;
     if(d->formId&&p.classId==11&&p.resourceType!=LocalResourceType::Mana)p.druidMana-=paidCost;else p.mana-=paidCost;
     if(!avoided)p.mana-=extraEnergy;
+    if(d->spellFamily==4&&(d->spellFamilyFlags[0]&0x4u))p.overpowerWindowMs=0;
+    if(d->requiresDefenseState)p.revengeWindowMs=0;
+    if(d->requiresVictoryRush)p.victoryRushWindowMs=0;
+    if(d->id==18499) {
+        std::erase_if(g.npcPeriodic,[&](const auto& a){return a.target==p.guid&&(a.control==3||a.control==4);});
+        std::erase_if(p.harmfulAuras,[](const auto& a){return a.controlKind==3||a.controlKind==4;});
+    }
     if(d->comboFinisher&&!avoided)clearLocalCombo(p);
     if(localStealthed(p)&&n&&!d->formId)breakLocalStealth(p); // An attack ends Stealth, even one that kills.
     if(d->comboGain&&!avoided&&p.comboTarget!=cmd.target)clearLocalCombo(p);
@@ -7096,14 +7136,18 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if((d->damage||d->weaponDamage)&&!directStripped) {
         uint32_t baseAmount=d->meleeSpecialProfile?localMeleeSpecialAmount(localMeleeStats(p,c).attackPower,d->damage):
             localComboAmount(p,c,*d,localSpellEffectAmountAfterTalents(p,c,*d,spellAmount(p,*d,false),false,spentCombo),spentCombo,extraEnergy,false,true);
+        if(d->executeSpell)baseAmount+=uint32_t(float(extraEnergy)*d->extraEnergyMultiplier+float(localMeleeStats(p,c).attackPower)*0.20f);
         // Spell::EffectSchoolDMG's warrior branch (SpellEffects.cpp:360-369):
         // Shield Slam adds the caster's shield block value, soft-capped at
         // level x 24.5 and hard-capped at level x 34.5 (Unit.h:1181-1194), to
         // the effect amount before any damage bonus. Shield Block (2565) doubles
-        // both caps and is not admitted, so `limit` is 1.
-        if(d->spellFamily==4&&(d->spellFamilyFlags[1]&0x200u)&&d->cooldownCategory==1209)
+        // both caps.
+        if(d->spellFamily==4&&(d->spellFamilyFlags[1]&0x200u)&&d->cooldownCategory==1209) {
+            const bool shieldBlockActive=std::any_of(p.statAuras.begin(),p.statAuras.end(),[](const auto& a){return a.spellId==2565&&a.remainingMs>0;});
+            const float capMultiplier=shieldBlockActive?2.0f:1.0f;
             baseAmount=uint32_t(std::min<uint64_t>(1000000,uint64_t(baseAmount)+
-                localShieldSlamBlockValue(localMeleeStats(p,c).shieldBlockValue,uint32_t(float(p.level)*24.5f),uint32_t(float(p.level)*34.5f))));
+                localShieldSlamBlockValue(localMeleeStats(p,c).shieldBlockValue,uint32_t(float(p.level)*24.5f*capMultiplier),uint32_t(float(p.level)*34.5f*capMultiplier))));
+        }
         uint32_t amount=localSpellAmountAfterTalents(p,c,*d,baseAmount,false);
         amount=localArcaneBlastDamage(p,c,*d,amount);
         // Unit::SpellCriticalDamageBonus (Unit.cpp:9117-9131): a MELEE-class
@@ -7170,21 +7214,21 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
             LOG_INFO("[LOCAL_DISPEL] npc=",n->guid," spell=",d->id," removed buff=",it->spellId);n->npcBuffs.erase(it);
         }
     }
-    if(d->snarePercent&&!n->dead&&!(strippedEffects&1u)) {
+    if(d->snarePercent&&n&&!n->dead&&!(strippedEffects&1u)) {
         LocalNpcSnare a{d->id,talentedDuration,p.guid,d->snarePercent,p.positionRevision};
         if(snareSlot<n->snares.size())n->snares[snareSlot]=a;else{snareSlot=n->snares.size();n->snares.push_back(a);}
         sweepNoStack(n->snares,snareSlot,[&](size_t i){return n->snares[i].spellId;},
             [&](size_t i){return n->snares[i].casterGuid;},[](size_t){return true;},[](size_t){});
         if(!n->targetGuid)n->targetGuid=p.guid;
     }
-    if(d->armorDebuffPct&&!n->dead&&!nullified&&!(strippedEffects&(1u<<d->armorDebuffEffectSlot))) {
+    if(d->armorDebuffPct&&n&&!n->dead&&!nullified&&!(strippedEffects&(1u<<d->armorDebuffEffectSlot))) {
         const LocalNpcArmorDebuff a{d->id,talentedDuration,talentedDuration,p.guid,d->armorDebuffPct};
         if(armorDebuffSlot<n->armorDebuffs.size())n->armorDebuffs[armorDebuffSlot]=a;else n->armorDebuffs.push_back(a);
         // A hostile aura puts the creature in combat with its caster.
         g.addThreat(*n,p.guid,1);g.selectThreatTarget(*n,players);
         LOG_INFO("[LOCAL_ARMOR_DEBUFF] npc=",n->guid," spell=",d->id," pct=",unsigned(a.percent)," ms=",a.remainingMs);
     }
-    if(const uint8_t landed=d->targetDebuffEffectMask&uint8_t(~strippedEffects);landed&&!n->dead&&!nullified) {
+    if(const uint8_t landed=d->targetDebuffEffectMask&uint8_t(~strippedEffects);landed&&!d->areaRadius&&n&&!n->dead&&!nullified) {
         LocalNpcBuff b;b.spellId=d->id;b.casterGuid=p.guid;b.durationMs=b.remainingMs=talentedDuration;
         // Each amount rides its own effect slot; a slot the creature's
         // mechanic immunity strips adds nothing.
@@ -7204,11 +7248,37 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         LOG_INFO("[LOCAL_CURSE] npc=",n->guid," spell=",d->id," ap=",b.attackPower," armorPct=",unsigned(b.armorPct)," resist=",b.resistance,
                  " takenPct=",b.damageTakenPct," castSpeed=",b.castSpeedPct," ms=",b.remainingMs);
     }
+    if(d->disarm&&n&&!n->dead&&!nullified) {
+        LocalNpcBuff b;b.spellId=d->id;b.casterGuid=p.guid;b.durationMs=b.remainingMs=talentedDuration;
+        b.damagePct=-50;b.damagePctSchool=1;b.parryPct=-100;
+        if(debuffSlot<n->npcBuffs.size()){g.npcBuffRemoved(*n,n->npcBuffs[debuffSlot]);n->npcBuffs[debuffSlot]=b;}
+        else{debuffSlot=n->npcBuffs.size();n->npcBuffs.push_back(b);}
+        sweepNoStack(n->npcBuffs,debuffSlot,[&](size_t i){return n->npcBuffs[i].spellId;},
+            [&](size_t i){return n->npcBuffs[i].casterGuid;},[](size_t){return true;},[&](size_t i){g.npcBuffRemoved(*n,n->npcBuffs[i]);});
+        g.addThreat(*n,p.guid,1);g.selectThreatTarget(*n,players);
+        LOG_INFO("[LOCAL_DISARM] npc=",n->guid," spell=",d->id," ms=",b.remainingMs);
+    }
+    if(d->areaRadius&&d->targetDebuffAttackPower<0) {
+        for(size_t i=0;i<chainCount;++i) {
+            auto* targetNpc=chainNpcs[i];
+            if(!targetNpc||targetNpc->dead)continue;
+            LocalNpcBuff b;b.spellId=d->id;b.casterGuid=p.guid;b.durationMs=b.remainingMs=talentedDuration;
+            b.attackPower=d->targetDebuffAttackPower;
+            size_t slot=targetNpc->npcBuffs.size();
+            for(size_t j=0;j<targetNpc->npcBuffs.size();++j) {
+                if(targetNpc->npcBuffs[j].spellId==d->id&&targetNpc->npcBuffs[j].casterGuid==p.guid){slot=j;break;}
+            }
+            if(slot<targetNpc->npcBuffs.size()){g.npcBuffRemoved(*targetNpc,targetNpc->npcBuffs[slot]);targetNpc->npcBuffs[slot]=b;}
+            else{targetNpc->npcBuffs.push_back(b);}
+            g.addThreat(*targetNpc,p.guid,1);g.selectThreatTarget(*targetNpc,players);
+            LOG_INFO("[LOCAL_SHOUT] npc=",targetNpc->guid," spell=",d->id," ap=",b.attackPower," ms=",b.remainingMs);
+        }
+    }
     // A control that did not land applies nothing: Spell::DoSpellHitOnUnit is
     // only reached for a target the spell actually hit, so a missed stun is a
     // missed stun rather than a shorter one, and a control diminished to nothing
     // has already set the outcome to Immune above.
-    if(d->controlProfile&&!n->dead&&!nullified&&!(strippedEffects&(1u<<d->controlEffectSlot))) {
+    if(d->controlProfile&&n&&!n->dead&&!nullified&&!(strippedEffects&(1u<<d->controlEffectSlot))) {
         LocalNpcControl a{d->id,diminishedDurationMs,p.guid,p.positionRevision,
             uint8_t(d->controlProfile==2?LocalNpcControlKind::Silence:LocalNpcControlKind::Stun)};
         // AuraEffect::CalculateAmount: a proc-flagged fear holds until it has
@@ -7278,7 +7348,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         sweepNoStack(g.periodicHeals,healSlot,[&](size_t i){return g.periodicHeals[i].spell;},
             [&](size_t i){return g.periodicHeals[i].owner;},[&](size_t i){return g.periodicHeals[i].target==healed->guid;},[](size_t){});
     }
-    if(d->comboProfile&&!d->damage){g.addThreat(*n,p.guid,1);g.selectThreatTarget(*n,players);
+    if(d->comboProfile&&!d->damage&&n){g.addThreat(*n,p.guid,1);g.selectThreatTarget(*n,players);
         g.emitCombatEvent({0,p.guid,n->guid,d->id,p.mapId,p.instanceId,0,0,0,LocalCombatEventKind::SpellDamage,false,0,LocalMeleeOutcome::Hit},players);}
     const bool periodicStripped=d->periodicEffectSlot<3&&(strippedEffects&(1u<<d->periodicEffectSlot));
     if(d->periodicDamage&&n&&!n->dead&&periodicStripped)
@@ -7996,6 +8066,10 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
         for(auto& cd:p->cooldowns)if(cd.remainingMs){cd.remainingMs=cd.remainingMs>ms?cd.remainingMs-ms:0;changed=true;}
         for(auto& cd:p->categoryCooldowns)if(cd.remainingMs){cd.remainingMs-=std::min(cd.remainingMs,ms);changed=true;}
         if(p->globalCooldownMs){p->globalCooldownMs=p->globalCooldownMs>ms?p->globalCooldownMs-ms:0;changed=true;}
+        if(p->overpowerWindowMs){p->overpowerWindowMs=p->overpowerWindowMs>ms?p->overpowerWindowMs-ms:0;changed=true;}
+        if(p->revengeWindowMs){p->revengeWindowMs=p->revengeWindowMs>ms?p->revengeWindowMs-ms:0;changed=true;}
+        if(p->victoryRushWindowMs){p->victoryRushWindowMs=p->victoryRushWindowMs>ms?p->victoryRushWindowMs-ms:0;changed=true;}
+        if(p->dead||!p->health)p->overpowerWindowMs=p->revengeWindowMs=p->victoryRushWindowMs=0;
         // Travel can return early below; riding state and rune recovery still
         // advance so landing cannot restore a mount that was cleared in flight.
         if(p->mountSpellId && (p->dead || p->flight.active || p->transportEntry || p->instanceId || (p->movementState&kLocalMovementInLiquid))) {
@@ -8200,6 +8274,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                     }
                     const auto w=localWeaponAmounts(*p,content(),hand!=0);
                     auto outcome=localRollPlayerMelee(*p,*n,ms,false,g.meleeRoll(),g.meleeRoll(),hand!=0);
+                    if(outcome==LocalMeleeOutcome::Dodge)p->overpowerWindowMs=5000;
                     float multiplier=outcome==LocalMeleeOutcome::Critical?2.f:outcome==LocalMeleeOutcome::Glancing?1.f-std::min(3,int(n->level)-int(p->level))*.1f:1.f;
                     const auto damage=uint32_t((w.low+(w.high-w.low)*g.meleeRoll()/9999.f)*multiplier);
                     const auto magic=uint32_t((w.magicLow+(w.magicHigh-w.magicLow)*g.meleeRoll()/9999.f)*multiplier);
@@ -8807,6 +8882,8 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
             const auto whiteSwing=[&](){
             const auto meleeStats=localMeleeStats(*target,content());
             const auto outcome=localRollNpcMelee(n,*target,meleeStats,g.meleeRoll());
+            if(outcome==LocalMeleeOutcome::Block||outcome==LocalMeleeOutcome::Dodge||outcome==LocalMeleeOutcome::Parry)
+                target->revengeWindowMs=5000;
             const uint32_t armor=localMeleeArmor(*target,content());
             const uint32_t raw=uint32_t(std::min(uint64_t(1000000),uint64_t(g.npcMeleeDamage(n,def->damage))*(outcome==LocalMeleeOutcome::Critical?4:outcome==LocalMeleeOutcome::Crushing?3:2)/2));
             const auto attempted=localMeleeAvoided(outcome)?0u:localFormDamage(*target,localArmorReducedDamage(g.npcDamageTakenByPlayer(*target,localIncomingDamageAfterTalents(*target,content(),raw),1),armor,n.level),true);

@@ -166,7 +166,7 @@ bool LocalFrameXml::padPickup(const std::string& name) {
             "if PickupSpellBookItem then PickupSpellBookItem(id,book) end");
     case PadPickupTarget::Kind::Action:
         return engine_->executeString(lookup+
-            "local slot=b.action or (b.GetAttribute and b:GetAttribute('action')) or b:GetID(); "
+            "local slot=b.action or (b.GetAttribute and b:GetAttribute('action')) or (BonusActionButton_CalculateAction and BonusActionButton_CalculateAction(b)) or (ActionButton_CalculateAction and ActionButton_CalculateAction(b)) or b:GetID(); "
             "if type(slot)=='number' then if GetCursorInfo and GetCursorInfo() then if PlaceAction then PlaceAction(slot) end elseif PickupAction then PickupAction(slot) end end");
     case PadPickupTarget::Kind::None:break;
     }
@@ -419,7 +419,10 @@ bool LocalFrameXml::navigateBars() {
                 [](const auto& a,const auto& b){return a.first<b.first;});
             for(const auto& entry:row)ids.push_back(entry.second);
         }else{
-            for(const char* prefix:{"ActionButton","MultiBarBottomLeftButton","MultiBarBottomRightButton",
+            const auto* bonusBar=tree.findByName("BonusActionBarFrame");
+            const bool bonusActive=bonusBar&&visible(bonusBar);
+            const char* mainBarPrefix=bonusActive?"BonusActionButton":"ActionButton";
+            for(const char* prefix:{mainBarPrefix,"MultiBarBottomLeftButton","MultiBarBottomRightButton",
                 "MultiBarRightButton","MultiBarLeftButton"})for(int i=1;i<=12;++i){
                 const auto name=std::string(prefix)+std::to_string(i);
                 if(const auto* w=tree.findByName(name);visible(w))ids.push_back(w->id);
@@ -459,7 +462,7 @@ bool LocalFrameXml::navigateBars() {
             // and action-slot mapping, not a second native menu implementation.
             const std::string lookup="local b=_G['"+selected->name+"']; ";
             if(padFocus_.lane==ui::LocalPadFocus::Lane::Actions)
-                engine_->executeString(lookup+"if b then local slot=b.action or (b.GetAttribute and b:GetAttribute('action')) or b:GetID(); if type(slot)=='number' and UseAction then UseAction(slot) end end");
+                engine_->executeString(lookup+"if b then local slot=b.action or (b.GetAttribute and b:GetAttribute('action')) or (BonusActionButton_CalculateAction and BonusActionButton_CalculateAction(b)) or (ActionButton_CalculateAction and ActionButton_CalculateAction(b)) or b:GetID(); if type(slot)=='number' and UseAction then UseAction(slot) end end");
             else activatePadControl(id);
             LOG_INFO("[PAD_UI] Square activated widget=",id);
         }

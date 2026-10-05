@@ -710,6 +710,11 @@ struct LocalRealmPlayer {
     bool falling = false;
     float fallStartZ = 0;
     uint32_t fallRevision = 0;
+
+    // Warrior reactive ability windows (milliseconds remaining, session-only).
+    uint32_t overpowerWindowMs = 0;
+    uint32_t revengeWindowMs = 0;
+    uint32_t victoryRushWindowMs = 0;
 };
 
 inline bool validLocalVehicleState(const LocalRealmPlayer& p) {
@@ -1361,6 +1366,11 @@ struct LocalSpellDefinition {
     // (AuraEffect::HandleObsModPowerAuraTick).
     uint8_t classBuffManaPct = 0;
     uint32_t classBuffManaIntervalMs = 0;
+
+    bool requiresDefenseState = false;
+    bool requiresVictoryRush = false;
+    bool executeSpell = false;
+    bool disarm = false;
 
     std::string iconPath, unsupportedReason;
 };
