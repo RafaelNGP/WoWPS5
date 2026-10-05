@@ -1850,6 +1850,28 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             // spell_warl_create_healthstone: the rank's healthstone (without the
             // Improved Healthstone talent, which the realm does not grant).
             d.createItemId=localHealthstoneItem(d.id);d.createItemCount=1;d.createItemUnique=true;
+        } else if(type==64&&!creatureCaster&&d.spellFamily==15&&target==6&&!secondary&&localDiseaseSpell(u(116+effect))&&!d.diseaseSpell) {
+            // Icy Touch / Plague Strike: the disease lands with the hit. Its
+            // row: one periodic damage aura (3), Frost Fever's two attack-speed
+            // auras (138, 140) of the same amount, Blood Plague's dummy (4).
+            const auto child=ClientSpellTables::lookup(t.spellIndex,u(116+effect));
+            const auto cu=[&](uint32_t col){return t.spells->getUInt32(uint32_t(child),col);};
+            const auto ci=[&](uint32_t col){return t.spells->getInt32(uint32_t(child),col);};
+            const auto durationRow=child>=0?ClientSpellTables::lookup(t.durationIndex,cu(40)):-1;
+            const int32_t duration=durationRow>=0?t.durations->getInt32(uint32_t(durationRow),1):0;
+            if(child<0||cu(71)!=6||cu(95)!=3||cu(86)!=6||cu(98)<1000||duration<=0||duration>60000||!cu(225))
+                unavailable("Unreviewed disease row");
+            else {
+                int8_t haste=0;bool other=false;
+                for(uint32_t k=1;k<3;++k)if(cu(71+k)) {
+                    const auto au=cu(95+k);const int32_t amount=ci(80+k)+(cu(74+k)?1:0); // CalcValue: +1 only with a die
+                    if(au==138||au==140){if(amount<0&&amount>-100&&(!haste||haste==amount))haste=int8_t(amount);else other=true;}
+                    else if(!(au==4&&!amount))other=true;
+                }
+                if(other)unavailable("Unreviewed disease row");
+                else {d.diseaseSpell=u(116+effect);d.diseaseIntervalMs=cu(98);d.diseaseDurationMs=uint32_t(duration);
+                      d.diseaseSchool=uint8_t(cu(225));d.diseaseHastePct=haste;harm=true;}
+            }
         } else if(lifeTap&&type==3&&effect==0) {
             d.lifeTapAmount=uint32_t(i(80)+1);d.lifeTapPerLevel=f(77); // CalcValue: base + 1 (one die side)
         } else if(type==77&&!creatureCaster&&d.spellFamily==5&&target==6&&!secondary&&!i(80+effect)&&!u(74+effect)&&!u(116+effect)&&

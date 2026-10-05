@@ -2826,6 +2826,17 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         a.classBuff=true;a.buffSelfOnly=true; // a timed aura with no effect of its own
         synthesized.push_back(std::move(a));
     }
+    // The death knight diseases a strike triggers (Frost Fever, Blood Plague):
+    // a periodic damage aura on the creature, synthesized from the row the
+    // parent read, with the attack-power share of spell_bonus_data.
+    for(const auto& d:sorted)if(d.diseaseSpell)if(const auto* z=localDiseaseSpell(d.diseaseSpell);z&&
+        !std::any_of(sorted.begin(),sorted.end(),[&](const auto& o){return o.id==z->id;})&&
+        !std::any_of(synthesized.begin(),synthesized.end(),[&](const auto& o){return o.id==z->id;})) {
+        LocalSpellDefinition a;a.id=z->id;a.name=z->name;a.clientSpell=true;a.allowableClasses=d.allowableClasses;
+        a.triggeredOnly=true;a.maxAuraStacks=1;a.spellFamily=d.spellFamily;a.schoolMask=d.diseaseSchool;a.dispelType=3; // DISPEL_DISEASE
+        a.durationMs=d.diseaseDurationMs;a.periodicIntervalMs=d.diseaseIntervalMs;a.diseaseApPer100k=z->apPer100k;a.diseaseHastePct=d.diseaseHastePct;
+        synthesized.push_back(std::move(a));
+    }
     for(auto& a:synthesized)sorted.push_back(std::move(a));
     std::sort(sorted.begin(),sorted.end(),[](const auto& a,const auto& b){return a.id<b.id;});
     hash(0x42313153);hash(uint32_t(sorted.size()));
@@ -2896,7 +2907,8 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.controlDamageCapPct)|uint32_t(d.controlSingleTarget)<<8);hash(uint32_t(d.classBuffHealingTakenPct));hash(d.lifeTapAmount);hash(uint32_t(d.createItemUnique));hash(uint32_t(d.directLeechPct)|uint32_t(d.immolateBonus)<<16);
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
-        hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
+        hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -7252,6 +7264,22 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         LOG_INFO("[LOCAL_CURSE] npc=",n->guid," spell=",d->id," ap=",b.attackPower," armorPct=",unsigned(b.armorPct)," resist=",b.resistance,
                  " takenPct=",b.damageTakenPct," castSpeed=",b.castSpeedPct," ms=",b.remainingMs);
     }
+    // The strike's disease (Icy Touch, Plague Strike): a fresh DoT from this
+    // death knight, its tick the attack-power share at application, and
+    // Frost Fever's attack-speed slow as the knight's creature aura.
+    if(d->diseaseSpell&&n&&!n->dead&&!nullified)if(const auto* z=c.spell(d->diseaseSpell);z&&z->durationMs&&z->periodicIntervalMs) {
+        const auto tick=uint32_t(std::clamp<int64_t>(int64_t(localMeleeStats(p,c).attackPower)*z->diseaseApPer100k/100000,1,1000000));
+        Impl::PeriodicDamage aura{p.guid,n->guid,z->id,z->durationMs,z->periodicIntervalMs,z->periodicIntervalMs,tick,p.mapId,p.instanceId};
+        aura.targetEpoch=n->combatEpoch;
+        auto it=std::find_if(g.periodicDamage.begin(),g.periodicDamage.end(),[&](const auto& a){return a.owner==p.guid&&a.target==n->guid&&a.spell==z->id;});
+        if(it!=g.periodicDamage.end())*it=aura;else if(g.periodicDamage.size()<MaxNpcs*8)g.periodicDamage.push_back(aura);
+        if(z->diseaseHastePct) {
+            LocalNpcBuff b;b.spellId=z->id;b.casterGuid=p.guid;b.durationMs=b.remainingMs=z->durationMs;b.hastePct=z->diseaseHastePct;
+            auto bt=std::find_if(n->npcBuffs.begin(),n->npcBuffs.end(),[&](const auto& o){return o.spellId==z->id&&o.casterGuid==p.guid;});
+            if(bt!=n->npcBuffs.end()){g.npcBuffRemoved(*n,*bt);*bt=b;}else if(n->npcBuffs.size()<kLocalMaxNpcBuffs)n->npcBuffs.push_back(b);
+        }
+        LOG_INFO("[LOCAL_DISEASE] npc=",n->guid," spell=",z->id," tick=",tick," slow=",int(z->diseaseHastePct));
+    }
     if(d->disarm&&n&&!n->dead&&!nullified) {
         LocalNpcBuff b;b.spellId=d->id;b.casterGuid=p.guid;b.durationMs=b.remainingMs=talentedDuration;
         b.damagePct=-50;b.damagePctSchool=1;b.parryPct=-100;
@@ -8745,7 +8773,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                 if(n.fleeMode==1) {
                     const float dx=n.fleeX-n.x,dy=n.fleeY-n.y,dz=n.fleeZ-n.z,length=std::sqrt(dx*dx+dy*dy+dz*dz);
                     const float step=std::min(pursuitStep,length);
-                    if(length>0.001f){n.x+=dx/length*step;n.y+=dy/length*step;n.z+=dz/length*step;n.orientation=std::atan2(dy,dx);}
+                    if(length>0.001f&&!localNpcRooted(n)){n.x+=dx/length*step;n.y+=dy/length*step;n.z+=dz/length*step;n.orientation=std::atan2(dy,dx);}
                     if(length-step<=1.5f || !n.fleeMs) {
                         // AssistanceMovementGenerator::Finalize: CallAssistance, then distracted.
                         for(auto& m:g.npcs)if(assistant(m,*victim) && distance2(n.x,n.y,n.z,m.x,m.y,m.z)<=kLocalAssistanceRadius*kLocalAssistanceRadius &&
@@ -8754,7 +8782,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                     }
                 } else if(n.fleeMode==2) {
                     const float dx=n.x-victim->x,dy=n.y-victim->y,length=std::sqrt(dx*dx+dy*dy);
-                    if(length>0.001f){n.x+=dx/length*pursuitStep;n.y+=dy/length*pursuitStep;n.orientation=std::atan2(dy,dx);}
+                    if(length>0.001f&&!localNpcRooted(n)){n.x+=dx/length*pursuitStep;n.y+=dy/length*pursuitStep;n.orientation=std::atan2(dy,dx);}
                     if(!n.fleeMs)n.fleeMode=0;
                 } else if(!n.fleeMs)n.fleeMode=0;
                 changed=true;continue;

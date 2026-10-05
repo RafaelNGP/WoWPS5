@@ -902,6 +902,14 @@ static_assert(sizeof(LocalPassiveCastModifier)==20, "Bounded modifier record siz
 // Ice Block (45438): the one class buff that stuns its own holder (MOD_STUN
 // on the caster beside its immunities); cancelling it is how the mage leaves.
 inline constexpr uint32_t kLocalIceBlockSpell = 45438;
+// The two death knight diseases, by spell_bonus_data at the pin: no base
+// damage (EffectBasePoints -1) and 0.06325 x attack power per tick.
+struct LocalDiseaseSpell { uint32_t id; const char* name; uint32_t apPer100k; };
+inline const LocalDiseaseSpell* localDiseaseSpell(uint32_t id) {
+    static constexpr LocalDiseaseSpell diseases[]={{55095,"Frost Fever",6325},{55078,"Blood Plague",6325}};
+    for(const auto& d:diseases)if(d.id==id)return &d;
+    return nullptr;
+}
 // Auras the realm applies only as the after-hit of another spell's script,
 // with their client/server duration: Forbearance (SpellDuration 4), the
 // Avenging Wrath marker (9), Divine Shield's exclude aura (spell_dbc, 25)
@@ -1359,6 +1367,15 @@ struct LocalSpellDefinition {
     // SPELL_AURA_TRANSFORM (56) beside a control (Polymorph): the creature
     // entry whose model the controlled creature takes.
     uint32_t controlTransformEntry = 0;
+    // A death knight disease its hit triggers (Icy Touch -> Frost Fever,
+    // Plague Strike -> Blood Plague; SPELL_EFFECT_TRIGGER_SPELL on the target),
+    // with the child row's tick, duration, school and attack-speed slow.
+    uint32_t diseaseSpell = 0, diseaseIntervalMs = 0, diseaseDurationMs = 0;
+    uint8_t diseaseSchool = 0;
+    int8_t diseaseHastePct = 0;
+    // On the synthesized disease: each tick is this share of the caster's
+    // attack power at application (spell_bonus_data ap_dot_bonus x 100000).
+    uint32_t diseaseApPer100k = 0;
     // SPELL_AURA_REDUCE_PUSHBACK (149) on a class buff (Barkskin): percent.
     uint8_t classBuffPushbackPct = 0;
     // An absorb shield's RealPointsPerLevel (Ice Barrier): the amount is the
