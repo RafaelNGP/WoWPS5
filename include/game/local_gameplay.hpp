@@ -913,7 +913,7 @@ inline uint32_t localDeathKnightApBonus(uint32_t id,bool& periodic) {
     case 45477:case 49896:case 49903:case 49904:case 49909:return 10000;   // Icy Touch 0.1
     case 48721:case 49939:case 49940:case 49941:return 6000;               // Blood Boil 0.06
     case 49184:case 51409:case 51410:case 51411:return 20000;              // Howling Blast 0.2
-    case 47632:return 15000;                                                // Death Coil 0.15
+    case 47632:case 47541:case 49892:case 49893:case 49894:case 49895:return 15000; // Death Coil (47632) 0.15
     case 47476:return 6000;                                                 // Strangulate 0.06
     case 50842:return 4000;                                                 // Pestilence 0.04
     case 43265:case 49936:case 49937:case 49938:periodic=true;return 4805;  // Death and Decay (52212) 0.04805

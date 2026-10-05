@@ -1875,6 +1875,12 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 else {d.diseaseSpell=u(116+effect);d.diseaseIntervalMs=cu(98);d.diseaseDurationMs=uint32_t(duration);
                       d.diseaseSchool=uint8_t(cu(225));d.diseaseHastePct=haste;harm=true;}
             }
+        } else if(type==3&&!creatureCaster&&d.spellFamily==15&&(d.spellFamilyFlags[0]&0x2000u)&&target==25&&!secondary&&effect==0&&
+                  !u(72)&&!u(73)&&low>0&&!scale) {
+            // spell_dk_death_coil: on an enemy, the dummy's value as the shadow
+            // hit of 47632 (its friendly branch heals only undead creatures,
+            // which a player is not). The hit is this spell's direct damage.
+            directSlot(effect);d.damage+=low;d.damageMax+=high;harm=true;
         } else if(lifeTap&&type==3&&effect==0) {
             d.lifeTapAmount=uint32_t(i(80)+1);d.lifeTapPerLevel=f(77); // CalcValue: base + 1 (one die side)
         } else if(type==77&&!creatureCaster&&d.spellFamily==5&&target==6&&!secondary&&!i(80+effect)&&!u(74+effect)&&!u(116+effect)&&
