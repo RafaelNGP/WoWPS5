@@ -2908,7 +2908,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.deathGrip));hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -7555,6 +7555,17 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         if(p.resourceType==LocalResourceType::Rage)p.mana=std::min(p.maxMana,p.mana+d->chargeRage);
         p.attackTarget=victim->guid;g.addThreat(*victim,p.guid,1);g.selectThreatTarget(*victim,players);
         LOG_INFO("[LOCAL_CHARGE] player=",p.guid," spell=",d->id," npc=",victim->guid," rage=",d->chargeRage);
+    }
+    // Death Grip: the creature lands in front of the knight (the jump of 57604
+    // toward 49560's destination) and InterruptNonMeleeSpells stops its cast.
+    // There is no world/dungeon boss flag in this realm's creature data, so the
+    // reference's boss exemption has nothing to read.
+    if(d->deathGrip)if(auto* victim=g.npc(cmd.target);victim&&!victim->dead&&victim->mapId==p.mapId&&victim->instanceId==p.instanceId) {
+        const float reach=std::max(1.5f,localCreatureCombatReach(c.npc(victim->entry)));
+        victim->x=p.x+std::cos(p.orientation)*reach;victim->y=p.y+std::sin(p.orientation)*reach;victim->z=p.z;
+        victim->orientation=std::atan2(p.y-victim->y,p.x-victim->x);
+        if(victim->npcCastingSpellId)g.npcCancelChannelOrCast(*victim);
+        LOG_INFO("[LOCAL_DEATH_GRIP] player=",p.guid," npc=",victim->guid);
     }
     if(d->taunt)if(auto* victim=g.npc(cmd.target);victim&&!victim->dead) {
         g.tauntNpc(*victim,p.guid);

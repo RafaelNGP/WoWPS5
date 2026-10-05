@@ -1396,6 +1396,10 @@ struct LocalSpellDefinition {
     // attack-power term) for the death knight's spells, x100000: the direct
     // hit, and a ground area's tick (Death and Decay: its triggered 52212).
     uint32_t apBonusPer100k = 0, periodicApPer100k = 0;
+    // Death Grip (spell_dk_death_grip on 49576): the creature is pulled in
+    // front of the knight (49560's jump, 57604), its cast stops, and it is
+    // taunted (49560's MOD_TAUNT and SPELL_EFFECT_ATTACK_ME).
+    bool deathGrip = false;
     // SPELL_AURA_REDUCE_PUSHBACK (149) on a class buff (Barkskin): percent.
     uint8_t classBuffPushbackPct = 0;
     // An absorb shield's RealPointsPerLevel (Ice Barrier): the amount is the

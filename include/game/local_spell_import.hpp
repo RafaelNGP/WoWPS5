@@ -1881,6 +1881,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             // hit of 47632 (its friendly branch heals only undead creatures,
             // which a player is not). The hit is this spell's direct damage.
             directSlot(effect);d.damage+=low;d.damageMax+=high;harm=true;
+        } else if(type==3&&!creatureCaster&&d.id==49576&&target==6&&!secondary&&effect==0&&!u(72)&&!u(73)) {
+            d.deathGrip=true;d.taunt=true;harm=true; // spell_dk_death_grip (49576 -> 49560)
         } else if(lifeTap&&type==3&&effect==0) {
             d.lifeTapAmount=uint32_t(i(80)+1);d.lifeTapPerLevel=f(77); // CalcValue: base + 1 (one die side)
         } else if(type==77&&!creatureCaster&&d.spellFamily==5&&target==6&&!secondary&&!i(80+effect)&&!u(74+effect)&&!u(116+effect)&&
