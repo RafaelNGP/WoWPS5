@@ -77,6 +77,10 @@ namespace wowee::game {
 namespace {
 // Unit::SpellHealingBonusTaken: the recipient's own MOD_HEALING_PCT class
 // buffs (Demon Skin, Demon Armor) multiply with the creature views.
+bool localFeigningDeath(const LocalRealmPlayer& p,const LocalWorldContent& c){
+    for(const auto& a:p.statAuras)if(a.remainingMs)if(const auto* d=c.spell(a.spellId);d&&d->classBuffFeignDeath)return true;
+    return false;
+}
 bool localHoldsStatAura(const LocalRealmPlayer& p,uint32_t spellId){
     return std::any_of(p.statAuras.begin(),p.statAuras.end(),[&](const auto& a){return a.spellId==spellId&&a.remainingMs;});
 }
@@ -1220,6 +1224,9 @@ struct LocalGameplay::Impl {
     std::vector<PeriodicDamage> periodicDamage;
     struct PetHeal { uint64_t pet=0; uint32_t perTick=0,interval=0,next=0,remaining=0; };
     std::vector<PetHeal> petHeals; // Mend Pet on a hunter's beast.
+    // Feign Death: where each feigning player lay down (authority-only); moving
+    // from there ends the aura.
+    std::unordered_map<uint64_t,std::array<float,3>> feignOrigins;
     struct PendingIgnite {uint64_t owner=0,target=0,epoch=0;uint32_t map=0,instance=0,delay=400,damage=0,parent=0;uint64_t sourceSequence=0,rootSequence=0;uint8_t depth=0;};
     std::vector<PendingIgnite> pendingIgnites;
     struct PeriodicHeal {
@@ -3150,7 +3157,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -5356,6 +5363,12 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
     // _CONFUSED for the same actions; a silence refuses only a cast whose
     // PreventionType is silence (SPELL_FAILED_SILENCED), a school lockout
     // (Spell::EffectInterruptCast) the casts of that school (SPELL_FAILED_NOT_READY).
+    // Feign Death's AuraInterruptFlags: attacking, casting, using or looting ends it.
+    if((cmd.action==LocalAction::Attack||cmd.action==LocalAction::CastSpell||cmd.action==LocalAction::UseItem||
+        cmd.action==LocalAction::Loot||cmd.action==LocalAction::Interact)&&localFeigningDeath(p,c)) {
+        std::erase_if(p.statAuras,[&](const auto& a){const auto* d=c.spell(a.spellId);return d&&d->classBuffFeignDeath;});
+        g.feignOrigins.erase(p.guid);
+    }
     if(const auto control=localPlayerControl(p);control&0xdu) switch(cmd.action) {
         case LocalAction::Attack: case LocalAction::CastSpell: case LocalAction::Loot: case LocalAction::UseItem:
         case LocalAction::Interact: case LocalAction::EnterPortal: case LocalAction::TakeFlight: case LocalAction::BoardTransport:
@@ -8057,6 +8070,16 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         if(victim->npcCastingSpellId)g.npcCancelChannelOrCast(*victim);
         LOG_INFO("[LOCAL_DEATH_GRIP] player=",p.guid," npc=",victim->guid);
     }
+    // Feign Death (SPELL_AURA_FEIGN_DEATH): every creature drops the hunter
+    // from its threat and stops attacking it; the hunter stops attacking too.
+    if(d->classBuffFeignDeath&&localFeigningDeath(p,c)) {
+        for(auto& n2:g.npcs) {
+            for(auto& e:n2.threat)if(e.guid==p.guid)e={};
+            if(n2.targetGuid==p.guid){n2.targetGuid=0;g.selectThreatTarget(n2,players);}
+        }
+        p.attackTarget=0;localStopRangedAuto(p);g.feignOrigins[p.guid]={p.x,p.y,p.z};
+        LOG_INFO("[LOCAL_FEIGN_DEATH] player=",p.guid);
+    }
     if(d->threatAmount)if(auto* victim=g.npc(cmd.target);victim&&!victim->dead){g.addThreat(*victim,p.guid,uint64_t(d->threatAmount)*1000);g.selectThreatTarget(*victim,players);}
     if(d->taunt)if(auto* victim=g.npc(cmd.target);victim&&!victim->dead) {
         g.tauntNpc(*victim,p.guid);
@@ -8636,6 +8659,14 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
         // Stealth ends when the rogue attacks or anything engages it (the
         // aura's damage and attack interrupt flags).
         if(localStealthed(*p)&&(p->attackTarget||localCombatActive(*p,g.npcs))){breakLocalStealth(*p);stats(*p,content(),false);changed=true;}
+        // Feign Death ends when the hunter moves from where it lay down.
+        if(const auto it=g.feignOrigins.find(p->guid);it!=g.feignOrigins.end()) {
+            const auto& o=it->second;
+            if(!localFeigningDeath(*p,content())||distance2(p->x,p->y,p->z,o[0],o[1],o[2])>0.25f*0.25f) {
+                std::erase_if(p->statAuras,[&](const auto& a){const auto* d=content().spell(a.spellId);return d&&d->classBuffFeignDeath;});
+                g.feignOrigins.erase(it);changed=true;
+            }
+        }
         // Prowl outlives nothing but Cat Form.
         if(p->formSpellId!=768&&std::erase_if(p->statAuras,[](const auto& a){return a.spellId==kLocalProwlSpell;}))changed=true;
         // Aspect of the Cheetah dazes and ends when its hunter is engaged
@@ -9238,6 +9269,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                 // A stealthed rogue is seen only up close: Unit::CanDetectStealthOf's
                 // 9 yards against an equal level, 1 yard more or less per level.
                 if(localStealthed(*p))radius=std::clamp(9.f+float(n.level)-float(p->level),0.f,radius);
+                if(localFeigningDeath(*p,content()))continue; // a feigning hunter is not taken on sight
                 const float d=distance2(*p,n);if(d<radius*radius && d<nearest){nearest=d;n.targetGuid=p->guid;
                     if(const auto* hull=g.npc(p->vehicleGuid);hull && !hull->dead && content().vehicleKit(hull->vehicleId))n.targetGuid=hull->guid;
                 }

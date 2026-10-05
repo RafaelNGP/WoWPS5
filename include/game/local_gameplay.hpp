@@ -1466,6 +1466,10 @@ struct LocalSpellDefinition {
     int32_t classBuffRangedHastePct = 0;
     // SPELL_EFFECT_THREAT (63) on the target (Distracting Shot): flat threat.
     uint32_t threatAmount = 0;
+    // SPELL_AURA_FEIGN_DEATH (66, Feign Death) on a class buff: every creature
+    // drops the holder from its threat and none takes it on sight while it
+    // lasts; moving or acting ends it (its AuraInterruptFlags).
+    bool classBuffFeignDeath = false;
     // Death Grip (spell_dk_death_grip on 49576): the creature is pulled in
     // front of the knight (49560's jump, 57604), its cast stops, and it is
     // taunted (49560's MOD_TAUNT and SPELL_EFFECT_ATTACK_ME).
