@@ -421,6 +421,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // Demon Skin replaces Demon Armor (SPELL_SPECIFIC_WARLOCK_ARMOR). 29 is
         // Life Tap: health for the same mana, refused when it would kill. 30 is
         // a one-school absorb (Shadow Ward): it takes shadow damage, not fire.
+        // 31 is Death Coil: shadow damage, the warlock healed for 300% of it,
+        // and the target held in horror.
         struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
@@ -444,7 +446,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
-            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31},
         };
         size_t passed = 0;
         // A level 4 warlock's Corruption (rank 1 carries an empty DUMMY beside its DoT).
@@ -623,6 +625,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 p.mana = a.kind == 6 ? 0 : p.maxMana; p.runeCooldownMs.fill(0); p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear();
                 p.health = p.maxHealth;
                 if (a.kind >= 23 && a.kind <= 25) { auto& sturdy = const_cast<LocalRealmNpc&>(*n); sturdy.maxHealth = sturdy.health = 100000; }
+                if (a.kind == 31) { auto& sturdy = const_cast<LocalRealmNpc&>(*n); sturdy.maxHealth = sturdy.health = 50000; p.health = p.maxHealth / 4; }
                 if (a.kind == 27) { auto& sturdy = const_cast<LocalRealmNpc&>(*n); sturdy.maxHealth = sturdy.health = 20000; }
                 const uint32_t before = n->health;
                 if (a.kind == 15) p.attackTarget = foeGuid;
@@ -646,6 +649,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     if (!p.comboPoints) { last = "no combo points from Sinister Strike (" + result + ")"; continue; }
                 }
                 const uint8_t comboBefore = p.comboPoints;
+                const uint32_t coilHealth = p.health;
                 uint32_t firstCurse = 0;
                 if (a.kind == 26 && std::string(a.name) == "Curse of the Elements") {
                     for (auto id : p.knownSpells) if (const auto* sd = content.spell(id); sd && sd->name == "Curse of Weakness" && sd->unsupportedReason.empty()) firstCurse = id;
@@ -716,6 +720,14 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     const auto* sd = content.spell(spellId);
                     landed = sd && pct == sd->armorDebuffPct && pct && !p.comboPoints && held > (comboBefore - 1) * 6000u && held <= comboBefore * 6000u;
                     if (!landed) result = "armor debuff=" + std::to_string(held) + "ms " + std::to_string(pct) + "% combo " + std::to_string(comboBefore) + "->" + std::to_string(p.comboPoints) + " (" + result + ")";
+                }
+                else if (a.kind == 31) {
+                    const auto* sd = content.spell(spellId);
+                    bool horror = false; if (after) for (const auto& ctl : after->controls) if (ctl.spellId == spellId) horror = true;
+                    const uint32_t taken = after && before > after->health ? before - after->health : 0;
+                    const uint32_t healed = p.health > coilHealth ? p.health - coilHealth : 0;
+                    landed = sd && sd->directLeechPct == 300 && horror && taken && healed == std::min(p.maxHealth - coilHealth, taken * 3);
+                    if (!landed) result = "taken " + std::to_string(taken) + " healed " + std::to_string(healed) + " horror " + std::to_string(horror) + " (" + result + ")";
                 }
                 else if (a.kind == 26) {
                     const auto* sd = content.spell(spellId);
@@ -799,7 +811,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, fears, armor reductions, curses, warlock armors, Life Tap, school wards, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, fears, armor reductions, curses, warlock armors, Life Tap, school wards, health leech, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.

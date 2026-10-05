@@ -2860,7 +2860,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(d.controlProfile);hash(d.controlEffectSlot);hash(d.armorDebuffPct);hash(d.armorDebuffEffectSlot);
         for(const auto* a:{&d.targetDebuffAttackPower,&d.targetDebuffResistance,&d.targetDebuffDamageTakenPct,&d.targetDebuffCastSpeedPct})hash(uint32_t(*a));
         hash(uint32_t(d.targetDebuffResistanceSchool)|uint32_t(d.targetDebuffDamageTakenSchool)<<8|uint32_t(d.targetDebuffArmorPct)<<16|uint32_t(d.targetDebuffEffectMask)<<24);
-        hash(uint32_t(d.controlDamageCapPct)|uint32_t(d.controlSingleTarget)<<8);hash(uint32_t(d.classBuffHealingTakenPct));hash(d.lifeTapAmount);hash(uint32_t(d.createItemUnique));{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);}
+        hash(uint32_t(d.controlDamageCapPct)|uint32_t(d.controlSingleTarget)<<8);hash(uint32_t(d.classBuffHealingTakenPct));hash(d.lifeTapAmount);hash(uint32_t(d.createItemUnique));hash(uint32_t(d.directLeechPct));{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -7096,9 +7096,17 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
             const uint32_t blockValue=localSpellPartialBlockApplies(*d)&&localRollMeleeSpecialBlock(p,*chainNpcs[i],g.meleeRoll())?localCreatureBlockValue(*chainNpcs[i]):0;
             const bool critical=g.rollSpellCritical(p,*d,chainNpcs[i]);
             parentTargetCritical=parentTargetCritical||critical;
+            const auto healthBefore=chainNpcs[i]->health;
             g.damageNpc(*chainNpcs[i],p,critical?localMagicCriticalAmount(amount):amount,players,
                 (!d->clientSpell||(d->schoolMask&1))&&!d->directIgnoresArmor,d->id,false,0,nullptr,
                 critical?LocalMeleeOutcome::Critical:meleeOutcome,false,blockValue);
+            // Health leech: the health the hit took (GetHealthGain, no overkill)
+            // times the multiplier heals the living caster.
+            if(d->directLeechPct&&!p.dead&&healthBefore>chainNpcs[i]->health) {
+                const auto gain=localHealingTakenWithBuffs(c,p,uint32_t(std::min<uint64_t>(1000000,uint64_t(healthBefore-chainNpcs[i]->health)*d->directLeechPct/100)));
+                p.health=uint32_t(std::min<uint64_t>(p.maxHealth,uint64_t(p.health)+gain));
+                LOG_INFO("[LOCAL_LEECH] player=",p.guid," spell=",d->id," healed=",gain);
+            }
             amount=uint32_t(uint64_t(amount)*d->chainMultiplierPermille/1000);
         }
     } else if(d->damage&&directStripped)

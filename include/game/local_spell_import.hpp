@@ -1194,6 +1194,11 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // damage proc flags are the reference's damage cap (CalculateAmount gives
     // a proc-flagged MOD_FEAR/STUN/ROOT 10% of the target's maximum health,
     // spent by each damaging hit until it runs out), not a proc to install.
+    // Death Coil: a shadow HEALTH_LEECH on one hostile unit, then MOD_FEAR
+    // (horror) on it with nothing else; its fear has no damage cap (no proc
+    // flags) and no run speed.
+    const bool horrorCoil=!creatureCaster&&d.spellFamily==5&&u(71)==9&&u(86)==6&&!u(89)&&u(72)==6&&u(96)==7&&u(87)==6&&!u(90)&&
+        !u(117)&&!u(73)&&!u(spell335::ProcFlags)&&!u(spell335::ProcCharges)&&std::isfinite(f(101))&&f(101)>0&&f(101)<=10;
     const bool fearControl=!creatureCaster&&u(71)==6&&u(95)==7&&u(86)==6&&!u(89)&&!u(116)&&
         u(72)==6&&u(96)==31&&u(87)==6&&!u(90)&&!u(117)&&!u(73)&&!u(spell335::ProcCharges)&&
         !(u(spell335::AuraInterruptFlags)&kLocalAuraInterruptTakeDamage);
@@ -1601,6 +1606,9 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         } else if(!combo&&type==31&&target==6&&!secondary) {
             if(low>1000||!low||dice>1||scale!=0)unavailable("Invalid weapon percentage");
             else {d.weaponPercent=uint16_t(low);d.weaponDamage=true;harm=true;}
+        } else if(type==9&&horrorCoil&&effect==0) {
+            directSlot(effect);d.damage+=low;d.damageMax+=high;d.damagePerLevel+=scale;harm=true;
+            d.directLeechPct=uint16_t(std::lround(f(101)*100.f));
         } else if(type==2) {directSlot(effect);if(u(3)==kLocalMechanicBleed||u(83+effect)==kLocalMechanicBleed)d.directIgnoresArmor=true;d.damage+=low;d.damageMax+=high;d.damagePerLevel+=scale;d.directPerCombo+=perCombo;harm=true;}
         else if(type==10) {
             directSlot(effect);d.heal+=low;d.healMax+=high;d.healPerLevel+=scale;healing=true;
@@ -1641,7 +1649,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if((target!=1&&target!=21&&target!=25&&!(chainHeal&&target==45))||(healingTarget&&healingTarget!=target))
                 unavailable("Mixed or hostile healing targets are not implemented");
             healingTarget=target;
-        } else if(type==6&&(u(95+effect)==12||u(95+effect)==27||(confuseControl&&u(95+effect)==5)||(fearControl&&u(95+effect)==7))) {
+        } else if(type==6&&(u(95+effect)==12||u(95+effect)==27||(confuseControl&&u(95+effect)==5)||((fearControl||horrorCoil)&&u(95+effect)==7))) {
             // P04 control auras, admitted only in the narrow shape every
             // reachable client spell already has: one aura effect, a single
             // hostile unit target, a real fixed duration, no proc definition,
@@ -1659,12 +1667,13 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 if(confuseControl&&type==6&&u(95+k)==33&&u(86+k)==6)return true; // Blind's slow
                 if(fearControl&&k==1)return true; // Fear's run speed
                 if(type==2&&k<effect&&u(86+k)==6&&!u(89+k))return true;
+                if(horrorCoil&&type==9&&k==0)return true; // Death Coil's leech
                 if(d.comboFinisher&&type==3&&u(86+k)==1)return true;
                 return d.comboFinisher&&type==6&&u(95+k)==87&&u(86+k)==6&&!i(80+k)&&!u(74+k);
             };
             const auto controlMs=std::max(d.durationMs,d.comboDurationMaxMs);
             if(d.controlProfile)unavailable("Mixed control auras are not implemented");
-            else if(effect&&!(u(71)==2&&!silence)&&!(confuseControl&&u(71)==6&&u(95)==33))unavailable("A control aura outside the first effect is not implemented");
+            else if(effect&&!(u(71)==2&&!silence)&&!horrorCoil&&!(confuseControl&&u(71)==6&&u(95)==33))unavailable("A control aura outside the first effect is not implemented");
             else if(target!=6)unavailable("Area or scripted targeting is not implemented");
             else if(!controlMs||controlMs>600000)
                 unavailable("A control without a real fixed duration is not implemented");

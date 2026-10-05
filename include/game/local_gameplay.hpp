@@ -1310,6 +1310,10 @@ struct LocalSpellDefinition {
     // The created item is unique (item_template maxcount 1, the healthstones):
     // a second cast is SPELL_FAILED_TOO_MANY_OF_ITEM while one is carried.
     bool createItemUnique = false;
+    // SPELL_EFFECT_HEALTH_LEECH (Death Coil): the caster heals this percentage
+    // of the health the direct hit took (Spell.cpp's health leech handling,
+    // EffectValueMultiplier x 100, no overkill).
+    uint16_t directLeechPct = 0;
 
     std::string iconPath, unsupportedReason;
 };
