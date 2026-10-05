@@ -16,6 +16,7 @@
 #include "game/local_inventory_layout.hpp"
 #include "game/local_mail.hpp"
 #include "game/local_quest_marker.hpp"
+#include "game/local_quest_dialogue.hpp"
 #include "game/local_quest_eligibility.hpp"
 #include "game/local_spell_target_rules.hpp"
 #include "game/local_npc_auras.hpp"
@@ -1746,6 +1747,29 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
     // 7. GameObject Quest Interactions (G2/G3)
     // -------------------------------------------------------------------------
     {
+        LocalGameplay world;
+        if (!world.loadContent(worldPath, error)) { out << error << "\n"; return false; }
+        if (clientSpells) SELFTEST_CHECK(world.setStarterSpells(*clientSpells, "selftest", error));
+        world.useContent(world.sharedContent());
+        std::vector<LocalRealmPlayer*> players;
+        std::string res;
+
+        LocalRealmPlayer p;
+        p.guid = 102;
+        p.race = 1; // Human
+        p.classId = 1; // Warrior
+        p.level = 20;
+        p.money = 50000;
+        world.initializePlayer(p, true);
+        players.push_back(&p);
+
+        const auto hasItem = [&](uint32_t id) {
+            uint32_t n = 0;
+            for (const auto& s : p.inventory) if (s.itemId == id) n += s.count;
+            return n;
+        };
+
+        bool ok = false;
         auto contentPtr = std::make_shared<LocalWorldContent>(world.content());
 
         // 7a. Setup GameObject Questgiver (e.g. Wanted Poster, entry 180001, id 990101)
