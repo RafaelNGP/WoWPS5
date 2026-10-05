@@ -1505,6 +1505,11 @@ struct LocalSpellDefinition {
     // Frost Nova: SPELL_AURA_MOD_ROOT on every creature its caster-area damage
     // hits, for the spell's duration, held as a damage-capped root.
     bool areaRoot = false;
+    // Psychic Scream, Howl of Terror: SPELL_AURA_MOD_FEAR on up to
+    // areaMaxTargets (0: all) creatures within this radius of the caster, held
+    // like Fear (an incapacitation with a 10% damage cap).
+    float areaFearRadius = 0;
+    uint8_t areaMaxTargets = 0;
     // Frost Armor: Chilled, the PROC_TRIGGER_SPELL its holder puts on a
     // creature that lands a melee hit on it (spell_proc -168): the creature's
     // attack speed (aura 138) and movement (aura 33) slowed for its duration.

@@ -62,7 +62,7 @@ inline LocalDiminishingGroup localDiminishingGroupForSpell(const LocalSpellDefin
     // a spell with no hostile effect is treated as positive. Measured against
     // the player's own data it excludes none of the eighteen spells that reach
     // a group, and it is recorded as a divergence rather than as a port.
-    if(!d.damage&&!d.periodicDamage&&!d.snarePercent&&!d.controlProfile&&!d.npcPlayerControl&&!d.npcWeaponEffect&&!d.npcWeaponPercent)return G::None;
+    if(!d.damage&&!d.periodicDamage&&!d.snarePercent&&!d.controlProfile&&!(d.areaFearRadius>0)&&!d.npcPlayerControl&&!d.npcWeaponEffect&&!d.npcWeaponPercent)return G::None;
     // SpellMgr.cpp:112-116: an aura-11 taunt short-circuits every other rule.
     // Nothing sets this today - aura 11 unlocks zero client spells and is not
     // admitted (the source audit §6.5) - so the branch is
