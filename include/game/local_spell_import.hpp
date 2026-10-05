@@ -1602,6 +1602,11 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             // debuffs on players are dispellable; one of that type per effect.
             if(!besideOther&&!creatureCaster&&(target==21||target==1)&&!secondary&&u(110+effect)>=1&&u(110+effect)<=4&&low==1&&dice<=1&&scale==0)
                 d.dispelMask|=uint8_t(1u<<u(110+effect));
+            // An offensive dispel (Purge, Tranquilizing Shot) on a creature's own
+            // buffs (LocalNpcBuff): magic, and enrage for Tranquilizing Shot.
+            else if(!besideOther&&!creatureCaster&&target==6&&!secondary&&(u(110+effect)==1||u(110+effect)==9)&&low>=1&&low<=10&&dice<=1&&scale==0) {
+                d.dispelProfile=1;d.dispelAttempts=uint8_t(std::max<uint32_t>(d.dispelAttempts,low));d.hostileDispelMask|=1u<<u(110+effect);harm=true;
+            }
             else if(!besideOther)unavailable("A pure dispel is not implemented: nothing this realm holds can be dispelled");
             else if(d.dispelProfile)unavailable("Repeated dispel effects are not implemented");
             else if(target!=6)unavailable("A dispel of a friendly target is not implemented");

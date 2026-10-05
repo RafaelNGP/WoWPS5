@@ -299,15 +299,16 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         SELFTEST_CHECK(livePet() && livePet()->entry == 2031);
         // The pet fights beside its hunter: the owner attacks a beast, the pet
         // joins, damages it and spends focus on its basic attack. Nearest
-        // living target first; up to three targets (one may evade or be taken).
+        // living target first; up to six targets (one may evade, be taken or die
+        // to the hunter before the pet arrives).
         {
             bool petEngaged = false, boarHurt = false, focusSpent = false;
             std::set<uint64_t> tried;
-            for (int round = 0; round < 3 && !(petEngaged && boarHurt && focusSpent); ++round) {
+            for (int round = 0; round < 6 && !(petEngaged && boarHurt && focusSpent); ++round) {
                 const LocalRealmNpc* boar = nullptr; float bestD = 1e30f;
                 for (int i = 0; i < 200 && !boar; ++i) { world.tick(0.05f, players);
                     for (const auto& n : world.npcs()) if ((n.entry == 1984 || n.entry == 2031) && !n.dead && !tried.count(n.guid)) {
-                        const float d = std::hypot(n.x - p.x, n.y - p.y); if (d < bestD && d < 80) { bestD = d; boar = &n; } } }
+                        const float d = std::hypot(n.x - p.x, n.y - p.y); if (d < bestD && d < 150) { bestD = d; boar = &n; } } }
                 if (!boar) break;
                 const uint64_t boarGuid = boar->guid; const uint32_t before = boar->maxHealth; tried.insert(boarGuid);
                 p.x = boar->x + 1; p.y = boar->y; p.z = boar->z; ++p.positionRevision;
@@ -399,7 +400,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // 17 a damage finisher and 18 a self-buff finisher after a Sinister
         // Strike (both at level 20, so the builder does not kill the enemy), 19
         // a cat opener: refused outside Prowl, then struck from Prowl, 20 a
-        // presence held until another presence replaces it.
+        // presence held until another presence replaces it, 21 an offensive
+        // dispel at a creature with no buff (SPELL_FAILED_NOTHING_TO_DISPEL).
         struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
@@ -419,7 +421,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 2, "Cleanse", 16}, {4, 11, "Cure Poison", 16},
             {1, 4, "Rupture", 17}, {1, 4, "Slice and Dice", 18}, {4, 11, "Ravage", 19},
             {1, 6, "Death Strike", 0}, {1, 6, "Obliterate", 0}, {1, 6, "Death and Decay", 0}, {1, 6, "Chains of Ice", 1},
-            {1, 6, "Blood Presence", 20},
+            {1, 6, "Blood Presence", 20}, {11, 7, "Purge", 21},
         };
         size_t passed = 0;
         for (const auto& a : abilities) {
@@ -574,6 +576,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 }
                 if (!arena.execute(p, {LocalAction::CastSpell, a.kind == 15 || a.kind == 18 ? p.guid : foeGuid, spellId}, players, result)) {
                     last = result;
+                    if (a.kind == 21 && result.find("Nothing to dispel") != std::string::npos) { landed = true; break; }
                     if (std::getenv("ABILITY_VERBOSE")) out << "  " << a.name << " attempt " << attempt << ": " << result << " form=" << p.formSpellId << "\n";
                     // A stance-bound ability (Overpower): take the next known stance and retry.
                     if (result.find("form or stance") != std::string::npos) {
@@ -624,7 +627,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, Prowl, presences, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, Prowl, presences, offensive dispels, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.

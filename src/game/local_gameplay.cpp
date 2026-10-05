@@ -2809,7 +2809,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         // creature types and combat states it may be cast at.
         hash(d.sourceRangeFlags);hash(d.sourceFacingFlags);hash(d.targetCreatureType);
         hash(uint32_t(d.weaponDamage)|uint32_t(d.normalizedWeapon)<<1|uint32_t(d.interruptCast)<<2|uint32_t(d.taunt)<<3|uint32_t(d.charge)<<4|uint32_t(d.outOfCombatOnly)<<5);hash(d.chargeRage);hash(d.weaponPercent);hash(d.targetMaxHealthPct);hash(d.createItemId);hash(d.createItemCount);hash(uint32_t(d.channel)|uint32_t(d.periodicLeech)<<1|uint32_t(d.soulShardOnKill)<<2|uint32_t(d.teleport)<<3|uint32_t(d.groundAtCaster)<<4);{uint32_t gr;std::memcpy(&gr,&d.groundRadius,4);hash(gr);}for(size_t r=0;r<d.reagentItems.size();++r){hash(d.reagentItems[r]);hash(d.reagentCounts[r]);}
-        hash(uint32_t(d.classBuff));for(auto v:d.classBuffStats)hash(uint32_t(v));hash(uint32_t(d.classBuffAttackPower));hash(uint32_t(d.classBuffArmor));hash(uint32_t(d.classBuffHealth));hash(uint32_t(d.classBuffSpeedPct));hash(uint32_t(d.classBuffDodgePct));hash(uint32_t(d.classBuffRangedAttackPower));hash(d.trackCreatureMask);hash(d.totemEntry);hash(d.dispelMask);hash(uint32_t(d.classBuffMeleeHastePct));hash(uint32_t(d.classBuffDamagePct));hash(uint32_t(d.classBuffDamageTakenPct));hash(uint32_t(d.classBuffArmorPct));hash(d.comboDurationMaxMs);hash(uint32_t(d.onlyStealthed));
+        hash(uint32_t(d.classBuff));for(auto v:d.classBuffStats)hash(uint32_t(v));hash(uint32_t(d.classBuffAttackPower));hash(uint32_t(d.classBuffArmor));hash(uint32_t(d.classBuffHealth));hash(uint32_t(d.classBuffSpeedPct));hash(uint32_t(d.classBuffDodgePct));hash(uint32_t(d.classBuffRangedAttackPower));hash(d.trackCreatureMask);hash(d.totemEntry);hash(d.dispelMask);hash(d.hostileDispelMask);hash(uint32_t(d.classBuffMeleeHastePct));hash(uint32_t(d.classBuffDamagePct));hash(uint32_t(d.classBuffDamageTakenPct));hash(uint32_t(d.classBuffArmorPct));hash(d.comboDurationMaxMs);hash(uint32_t(d.onlyStealthed));
         hash(uint32_t(d.sourceOnlyPeacefulTargets));
         // P05 line of sight : two peers must agree on which casts are
         // exempt from the test before they can agree on the test's answer.
@@ -6494,6 +6494,9 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         return healed&&a.target==healed->guid&&a.remaining&&s&&s->dispelType>=1&&s->dispelType<=4&&((types>>s->dispelType)&1);};
     if(d->dispelMask&&!std::any_of(g.npcPeriodic.begin(),g.npcPeriodic.end(),[&](const auto& a){return dispellable(a,d->dispelMask);}))
         return reject("Nothing to dispel");
+    if(d->hostileDispelMask&&n&&!std::any_of(n->npcBuffs.begin(),n->npcBuffs.end(),[&](const auto& b){const auto* s=c.spell(b.spellId);
+        return (b.remainingMs||b.indefinite)&&s&&(localDispelMask(s->dispelType)&d->hostileDispelMask);}))
+        return reject("Nothing to dispel");
     // --- competing auras (P04, the implementation) --------------------------------------
     // The reference decides in two steps (the source audit
     // section 6): the same id from the same caster refreshes in place
@@ -6962,6 +6965,13 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         // assumed, and logged.
         const auto candidates=localNpcDispellableAuraCount(*n,c,localDispelMask(1),false,d->sourceNoImmunities);
         LOG_INFO("[LOCAL_DISPEL] npc=",n->guid," spell=",d->id," attempts=",unsigned(d->dispelAttempts)," candidates=",candidates);
+        // The creature's own buffs are what an offensive dispel removes.
+        if(d->hostileDispelMask)for(unsigned k=0;k<d->dispelAttempts;++k) {
+            const auto it=std::find_if(n->npcBuffs.begin(),n->npcBuffs.end(),[&](const auto& b){const auto* s=c.spell(b.spellId);
+                return (b.remainingMs||b.indefinite)&&s&&(localDispelMask(s->dispelType)&d->hostileDispelMask);});
+            if(it==n->npcBuffs.end())break;
+            LOG_INFO("[LOCAL_DISPEL] npc=",n->guid," spell=",d->id," removed buff=",it->spellId);n->npcBuffs.erase(it);
+        }
     }
     if(d->snarePercent&&!n->dead&&!(strippedEffects&1u)) {
         LocalNpcSnare a{d->id,talentedDuration,p.guid,d->snarePercent,p.positionRevision};

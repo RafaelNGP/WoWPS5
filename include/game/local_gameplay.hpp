@@ -977,6 +977,7 @@ struct LocalSpellDefinition {
     bool onlyStealthed=false; // SPELL_ATTR0_ONLY_STEALTHED outside Stealth's form (Ravage, Pounce)
     uint32_t comboDurationMaxMs=0; // a finisher's duration at five points (SpellDuration MaxDuration)
     uint32_t trackCreatureMask=0; // aura 44 (Track Beasts...): creature types shown on the minimap
+    uint16_t hostileDispelMask=0; // an offensive pure dispel's DispelType bits (Purge: magic; Tranquilizing Shot: enrage, magic)
     uint8_t dispelMask=0; // friendly SPELL_EFFECT_DISPEL: bit per DispelType (1 magic, 2 curse, 3 disease, 4 poison)
     uint32_t totemEntry=0; // SPELL_EFFECT_SUMMON of a totem (SummonProperties 63/81/82/83); totems.json says what it does
     /// A player channel (Mind Flay, Drain Life, Drain Soul): its periodic
