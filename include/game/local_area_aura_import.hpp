@@ -148,7 +148,9 @@ inline bool decodeClientAreaAuraProfile(const Tables& t, uint32_t row, LocalSpel
     // A persistent area is a ground damage area, decoded by decodeClientSpell
     // (groundRadius); it is not a raid aura producer.
     if (persistent) return false;
-    if (totem) return reject("Totem summons and the area auras their creature casts are not implemented");
+    // A totem summon is decoded by decodeClientSpell (totemEntry); totems.json
+    // describes what its creature does.
+    if (totem) return false;
     if (foreign) return reject("Pet, friend, enemy and owner area auras are not implemented");
     if (party) return reject("Party area auras are not implemented");
     if (!raid) return false;

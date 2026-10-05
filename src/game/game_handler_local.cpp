@@ -453,6 +453,20 @@ bool GameHandler::syncLocalRealmPlayer(const LocalRealmPlayer& snapshot, const L
             if(v.blocked)combatHandler_->addCombatText(T::BLOCK,int32_t(v.blocked),v.spell,outgoing,0,v.source,v.target);
             if(v.resisted)combatHandler_->addCombatText(T::RESIST,int32_t(v.resisted),v.spell,outgoing,0,v.source,v.target);
         }
+        // The totem bar (GetTotemInfo, PLAYER_TOTEM_UPDATE) from the realm's
+        // totems, as SMSG_TOTEM_CREATED feeds it online: slot = element.
+        if(auto* realm=localServiceRealm()) {
+            std::array<std::pair<uint32_t,uint32_t>,NUM_TOTEM_SLOTS> standing{};
+            for(const auto& v:realm->pets())if(v.ownerGuid==snapshot.guid&&v.kind==LocalPetKind::Totem&&!v.dead)
+                if(const auto* t=content.totem(v.summonSpellId);t&&t->element<NUM_TOTEM_SLOTS)standing[t->element]={v.summonSpellId,v.remainingMs};
+            for(int slot=0;slot<NUM_TOTEM_SLOTS;++slot) {
+                auto& s=activeTotemSlots_[slot];const auto [spell,remaining]=standing[size_t(slot)];
+                if(spell==s.spellId&&(!spell||std::abs(s.remainingMs()-float(remaining))<1500.f))continue;
+                s.spellId=spell;s.durationMs=spell?content.totem(spell)->durationMs:0;
+                s.placedAt=std::chrono::steady_clock::now()-std::chrono::milliseconds(s.durationMs>remaining?s.durationMs-remaining:0);
+                fireAddonEvent("PLAYER_TOTEM_UPDATE",{std::to_string(slot+1)});
+            }
+        }
         if(comboPoints_!=snapshot.comboPoints||comboTarget_!=snapshot.comboTarget){
             comboPoints_=snapshot.comboPoints;comboTarget_=snapshot.comboTarget;
             fireAddonEvent("PLAYER_COMBO_POINTS",{});fireAddonEvent("UNIT_COMBO_POINTS",{"player"});

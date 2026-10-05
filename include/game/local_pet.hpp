@@ -46,6 +46,8 @@ enum class LocalPetKind : uint8_t {
     Controlled = 1,
     /// A summon with its own duration that the owner does not command.
     Guardian = 2,
+    /// A shaman's totem (totems.json): stationary, one per element, timed.
+    Totem = 3,
 };
 
 /// CommandStates, Unit.h:574-577. Exactly four; there is no COMMAND_MOVE_TO at
@@ -85,8 +87,9 @@ inline constexpr uint32_t kLocalPetFocusRegenIntervalMs = 4000;
 inline constexpr uint32_t kLocalPetMaxFocus = 100;
 /// Bounded authority roster. One controlled summon per owner, as the source
 /// allows, plus room for short-lived guardians without unbounded growth.
-inline constexpr size_t kLocalMaxPets = 8;
+inline constexpr size_t kLocalMaxPets = 24;
 inline constexpr size_t kLocalMaxGuardiansPerOwner = 2;
+inline constexpr size_t kLocalMaxTotemsPerOwner = 4; // fire, earth, water, air
 /// The summon appears beside its owner and follows within this distance, and
 /// is recalled when it can no longer reach them. Same eight yards every other
 /// owner-scoped rule in this realm uses.
@@ -152,7 +155,7 @@ inline bool localPetGuid(uint64_t guid) { return (guid & (0xFFFFULL << 48)) == k
 
 inline bool validLocalPet(const LocalRealmPet& pet) {
     if (!pet.guid || !localPetGuid(pet.guid) || !pet.ownerGuid || pet.guid == pet.ownerGuid) return false;
-    if (pet.kind != LocalPetKind::Controlled && pet.kind != LocalPetKind::Guardian) return false;
+    if (pet.kind != LocalPetKind::Controlled && pet.kind != LocalPetKind::Guardian && pet.kind != LocalPetKind::Totem) return false;
     if (!pet.entry || !pet.summonSpellId || !pet.level || pet.level > 80) return false;
     if (!pet.maxHealth || pet.health > pet.maxHealth) return false;
     if (pet.resourceType != 255 && pet.resourceType != 0 && pet.resourceType != 2) return false;
@@ -172,7 +175,7 @@ inline bool validLocalPet(const LocalRealmPet& pet) {
     if (!std::isfinite(pet.stayX) || !std::isfinite(pet.stayY) || !std::isfinite(pet.stayZ)) return false;
     // A guardian is not commanded - HandlePetAction needs a CharmInfo, which
     // only a controlled minion has - so it keeps the defaults and no stay point.
-    if (pet.kind == LocalPetKind::Guardian &&
+    if (pet.kind != LocalPetKind::Controlled &&
         (pet.command != kLocalPetDefaultCommand || pet.commandAttack)) return false;
     // An attack order without a victim is not a state the reference can be in:
     // _stopAttack clears the flag on the same pass that clears the target.
@@ -270,11 +273,11 @@ inline bool validLocalPets(const std::vector<LocalRealmPet>& pets) {
     for (size_t i = 0; i < pets.size(); ++i) {
         if (!validLocalPet(pets[i])) return false;
         for (size_t j = 0; j < i; ++j) if (pets[i].guid == pets[j].guid) return false;
-        size_t controlled = 0, guardians = 0;
+        size_t controlled = 0, guardians = 0, totems = 0;
         for (const auto& other : pets)
             if (other.ownerGuid == pets[i].ownerGuid)
-                (other.kind == LocalPetKind::Controlled ? controlled : guardians)++;
-        if (controlled > 1 || guardians > kLocalMaxGuardiansPerOwner) return false;
+                (other.kind == LocalPetKind::Controlled ? controlled : other.kind == LocalPetKind::Totem ? totems : guardians)++;
+        if (controlled > 1 || guardians > kLocalMaxGuardiansPerOwner || totems > kLocalMaxTotemsPerOwner) return false;
     }
     return true;
 }

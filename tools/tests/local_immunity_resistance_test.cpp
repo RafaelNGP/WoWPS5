@@ -705,8 +705,10 @@ void shieldSlamAndPureDispels() {
     // The audit's twelve pure dispels the importer used to reject as
     // "Unsupported effect 38" are now refused by name; the three Absolution
     // ranks still die on their affected-spell gate; nothing else moved.
-    const uint32_t pure[] = {527, 988, 370, 8012, 4987, 51886, 528, 8946, 1152, 475, 2782, 3137};
-    for (auto id : pure) assert(status.at(id) == "A pure dispel is not implemented: nothing this realm holds can be dispelled");
+    // Dispel Magic and Purge (they also look at enemies) stay refused; the
+    // friendly dispels now remove creature debuffs from players (dispelMask).
+    for (auto id : {527u, 988u, 370u, 8012u}) assert(status.at(id) == "A pure dispel is not implemented: nothing this realm holds can be dispelled");
+    for (auto id : {4987u, 51886u, 528u, 8946u, 1152u, 475u, 2782u, 3137u}) assert(accepted.count(id) && real(id).dispelMask);
     for (auto id : {33167u, 33171u, 33172u}) assert(status.at(id) == "Affected spells are not implemented for this modifier");
     assert(accepted.size() == 1004);
     for (const auto& d : gImported.spells) if (d.dispelProfile) assert(std::find(std::begin(shieldSlams), std::end(shieldSlams), d.id) != std::end(shieldSlams));

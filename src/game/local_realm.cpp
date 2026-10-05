@@ -1969,8 +1969,9 @@ struct LocalRealm::Impl {
         w.u32(botDirector.nextAuctionId());
         w.u32(mailbox.nextId);w.u16(uint16_t(mailbox.messages.size()));
         for(const auto& mail:mailbox.messages)writeMail(w,mail);
-        w.u8(uint8_t(gameplay.pets().size()));
-        for(const auto& summon:gameplay.pets())writePet(w,summon);
+        // Totems are not kept: they fall when the shaman leaves.
+        w.u8(uint8_t(std::count_if(gameplay.pets().begin(),gameplay.pets().end(),[](const auto& v){return v.kind!=LocalPetKind::Totem;})));
+        for(const auto& summon:gameplay.pets())if(summon.kind!=LocalPetKind::Totem)writePet(w,summon);
         w.u16(uint16_t(gameplay.gameObjectStates().size()));
         for(const auto& object:gameplay.gameObjectStates())writeGameObjectState(w,object);
         w.u8(uint8_t(worldEvents.size()));

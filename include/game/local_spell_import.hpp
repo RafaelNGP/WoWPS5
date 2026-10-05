@@ -1153,6 +1153,11 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if(!creatureCaster&&u(40)==21&&d.id!=30645)for(uint32_t e=0;e<3;++e)
         if(u(71+e)==6&&u(95+e)==44&&u(86+e)==1&&i(110+e)>=1&&i(110+e)<=12)trackerSpell=true;
     const bool untilCancelled=aspectSpell||trackerSpell;
+    // A shaman totem: one SPELL_EFFECT_SUMMON whose SummonProperties row is a
+    // totem slot (63 fire, 81 earth, 82 water, 83 air; Title 4).
+    const bool totemSummon=!creatureCaster&&d.spellFamily==11&&u(71)==28&&!u(72)&&!u(73)&&u(110)&&
+        (u(113)==63||u(113)==81||u(113)==82||u(113)==83);
+    if(totemSummon)d.totemEntry=u(110);
     if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&d.id!=1784) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
     // Spell.dbc column 38 is BaseLevel and column 39 is SpellLevel
@@ -1336,6 +1341,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         if(areaAura){buffTarget=kSourceTargetUnitCaster;continue;}
         if(d.formId||formBoost||formResource)continue; // Exact outer profile verified above; local form rules own its effects.
         if(bloodthirst && effect==1){harm=true;continue;} // Reviewed destination dummy arms internal aura.
+        if(totemSummon)continue; // The creature it puts down is the totem rules' (totems.json).
         if(deathItemChannel&&type==6&&(u(95+effect)==86||(u(95+effect)==42&&u(86+effect)==1))) {
             if(u(95+effect)==86)d.soulShardOnKill=true;
             continue;
@@ -1563,7 +1569,11 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             // a buff-less creature, and exactly what Shield Slam does here.
             bool besideOther=false;
             for(unsigned k=0;k<3;++k)if(k!=effect&&u(71+k)&&u(71+k)!=38)besideOther=true;
-            if(!besideOther)unavailable("A pure dispel is not implemented: nothing this realm holds can be dispelled");
+            // A friendly dispel (Cleanse, Remove Curse, Cure Poison...): creature
+            // debuffs on players are dispellable; one of that type per effect.
+            if(!besideOther&&!creatureCaster&&(target==21||target==1)&&!secondary&&u(110+effect)>=1&&u(110+effect)<=4&&low==1&&dice<=1&&scale==0)
+                d.dispelMask|=uint8_t(1u<<u(110+effect));
+            else if(!besideOther)unavailable("A pure dispel is not implemented: nothing this realm holds can be dispelled");
             else if(d.dispelProfile)unavailable("Repeated dispel effects are not implemented");
             else if(target!=6)unavailable("A dispel of a friendly target is not implemented");
             else if(u(110+effect)!=1)unavailable("A non-magic dispel type is not implemented");
@@ -1601,7 +1611,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if(harm&&!d.schoolMask&&(!creatureCaster||d.damage||d.periodicDamage))unavailable("Damaging spell has no school");
     if(buff&&(harm||healing)) unavailable("Mixed stat buffs and other effects are not implemented");
     if(harm&&healing) unavailable("Mixed hostile/friendly spells are not implemented");
-    if(!harm&&!healing&&!buff&&!d.formId&&!formBoost&&!formResource&&!summonPet&&!areaAura&&!d.controlProfile&&!d.createItemId&&!d.teleport) unavailable("No supported direct or periodic damage/healing effect");
+    if(!harm&&!healing&&!buff&&!d.formId&&!formBoost&&!formResource&&!summonPet&&!areaAura&&!d.controlProfile&&!d.createItemId&&!d.teleport&&!d.totemEntry&&!d.dispelMask) unavailable("No supported direct or periodic damage/healing effect");
     if(d.teleport&&(harm||healing||buff||d.createItemId))unavailable("Teleport beside other effects is not implemented");
     if(d.createItemId&&(harm||healing||buff))unavailable("Item creation beside other effects is not implemented");
     if(!creatureCaster){d.healingSelfOnly=healingTarget==1;d.buffSelfOnly=d.formId!=0||formBoost||formResource||buffTarget==1;}

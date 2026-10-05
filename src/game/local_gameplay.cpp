@@ -2105,6 +2105,48 @@ struct LocalGameplay::Impl {
             " action=out level=",unsigned(pets.back().level)," health=",pets.back().health,"/",pets.back().maxHealth," name=",h.name);
         return true;
     }
+    /// A shaman's totem (totems.json): one per element - a new one replaces
+    /// the old - standing where the shaman put it for its duration.
+    bool summonTotem(LocalRealmPlayer& owner,const LocalSpellDefinition& d,const std::vector<LocalRealmPlayer*>& players) {
+        const auto* t=content->totem(d.id);if(!t)return false;
+        uint64_t replaced=0;
+        for(const auto& v:pets)if(v.ownerGuid==owner.guid&&v.kind==LocalPetKind::Totem)
+            if(const auto* old=content->totem(v.summonSpellId);!old||old->element==t->element)replaced=v.guid;
+        if(replaced)retirePet(replaced,"replaced",players);
+        if(pets.size()>=kLocalMaxPets)return false;
+        LocalRealmPet s;
+        s.guid=kLocalPetGuidPrefix|(uint64_t(owner.instanceId)<<32)|uint32_t(++nextPetSerial);
+        s.ownerGuid=owner.guid;s.summonEpoch=allocateSummonEpoch();
+        s.entry=t->entry;s.displayId=t->displayId;s.mapId=owner.mapId;s.instanceId=owner.instanceId;
+        s.summonSpellId=d.id;s.kind=LocalPetKind::Totem;s.level=std::clamp<uint8_t>(owner.level,1,80);
+        s.maxHealth=s.health=std::max(5u,uint32_t(owner.level)*5);s.resourceType=255;
+        s.attackPeriodMs=std::clamp(t->periodMs,200u,10000u);s.remainingMs=std::clamp(t->durationMs,1u,3600000u);
+        // TARGET_DEST_CASTER_FRONT_LEFT/RIGHT, BACK_LEFT/RIGHT: one corner per element.
+        static constexpr float kCorner[4]={.785f,-.785f,2.356f,-2.356f};
+        const float angle=owner.orientation+kCorner[t->element&3];
+        s.x=owner.x+2.f*std::cos(angle);s.y=owner.y+2.f*std::sin(angle);s.z=owner.z;s.orientation=owner.orientation;
+        // An aura totem reaches its party at once; the others pulse after a period.
+        s.attackTimer=t->kind==LocalWorldContent::TotemKind::Aura||t->kind==LocalWorldContent::TotemKind::Attack?0.f:s.attackPeriodMs/1000.f;
+        s.name=d.name;
+        if(!validLocalPet(s))return false;
+        pets.push_back(std::move(s));
+        LOG_INFO("[LOCAL_TOTEM] owner=",owner.guid," totem=",pets.back().guid," spell=",d.id," entry=",t->entry," element=",unsigned(t->element));
+        return true;
+    }
+    /// A totem's spell on a creature: magic damage, threat and credit to the shaman.
+    void damageNpcByTotem(LocalRealmNpc& n,LocalRealmPet& totem,LocalRealmPlayer& owner,uint32_t damage,uint32_t spell,uint8_t school,
+                          const std::vector<LocalRealmPlayer*>& players) {
+        if(n.dead||totem.dead||!content->npc(n.entry))return;
+        auto effective=std::min(damage,n.health);
+        if(damage)breakNpcControlsOnDamage(n,0,nullptr);
+        if(damage&&!n.lootOwner)n.lootOwner=owner.guid;
+        npcLowerPlayerDamageReq(n,damage,false);
+        addThreat(n,owner.guid,std::max<uint64_t>(1,uint64_t(damage)*1000));selectThreatTarget(n,players);
+        if(damage>=n.health){if(!kill(n,owner,players,totem.guid,totem.level))effective=0;}else n.health-=damage;
+        LocalCombatEvent event{0,totem.guid,n.guid,spell,n.mapId,n.instanceId,damage,effective,0,LocalCombatEventKind::SpellDamage,n.dead};
+        event.schoolMask=uint8_t(1u<<std::min<uint8_t>(school,6));event.attackType=LocalCombatAttackType::Magic;
+        emitCombatEvent(event,players);
+    }
     /// Keeps the kept record in step with the beast in the world: a beast that
     /// died stays dead until Revive Pet, an active one comes back after travel
     /// or a reload, as Player::LoadPet resummons the current pet.
@@ -2671,6 +2713,20 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
     // diagnostic wording cannot split otherwise compatible LAN clients.
     const auto hash=[&](uint32_t value) {for(unsigned b=0;b<4;++b)c.fingerprint=(c.fingerprint^uint8_t(value>>(b*8)))*16777619U;};
     auto sorted=spells;std::sort(sorted.begin(),sorted.end(),[](const auto& a,const auto& b){return a.id<b.id;});
+    // A totem whose creature totems.json does not describe stays unavailable.
+    // An aura totem's party aura is its creature's spell, held by everyone in
+    // range as a short class buff the totem keeps refreshing.
+    for(auto& d:sorted)if(d.totemEntry&&!c.totem(d.id)&&d.unsupportedReason.empty())d.unsupportedReason="This totem's creature behaviour is not implemented";
+    for(const auto& t:c.totems)if(t.kind==LocalWorldContent::TotemKind::Aura&&
+        !std::any_of(sorted.begin(),sorted.end(),[&](const auto& d){return d.id==t.castSpell;})) {
+        LocalSpellDefinition a;a.id=t.castSpell;a.clientSpell=true;a.allowableClasses=1u<<6;a.triggeredOnly=true;a.maxAuraStacks=1;
+        for(const auto& d:sorted)if(d.id==t.spellId){a.name=d.name;a.spellFamily=d.spellFamily;break;}
+        if(a.name.size()>6&&a.name.ends_with(" Totem"))a.name.resize(a.name.size()-6);
+        a.classBuff=true;a.buffSelfOnly=true;a.durationMs=kLocalTotemAuraLeaseMs;
+        a.classBuffStats=t.stats;a.classBuffArmor=int32_t(t.armor);a.manaPer5=t.mp5;
+        sorted.push_back(std::move(a));
+    }
+    std::sort(sorted.begin(),sorted.end(),[](const auto& a,const auto& b){return a.id<b.id;});
     hash(0x42313153);hash(uint32_t(sorted.size()));
     for(const auto& d:sorted) {
         const uint32_t values[]={uint32_t(d.requiredForms),uint32_t(d.requiredForms>>32),uint32_t(d.excludedForms),uint32_t(d.excludedForms>>32),d.formId,uint32_t(d.notShapeshifted),uint32_t(d.allowWithoutForm),d.id,d.allowableClasses,d.schoolMask,uint32_t(d.passiveSchoolThreatPercent),d.passiveSchoolThreatMask,uint32_t(d.directIgnoresArmor),uint32_t(d.periodicIgnoresArmor),uint32_t(d.requiredItemClass),d.requiredItemSubclasses,d.requiredInventoryTypes,uint32_t(d.requiresMainHand),uint32_t(d.requiresOffHand),d.chainTargets,d.chainMultiplierPermille,d.resourceType,d.mana,d.manaPercent,d.cooldownMs,d.cooldownCategory,d.categoryCooldownMs,uint32_t(d.noCategoryCooldownMods),
@@ -2753,7 +2809,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         // creature types and combat states it may be cast at.
         hash(d.sourceRangeFlags);hash(d.sourceFacingFlags);hash(d.targetCreatureType);
         hash(uint32_t(d.weaponDamage)|uint32_t(d.normalizedWeapon)<<1|uint32_t(d.interruptCast)<<2|uint32_t(d.taunt)<<3|uint32_t(d.charge)<<4|uint32_t(d.outOfCombatOnly)<<5);hash(d.chargeRage);hash(d.weaponPercent);hash(d.targetMaxHealthPct);hash(d.createItemId);hash(d.createItemCount);hash(uint32_t(d.channel)|uint32_t(d.periodicLeech)<<1|uint32_t(d.soulShardOnKill)<<2|uint32_t(d.teleport)<<3|uint32_t(d.groundAtCaster)<<4);{uint32_t gr;std::memcpy(&gr,&d.groundRadius,4);hash(gr);}for(size_t r=0;r<d.reagentItems.size();++r){hash(d.reagentItems[r]);hash(d.reagentCounts[r]);}
-        hash(uint32_t(d.classBuff));for(auto v:d.classBuffStats)hash(uint32_t(v));hash(uint32_t(d.classBuffAttackPower));hash(uint32_t(d.classBuffArmor));hash(uint32_t(d.classBuffHealth));hash(uint32_t(d.classBuffSpeedPct));hash(uint32_t(d.classBuffDodgePct));hash(uint32_t(d.classBuffRangedAttackPower));hash(d.trackCreatureMask);
+        hash(uint32_t(d.classBuff));for(auto v:d.classBuffStats)hash(uint32_t(v));hash(uint32_t(d.classBuffAttackPower));hash(uint32_t(d.classBuffArmor));hash(uint32_t(d.classBuffHealth));hash(uint32_t(d.classBuffSpeedPct));hash(uint32_t(d.classBuffDodgePct));hash(uint32_t(d.classBuffRangedAttackPower));hash(d.trackCreatureMask);hash(d.totemEntry);hash(d.dispelMask);
         hash(uint32_t(d.sourceOnlyPeacefulTargets));
         // P05 line of sight : two peers must agree on which casts are
         // exempt from the test before they can agree on the test's answer.
@@ -3326,6 +3382,65 @@ LocalGameplay::NpcDisposition LocalGameplay::npcDisposition(
     // their actual faction is hostile to this race.
     return {!n.questGiver, false};
 }
+bool LocalGameplay::tickTotem(LocalRealmPet& totem, LocalRealmPlayer& owner, uint32_t elapsedMs, const std::vector<LocalRealmPlayer*>& players) {
+    auto& g=*impl_;
+    const auto& c=content();
+    const auto* t=c.totem(totem.summonSpellId);
+    if(!t||totem.dead)return false;
+    totem.attackTimer-=float(elapsedMs)/1000.f;
+    if(totem.attackTimer>0)return false;
+    totem.attackTimer=std::clamp(float(t->periodMs)/1000.f,.2f,60.f);
+    const auto roll=[&]{return t->low+uint32_t(uint64_t(t->high-t->low)*g.meleeRoll()/9999);};
+    const auto near=[&](float x,float y,float z,float radius){return distance2(totem.x,totem.y,totem.z,x,y,z)<=radius*radius;};
+    // The shaman and its party, alive, on the totem's map and within reach.
+    std::vector<LocalRealmPlayer*> group;
+    const auto party=g.partyOf(owner.guid);
+    for(auto* p:players)if(p&&!p->dead&&p->health&&p->mapId==totem.mapId&&p->instanceId==totem.instanceId&&
+        (p==&owner||(party&&g.partyOf(p->guid)==party))&&near(p->x,p->y,p->z,t->radius))group.push_back(p);
+    bool changed=false;
+    switch(t->kind) {
+    case LocalWorldContent::TotemKind::Attack: {
+        // The shaman's own target, else a creature fighting the shaman or its party.
+        LocalRealmNpc* victim=nullptr;float best=t->range*t->range;
+        for(auto& n:g.npcs) {
+            if(n.dead||!n.health||n.mapId!=totem.mapId||n.instanceId!=totem.instanceId||!canAttack(owner,n))continue;
+            const float d=distance2(totem.x,totem.y,totem.z,n.x,n.y,n.z);if(d>t->range*t->range)continue;
+            bool engaged=n.guid==owner.attackTarget;
+            for(const auto& e:n.threat)if(e.guid==owner.guid||(party&&g.partyOf(e.guid)==party))engaged=true;
+            if(!engaged)continue;
+            if(n.guid==owner.attackTarget){victim=&n;break;}
+            if(d<best){best=d;victim=&n;}
+        }
+        if(victim){g.damageNpcByTotem(*victim,totem,owner,roll(),t->castSpell,t->school,players);changed=true;}
+        break;
+    }
+    case LocalWorldContent::TotemKind::PulseDamage:
+        for(auto& n:g.npcs)if(!n.dead&&n.health&&n.mapId==totem.mapId&&n.instanceId==totem.instanceId&&canAttack(owner,n)&&near(n.x,n.y,n.z,t->radius))
+            {g.damageNpcByTotem(n,totem,owner,roll(),t->castSpell,t->school,players);changed=true;}
+        break;
+    case LocalWorldContent::TotemKind::PulseHeal:
+        for(auto* p:group)if(p->health<p->maxHealth) {
+            const auto attempted=localPlayerHealingTaken(*p,roll());
+            const auto health=uint32_t(std::min(uint64_t(p->maxHealth),uint64_t(p->health)+attempted));
+            g.emitCombatEvent({0,totem.guid,p->guid,t->castSpell,totem.mapId,totem.instanceId,attempted,health-p->health,0,
+                LocalCombatEventKind::PeriodicHeal,false,0,LocalMeleeOutcome::Hit},players);
+            p->health=health;changed=true;
+        }
+        break;
+    case LocalWorldContent::TotemKind::Aura:
+        // The creature's area aura, held as a short class buff it keeps refreshing.
+        if(c.spell(t->castSpell))for(auto* p:group) {
+            auto it=std::find_if(p->statAuras.begin(),p->statAuras.end(),[&](const auto& a){return a.spellId==t->castSpell;});
+            if(it!=p->statAuras.end()){it->remainingMs=kLocalTotemAuraLeaseMs;it->mapId=p->mapId;it->instanceId=p->instanceId;continue;}
+            if(p->statAuras.size()>=kLocalMaxStatAuras)continue;
+            LocalStatAura a;a.spellId=t->castSpell;a.remainingMs=kLocalTotemAuraLeaseMs;a.mapId=p->mapId;a.instanceId=p->instanceId;a.casterGuid=owner.guid;
+            p->statAuras.push_back(a);stats(*p,c,false);changed=true;
+        }
+        break;
+    }
+    return changed;
+}
+
 bool LocalGameplay::canAttack(const LocalRealmPlayer& p, const LocalRealmNpc& n) const {
     return npcDisposition(p, n).attackable;
 }
@@ -3526,6 +3641,42 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
                 d.x=real(v,"x",0,-100000,100000);d.y=real(v,"y",0,-100000,100000);d.z=real(v,"z",0,-100000,100000);d.orientation=real(v,"orientation",0,-10,10);
                 if(!d.spellId||(!c->spellDestinations.empty()&&c->spellDestinations.back().spellId>=d.spellId))throw std::runtime_error("Spell destinations must be sorted and unique");
                 c->spellDestinations.push_back(d);
+            }
+            for(unsigned char b:text)c->fingerprint=(c->fingerprint^b)*16777619U;
+        }
+        if(j.contains("totems")) {
+            // Shaman totems (import_totems.py): summon rank -> creature and behaviour.
+            const auto name=label(j,"totems",128);
+            if(name.empty() || name=="." || name==".." || name.find('/')!=std::string::npos || name.find('\\')!=std::string::npos)
+                throw std::runtime_error("Totem companion must be a sibling filename");
+            std::ifstream in(std::filesystem::path(path).parent_path()/name,std::ios::binary|std::ios::ate);
+            if(!in)throw std::runtime_error("Cannot open required totem companion");
+            const auto length=in.tellg();
+            if(length<=0||length>1024*1024)throw std::runtime_error("Totem companion must be 1 byte to 1 MiB");
+            std::string text(size_t(length),'\0');in.seekg(0);
+            if(!in.read(text.data(),length))throw std::runtime_error("Cannot read totem companion");
+            const auto doc=Json::parse(text);
+            if(!doc.is_object()||number(doc,"schemaVersion",0,1)!=1)throw std::runtime_error("Unsupported totem schema");
+            for(const auto& v:array(doc,"totems",1024,true)) {
+                LocalWorldContent::Totem t;
+                t.spellId=number(v,"spellId",0,UINT32_MAX);t.entry=number(v,"entry",0,UINT32_MAX);t.displayId=number(v,"displayId",0,UINT32_MAX);
+                t.castSpell=number(v,"castSpell",0,UINT32_MAX);t.durationMs=number(v,"durationMs",0,3600000);t.periodMs=number(v,"periodMs",0,60000);
+                t.element=uint8_t(number(v,"element",0,3));t.level=uint8_t(number(v,"level",0,80));
+                const auto kind=label(v,"kind",16);
+                t.kind=kind=="attack"?LocalWorldContent::TotemKind::Attack:kind=="pulseDamage"?LocalWorldContent::TotemKind::PulseDamage:
+                    kind=="pulseHeal"?LocalWorldContent::TotemKind::PulseHeal:kind=="aura"?LocalWorldContent::TotemKind::Aura:LocalWorldContent::TotemKind{};
+                if(t.kind!=LocalWorldContent::TotemKind::Aura){t.low=number(v,"low",0,100000);t.high=number(v,"high",t.low,100000);if(t.high<t.low||!t.low)throw std::runtime_error("Invalid totem amount");}
+                if(t.kind==LocalWorldContent::TotemKind::Attack)t.range=real(v,"range",0,1,100);
+                else t.radius=real(v,"radius",0,1,100);
+                if(t.kind==LocalWorldContent::TotemKind::Attack||t.kind==LocalWorldContent::TotemKind::PulseDamage)t.school=uint8_t(number(v,"school",0,6));
+                if(t.kind==LocalWorldContent::TotemKind::Aura) {
+                    const auto stats=array(v,"stats",5,false);if(stats.size()!=5)throw std::runtime_error("Totem stats must be five values");
+                    for(size_t k=0;k<5;++k){if(!stats[k].is_number_integer())throw std::runtime_error("Invalid totem stat");t.stats[k]=std::clamp(stats[k].get<int32_t>(),0,100000);}
+                    t.armor=number(v,"armor",0,100000);t.mp5=number(v,"mp5",0,100000);
+                }
+                if(!t.spellId||!t.entry||!t.displayId||!t.castSpell||!t.durationMs||!t.periodMs||int(t.kind)==0||
+                   (!c->totems.empty()&&c->totems.back().spellId>=t.spellId))throw std::runtime_error("Totems must be valid, sorted and unique");
+                c->totems.push_back(t);
             }
             for(unsigned char b:text)c->fingerprint=(c->fingerprint^b)*16777619U;
         }
@@ -4886,6 +5037,11 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         leaveLocalForm(p);clearCast(p,LocalCastStatus::Interrupted);stats(p,c,false);result="Returned to caster form";return true;
     }
     if(cmd.action==LocalAction::DismissPet){
+        // CMSG_TOTEM_DESTROYED: the shaman pulls down one of its own totems.
+        if(const auto* totem=g.pet(cmd.target);totem&&totem->kind==LocalPetKind::Totem) {
+            if(totem->ownerGuid!=p.guid)return reject("Not your totem");
+            g.retirePet(totem->guid,"destroyed",players);result="Totem destroyed";return true;
+        }
         auto* summon=g.controlledPetOf(p.guid);
         if(!summon)return reject("No active summon");
         if(cmd.target&&cmd.target!=summon->guid)return reject("Summon changed; refresh the pet bar");
@@ -6287,7 +6443,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
        std::none_of(p.statAuras.begin(),p.statAuras.end(),[&](const auto& a){return a.spellId==triggeredAura->id;}))
         return reject("Too many active stat buffs");
     const bool buff=localHasTimedAura(*d);
-    if(d->heal||d->periodicHeal||buff) {
+    if(d->heal||d->periodicHeal||buff||d->dispelMask) {
         if(((buff&&d->buffSelfOnly)||(!buff&&d->healingSelfOnly))&&cmd.target&&cmd.target!=p.guid)return reject("This spell only heals its caster");
         healed=cmd.target?g.player(cmd.target,players):&p;if(!healed&&d->damage)healed=&p;
         if(!healed||healed->dead||!healed->health)return reject("Choose a living player");
@@ -6319,6 +6475,12 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         if(!localSpellCreatureTypeAllowed(*d,localFormCreatureType(healedForm?healedForm->form:0),true))
             return reject(d->name+": that target is not a valid creature type for this spell");
     }
+    // SPELL_FAILED_NOTHING_TO_DISPEL (Spell.cpp:6264-6306): no creature debuff
+    // of the dispel's types on the target.
+    const auto dispellable=[&](const auto& a,uint8_t types){const auto* s=c.spell(a.spell);
+        return healed&&a.target==healed->guid&&a.remaining&&s&&s->dispelType>=1&&s->dispelType<=4&&((types>>s->dispelType)&1);};
+    if(d->dispelMask&&!std::any_of(g.npcPeriodic.begin(),g.npcPeriodic.end(),[&](const auto& a){return dispellable(a,d->dispelMask);}))
+        return reject("Nothing to dispel");
     // --- competing auras (P04, the implementation) --------------------------------------
     // The reference decides in two steps (the source audit
     // section 6): the same id from the same caster refreshes in place
@@ -6940,6 +7102,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         p.attackTarget=n->guid;
     }
     if(d->summonPetEntry&&!g.summonPet(p,*d,players))return reject("The summon could not be created");
+    if(d->totemEntry&&!g.summonTotem(p,*d,players))return reject("The totem could not be placed");
     if(d->areaAuraProfile) {
         // IsAuraExclusiveBySpecificPerCasterWith: one aura of this exclusivity
         // group per caster. A new rank replaces the old emitter rather than
@@ -6974,6 +7137,13 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     clearCast(p,LocalCastStatus::Finished);
     for(size_t r=0;r<d->reagentItems.size();++r)if(d->reagentItems[r])removeItem(p,d->reagentItems[r],d->reagentCounts[r]);
     // SPELL_EFFECT_TELEPORT_UNITS: the same relocation the hearthstone performs.
+    if(d->dispelMask&&healed) {
+        // One debuff of each type the spell names (Cleanse: poison, disease, magic).
+        for(uint8_t type=1;type<=4;++type)if((d->dispelMask>>type)&1)
+            for(auto& a:g.npcPeriodic)if(dispellable(a,uint8_t(1u<<type))){
+                LOG_INFO("[LOCAL_DISPEL] caster=",p.guid," target=",healed->guid," spell=",d->id," removed=",a.spell);a.remaining=0;break;}
+        g.refreshHealingViews(players);stats(*healed,c,false);
+    }
     if(d->teleport)if(const auto* to=c.spellDestination(d->id)) {
         p.mapId=to->mapId;p.instanceId=0;p.x=to->x;p.y=to->y;p.z=to->z;p.orientation=to->orientation;
         p.hasInstanceReturn=false;p.transportEntry=0;p.attackTarget=0;p.portalCooldown=2;++p.positionRevision;
@@ -7769,10 +7939,13 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
             auto* owner=localPetOwner(summon,players);
             if(!localPetOwnerEligible(summon,owner)){retiring.push_back(summon.guid);continue;}
             if(summon.dead){retiring.push_back(summon.guid);continue;}
-            if(summon.kind==LocalPetKind::Guardian) {
+            if(summon.kind==LocalPetKind::Guardian||summon.kind==LocalPetKind::Totem) {
                 summon.remainingMs-=std::min(summon.remainingMs,elapsedMs);
                 if(!summon.remainingMs){retiring.push_back(summon.guid);continue;}
             }
+            // A totem left far behind falls (Totem::Update's owner range).
+            if(summon.kind==LocalPetKind::Totem&&distance2(summon.x,summon.y,summon.z,owner->x,owner->y,owner->z)>kLocalPetLeashDistance*kLocalPetLeashDistance)
+                {retiring.push_back(summon.guid);continue;}
             if(localPetRegenerate(summon,elapsedMs))changed=true;
             const auto previousMana=summon.power;g.regeneratePetMana(summon,elapsedMs);
             changed=changed||summon.power!=previousMana;
@@ -7786,6 +7959,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
         for(auto& summon:g.pets) {
             auto* owner=localPetOwner(summon,players);
             if(!owner)continue;
+            if(summon.kind==LocalPetKind::Totem){if(tickTotem(summon,*owner,elapsedMs,players))changed=true;continue;}
             if(g.petCasts.contains(summon.guid)){changed=true;continue;}
             // PetAI::UpdateAI (PetAI.cpp:148-213), reduced to what this realm
             // carries. A guardian is not commanded - HandlePetAction needs a

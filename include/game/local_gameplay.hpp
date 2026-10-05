@@ -195,6 +195,8 @@ struct LocalAreaAuraApplication {
     bool effective=false;
     bool operator==(const LocalAreaAuraApplication&) const = default;
 };
+/// A totem's party aura lasts this long past the last pulse that reached its holder.
+inline constexpr uint32_t kLocalTotemAuraLeaseMs=2500;
 /// The fixed lease of an until-cancelled class aura (hunter aspects); it never counts down.
 inline constexpr uint32_t kLocalIndefiniteAuraMs=3600000;
 struct LocalStatAura {
@@ -969,6 +971,8 @@ struct LocalSpellDefinition {
     int32_t classBuffSpeedPct=0,classBuffDodgePct=0; // aura 31 (Sprint), aura 49 (Evasion)
     int32_t classBuffRangedAttackPower=0; // aura 124 (Aspect of the Hawk)
     uint32_t trackCreatureMask=0; // aura 44 (Track Beasts...): creature types shown on the minimap
+    uint8_t dispelMask=0; // friendly SPELL_EFFECT_DISPEL: bit per DispelType (1 magic, 2 curse, 3 disease, 4 poison)
+    uint32_t totemEntry=0; // SPELL_EFFECT_SUMMON of a totem (SummonProperties 63/81/82/83); totems.json says what it does
     /// A player channel (Mind Flay, Drain Life, Drain Soul): its periodic
     /// effect runs while the caster keeps channelling; moving ends both.
     bool channel=false,periodicLeech=false,soulShardOnKill=false;
@@ -2049,6 +2053,24 @@ struct LocalWorldContent {
         const auto it=std::lower_bound(mendPetRanks.begin(),mendPetRanks.end(),spellId,[](const auto& r,uint32_t id){return r.spellId<id;});
         return it!=mendPetRanks.end()&&it->spellId==spellId?&*it:nullptr;
     }
+    /// Shaman totems (totems.json): what each totem summon rank puts down.
+    enum class TotemKind : uint8_t { Attack=1, PulseDamage=2, PulseHeal=3, Aura=4 };
+    struct Totem {
+        uint32_t spellId=0,entry=0,displayId=0,castSpell=0,durationMs=0,periodMs=0,low=0,high=0,armor=0,mp5=0;
+        std::array<int32_t,5> stats{};
+        float range=0,radius=0;
+        uint8_t element=0,level=0,school=0;
+        TotemKind kind=TotemKind::Attack;
+    };
+    std::vector<Totem> totems; // Sorted by spellId.
+    const Totem* totem(uint32_t spellId) const {
+        const auto it=std::lower_bound(totems.begin(),totems.end(),spellId,[](const auto& t,uint32_t id){return t.spellId<id;});
+        return it!=totems.end()&&it->spellId==spellId?&*it:nullptr;
+    }
+    const Totem* totemByCastSpell(uint32_t castSpell) const {
+        for(const auto& t:totems)if(t.castSpell==castSpell)return &t;
+        return nullptr;
+    }
     struct SpellDestination { uint32_t spellId=0,mapId=0; float x=0,y=0,z=0,orientation=0; };
     std::vector<SpellDestination> spellDestinations; // Sorted by spellId.
     const SpellDestination* spellDestination(uint32_t spellId) const {
@@ -2318,6 +2340,8 @@ public:
     bool npcVisibleTo(const LocalRealmPlayer& player, const LocalRealmNpc& npc) const;
     bool canAttack(const LocalRealmPlayer& player, const LocalRealmNpc& npc) const;
     bool isAggressive(const LocalRealmPlayer& player, const LocalRealmNpc& npc) const;
+    /// One step of a shaman's totem (totems.json); true when anything changed.
+    bool tickTotem(LocalRealmPet& totem, LocalRealmPlayer& owner, uint32_t elapsedMs, const std::vector<LocalRealmPlayer*>& players);
     bool insidePortal(uint32_t portalId, const LocalRealmPlayer& player) const;
     std::vector<LocalRealmPortal> portals() const;
 

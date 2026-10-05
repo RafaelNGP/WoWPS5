@@ -2702,7 +2702,15 @@ void GameHandler::updateGmTicket(const std::string& text) {
 void GameHandler::destroyTotem(int slot) {
     // CMSG_TOTEM_DESTROYED carries the slot and nothing else on these
     // expansions; the guid form arrived a expansion later than any of them.
-    if (slot < 0 || slot > 3 || !isInWorld() || !getSocket()) return;
+    if (slot < 0 || slot > 3) return;
+    if (auto* realm = localServiceRealm()) {
+        // The local realm's totem in that element's slot (game_handler_local).
+        for (const auto& v : realm->pets())
+            if (v.ownerGuid == playerGuid && v.kind == LocalPetKind::Totem)
+                if (const auto* t = realm->content().totem(v.summonSpellId); t && t->element == slot) { realm->dismissPet(v.guid); break; }
+        return;
+    }
+    if (!isInWorld() || !getSocket()) return;
     network::Packet pkt(wireOpcode(Opcode::CMSG_TOTEM_DESTROYED));
     pkt.writeUInt8(static_cast<uint8_t>(slot));
     getSocket()->send(pkt);
