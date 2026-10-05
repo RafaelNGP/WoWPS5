@@ -1276,6 +1276,13 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
            std::isfinite(f(216))&&f(216)>0&&f(216)<=1) {
             d.chainTargets=3;d.chainMultiplierPermille=uint16_t(std::lround(f(216)*1000));
             d.chainRadius=chainHeal?12.5f:10.0f;
+        }
+        // A weapon strike that jumps (Cleave, Multi-Shot): one weapon effect,
+        // two or three targets at full damage, the next enemy beside the last.
+        else if((u(71)==58||u(71)==121||u(71)==31||u(71)==17)&&u(104)>=2&&u(104)<=3&&!u(72)&&!u(73)&&
+                std::isfinite(f(216))&&f(216)>0&&f(216)<=1) {
+            d.chainTargets=uint8_t(u(104));d.chainMultiplierPermille=uint16_t(std::lround(f(216)*1000));
+            d.chainRadius=u(213)==3?10.0f:8.0f;
         } else unavailable("Unreviewed chain-target profile is not implemented");
     }
     bool pbaoeShape=!creatureCaster&&!u(104)&&!u(212),pbaoeDamage=false;

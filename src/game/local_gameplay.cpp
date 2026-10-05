@@ -6640,9 +6640,9 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(d->chainTargets>1) {
         if(d->chainTargets>3||!std::isfinite(d->chainRadius)||d->chainRadius<=0||d->chainRadius>12.5f||
            d->chainMultiplierPermille>1000||!d->chainMultiplierPermille||d->periodicDamage||d->periodicHeal||buff||d->snarePercent||
-           (!!d->damage==!!d->heal))return reject("Invalid chain spell profile");
+           (!!(d->damage||d->weaponDamage)==!!d->heal))return reject("Invalid chain spell profile");
         for(;chainCount<d->chainTargets;++chainCount) {
-            if(d->damage) {
+            if(d->damage||d->weaponDamage) {
                 const auto* from=chainNpcs[chainCount-1];LocalRealmNpc* best=nullptr;float nearest=d->chainRadius*d->chainRadius;
                 for(auto& candidate:g.npcs) {
                     if(candidate.dead||!candidate.health||candidate.mapId!=p.mapId||candidate.instanceId!=p.instanceId||!canAttack(p,candidate)||

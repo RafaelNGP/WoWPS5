@@ -422,7 +422,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 2, "Cleanse", 16}, {4, 11, "Cure Poison", 16},
             {1, 4, "Rupture", 17}, {1, 4, "Slice and Dice", 18}, {4, 11, "Ravage", 19},
             {1, 6, "Death Strike", 0}, {1, 6, "Obliterate", 0}, {1, 6, "Death and Decay", 0}, {1, 6, "Chains of Ice", 1},
-            {1, 6, "Blood Presence", 20}, {11, 7, "Purge", 21}, {11, 7, "Earthbind Totem", 22},
+            {1, 6, "Blood Presence", 20}, {11, 7, "Purge", 21}, {11, 7, "Earthbind Totem", 22}, {1, 1, "Cleave", 0}, {4, 3, "Multi-Shot", 0},
         };
         size_t passed = 0;
         for (const auto& a : abilities) {
@@ -634,7 +634,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, Prowl, presences, offensive dispels, slowing totems, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.
