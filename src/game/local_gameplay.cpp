@@ -3043,6 +3043,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         if(a.name.size()>6&&a.name.ends_with(" Totem"))a.name.resize(a.name.size()-6);
         a.classBuff=true;a.buffSelfOnly=true;a.durationMs=kLocalTotemAuraLeaseMs;
         a.classBuffStats=t.stats;a.classBuffArmor=int32_t(t.armor);a.manaPer5=t.mp5;
+        a.classBuffMeleeHastePct=t.meleeHastePct;a.classBuffCastSpeedPct=t.castSpeedPct;
         sorted.push_back(std::move(a));
     }
     // A slowing totem's area slow (Earthbind), held by the creatures it reaches.
@@ -3821,6 +3822,13 @@ bool LocalGameplay::tickTotem(LocalRealmPet& totem, LocalRealmPlayer& owner, uin
             p->health=health;changed=true;
         }
         break;
+    case LocalWorldContent::TotemKind::PulseMana:
+        // spell_sha_mana_tide_totem: each mana user of the group within reach
+        // regains this percent of its maximum mana.
+        for(auto* p:group)if(p->resourceType==LocalResourceType::Mana&&p->mana<p->maxMana) {
+            p->mana=uint32_t(std::min<uint64_t>(p->maxMana,uint64_t(p->mana)+uint64_t(p->maxMana)*t->manaPct/100));changed=true;
+        }
+        break;
     case LocalWorldContent::TotemKind::Aura:
         // The creature's area aura, held as a short class buff it keeps refreshing.
         if(c.spell(t->castSpell))for(auto* p:group) {
@@ -4059,11 +4067,12 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
                 const auto kind=label(v,"kind",16);
                 t.kind=kind=="attack"?LocalWorldContent::TotemKind::Attack:kind=="pulseDamage"?LocalWorldContent::TotemKind::PulseDamage:
                     kind=="pulseHeal"?LocalWorldContent::TotemKind::PulseHeal:kind=="aura"?LocalWorldContent::TotemKind::Aura:
-                    kind=="pulseSnare"?LocalWorldContent::TotemKind::PulseSnare:LocalWorldContent::TotemKind{};
+                    kind=="pulseSnare"?LocalWorldContent::TotemKind::PulseSnare:kind=="pulseMana"?LocalWorldContent::TotemKind::PulseMana:LocalWorldContent::TotemKind{};
                 if(t.kind==LocalWorldContent::TotemKind::PulseSnare) {
                     t.snareSpell=number(v,"snareSpell",0,UINT32_MAX);t.snarePct=uint8_t(number(v,"snarePct",0,99));t.snareMs=number(v,"snareMs",0,600000);
                     if(!t.snareSpell||!t.snarePct||!t.snareMs)throw std::runtime_error("Invalid totem slow");
                 }
+                else if(t.kind==LocalWorldContent::TotemKind::PulseMana){t.manaPct=uint8_t(number(v,"pct",1,100));}
                 else if(t.kind!=LocalWorldContent::TotemKind::Aura){t.low=number(v,"low",0,100000);t.high=number(v,"high",t.low,100000);if(t.high<t.low||!t.low)throw std::runtime_error("Invalid totem amount");}
                 if(t.kind==LocalWorldContent::TotemKind::Attack)t.range=real(v,"range",0,1,100);
                 else t.radius=real(v,"radius",0,1,100);
@@ -4072,6 +4081,8 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
                     const auto stats=array(v,"stats",5,false);if(stats.size()!=5)throw std::runtime_error("Totem stats must be five values");
                     for(size_t k=0;k<5;++k){if(!stats[k].is_number_integer())throw std::runtime_error("Invalid totem stat");t.stats[k]=std::clamp(stats[k].get<int32_t>(),0,100000);}
                     t.armor=number(v,"armor",0,100000);t.mp5=number(v,"mp5",0,100000);
+                    if(v.contains("meleeHastePct"))t.meleeHastePct=int32_t(number(v,"meleeHastePct",1,100));
+                    if(v.contains("castSpeedPct"))t.castSpeedPct=int32_t(number(v,"castSpeedPct",1,100));
                 }
                 if(!t.spellId||!t.entry||!t.displayId||!t.castSpell||!t.durationMs||!t.periodMs||int(t.kind)==0||
                    (!c->totems.empty()&&c->totems.back().spellId>=t.spellId))throw std::runtime_error("Totems must be valid, sorted and unique");

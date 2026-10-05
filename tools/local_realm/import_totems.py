@@ -103,13 +103,16 @@ def main():
             elif tu[EFFECT] == 3 and tu[TARGET] == 20 and radius and string(tu[NAME]) == 'Healing Stream Totem':  # spell_sha_healing_stream_totem
                 low, high = amount(ts, 0)
                 row.update(kind='pulseHeal', low=low, high=high, periodMs=cu[AMPLITUDE], radius=radius)
+            elif tu[EFFECT] == 3 and tu[TARGET] == 20 and radius and string(tu[NAME]) == 'Mana Tide Totem':  # spell_sha_mana_tide_totem
+                # "Regenerate 6% of Total Mana Every 3 secs": the totem aura's own amount.
+                row.update(kind='pulseMana', pct=cs[BASE] + 1, periodMs=cu[AMPLITUDE], radius=radius)
             elif tu[EFFECT] == 6 and tu[AURA] == 33 and tu[TARGET] in (22, 15) and radius and -100 < ts[BASE] + 1 < 0:
                 row.update(kind='pulseSnare', snareSpell=cu[TRIGGER], snarePct=-(ts[BASE] + 1),
                            snareMs=max(0, durations.get(tu[DURATION], 0)), periodMs=cu[AMPLITUDE], radius=radius)
             else:
                 skipped[name] = f'periodic trigger {cu[TRIGGER]}'; continue
         elif cu[EFFECT] in (35, 65):
-            stats, armor, mp5, ok = [0] * 5, 0, 0, True
+            stats, armor, mp5, haste, cast_speed, ok = [0] * 5, 0, 0, 0, 0, True
             for e in range(3):
                 if not cu[EFFECT + e]: continue
                 aura, value = cu[AURA + e], cs[BASE + e] + 1
@@ -118,12 +121,16 @@ def main():
                         if cs[MISC + e] in (-1, k): stats[k] += value
                 elif aura == 22 and cs[MISC + e] & 1: armor += value
                 elif aura == 85 and cs[MISC + e] == 0: mp5 += value
+                elif aura == 138 and 0 < value <= 100: haste += value  # Windfury Totem: MOD_MELEE_HASTE
+                elif aura == 65 and 0 < value <= 100: cast_speed += value  # Wrath of Air: MOD_CASTING_SPEED_NOT_STACK
                 elif cs[BASE + e] == -1: pass  # a zero-amount marker (Strength of Earth's aura 52)
                 else: ok = False
             radius = round(max(radii.get(cu[RADIUS + e], 0.0) for e in range(3)), 2)
-            if not ok or not radius or not (any(stats) or armor or mp5):
+            if not ok or not radius or not (any(stats) or armor or mp5 or haste or cast_speed):
                 skipped[name] = f'area aura {cast}'; continue
             row.update(kind='aura', stats=stats, armor=armor, mp5=mp5, radius=radius, periodMs=1000)
+            if haste: row['meleeHastePct'] = haste
+            if cast_speed: row['castSpeedPct'] = cast_speed
         else:
             skipped[name] = f'creature spell {cast}'; continue
         totems.append(row)
