@@ -478,6 +478,10 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         if (const auto inc = std::find_if(clientSpells->begin(), clientSpells->end(), [](const auto& d) { return d.id == 47838; });
             inc == clientSpells->end() || !inc->immolateBonus || !inc->unsupportedReason.empty()) {
             out << "FAIL class ability Incinerate: no Immolate bonus\n"; return false; }
+        // A level 1 shaman's Healing Wave (ranks 1-10 aim at the chain-heal ally target with no chain).
+        if (const auto hw = std::find_if(clientSpells->begin(), clientSpells->end(), [](const auto& d) { return d.id == 331; });
+            hw == clientSpells->end() || !hw->unsupportedReason.empty() || !hw->heal) {
+            out << "FAIL class ability Healing Wave rank 1: " << (hw == clientSpells->end() ? std::string("missing") : hw->unsupportedReason) << "\n"; return false; }
         // A level 4 warlock's Corruption (rank 1 carries an empty DUMMY beside its DoT).
         const auto lowIt = std::find_if(clientSpells->begin(), clientSpells->end(), [](const auto& d) { return d.id == 172; });
         if (const auto* low = lowIt == clientSpells->end() ? nullptr : &*lowIt; !low || !low->unsupportedReason.empty() || !low->periodicDamage) {

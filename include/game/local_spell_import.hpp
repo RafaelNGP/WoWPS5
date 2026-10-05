@@ -1659,7 +1659,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             buffTarget=(tg==21||tg==25)?tg:(buffTarget?buffTarget:1);
             continue;
         }
-        const auto target=u(86+effect), secondary=u(89+effect);
+        const auto secondary=u(89+effect);
+        // A heal at TARGET_UNIT_TARGET_CHAINHEAL_ALLY with no chain targets
+        // (Healing Wave ranks 1-10) heals one ally, as TARGET_UNIT_TARGET_ALLY.
+        const auto target=(u(86+effect)==45&&!chainHeal&&type==10&&u(104+effect)<=1&&!secondary)?21u:u(86+effect);
         if(!arcaneExplosion && !(type==5&&target==1&&secondary==17) && !(d.groundRadius&&type==2&&target==16&&!secondary) && (secondary || (target!=1&&target!=6&&target!=21&&target!=25&&!(chainHeal&&target==45)))) unavailable("Area or scripted targeting is not implemented");
         if(type==6 && (u(95+effect)==3 || u(95+effect)==8) && (((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!deathItemChannel&&!rootControl)||u(116+effect)))
             unavailable("Periodic proc, charge or triggered effects are not implemented");
