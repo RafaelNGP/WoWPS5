@@ -686,8 +686,10 @@ void GameHandler::syncLocalRealmNpc(const LocalRealmNpc& npc) {
         std::vector<AuraSlot> auras;auras.reserve(npc.snares.size()+npc.damageAuras.size()+npc.stormstrikeAuras.size()+npc.controls.size()+npc.npcBuffs.size());
         // The creature's own buffs (2.36 SmartAI self-casts) draw as positive
         // auras: flags without NEGATIVE (0x80), NOT_CASTER kept.
+        // A player's curse on it (a definition with targetDebuffEffectMask) is negative.
         for(const auto& b:npc.npcBuffs) {
-            AuraSlot slot{};slot.spellId=b.spellId;slot.flags=0x1f;slot.level=npc.level;slot.charges=std::max<uint8_t>(1,b.stacks);
+            const auto* realm=localServiceRealm();const auto* d=realm?realm->content().spell(b.spellId):nullptr;
+            AuraSlot slot{};slot.spellId=b.spellId;slot.flags=d&&d->targetDebuffEffectMask?0x9f:0x1f;slot.level=npc.level;slot.charges=std::max<uint8_t>(1,b.stacks);
             slot.durationMs=b.indefinite?0:b.remainingMs;slot.maxDurationMs=b.indefinite?0:b.durationMs;
             slot.casterGuid=b.casterGuid;slot.receivedAtMs=now;auras.push_back(slot);
         }

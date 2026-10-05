@@ -196,6 +196,9 @@
         return before!=n.npcBuffs.size();
     }
     void npcClearBuffs(LocalRealmNpc& n){npcEraseBuffs(n,[](const LocalNpcBuff&){return true;});}
+    /// Evade drops the players' curses on the creature with its other
+    /// hostile auras (snares, controls, Expose Armor).
+    void npcClearPlayerCurses(LocalRealmNpc& n){npcEraseBuffs(n,[&](const LocalNpcBuff& b){const auto* s=content->spell(b.spellId);return s&&s->targetDebuffEffectMask;});}
     // ------------------------------------------------------------------ targets
     /// SmartScript::GetTargets for the supported selectors. Player selectors
     /// read the threat list (SelectTarget MaxThreat/MinThreat/Random) and the
@@ -403,7 +406,7 @@
             return 0;
         }
         n.npcCastingSpellId=d.id;n.npcCastTargetGuid=target.guid();
-        n.npcCastRemainingMs=triggered?0u:d.castTimeMs;n.npcSpellLaunched=false;n.npcCastManaCost=cost;n.npcChanneling=false;
+        n.npcCastRemainingMs=triggered?0u:npcCastTime(n,d.castTimeMs);n.npcSpellLaunched=false;n.npcCastManaCost=cost;n.npcChanneling=false;
         LOG_INFO("[LOCAL_NPC_SPELL] start npc=",n.guid," entry=",n.entry," spell=",d.id," target=",n.npcCastTargetGuid," castMs=",n.npcCastRemainingMs);
         if(!n.npcCastRemainingMs)npcSpellLaunch(n,players);
         return 0;
@@ -1949,6 +1952,16 @@
     uint32_t npcHealingTaken(const LocalRealmNpc& m,uint32_t amount) const {
         int32_t pct=0;for(const auto& b:m.npcBuffs)pct+=b.healingPct;
         return uint32_t(std::max<int64_t>(0,int64_t(amount)*(100+std::max(-100,pct))/100));
+    }
+    /// Unit::ModSpellCastTime's UNIT_MOD_CAST_SPEED on a creature
+    /// (ApplyCastTimePercentMod): a positive amount divides the cast time by
+    /// (100 + amount) %, a negative one (Curse of Tongues) multiplies it by
+    /// (100 - amount) %.
+    uint32_t npcCastTime(const LocalRealmNpc& n,uint32_t castMs) const {
+        float m=1.f;
+        for(const auto& b:n.npcBuffs)if(b.remainingMs||b.indefinite){
+            if(b.castSpeedPct>0)m*=100.f/float(100+std::min(b.castSpeedPct,1000));else if(b.castSpeedPct<0)m*=float(100-std::max(b.castSpeedPct,-99))/100.f;}
+        return m==1.f?castMs:uint32_t(std::clamp(float(castMs)*m,0.f,600000.f));
     }
     /// The creature's own melee modifiers from its buffs: attack time, damage.
     float npcMeleeHasteMultiplier(const LocalRealmNpc& n) const {

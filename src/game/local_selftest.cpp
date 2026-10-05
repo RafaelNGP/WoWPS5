@@ -15,6 +15,7 @@
 #include "game/local_quest_marker.hpp"
 #include "game/local_quest_eligibility.hpp"
 #include "game/local_spell_target_rules.hpp"
+#include "game/local_npc_auras.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -408,7 +409,10 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // that a later hit breaks (Gouge, Sap; level 20; Blind, level 40), 25 an
         // armor reduction finisher whose length is its combo points (Expose
         // Armor, level 30). 23 to 25 fight a creature given extra health so
-        // the builder does not kill it.
+        // the builder does not kill it. 26 is a curse that lands as the
+        // warlock's creature aura with its amounts; Curse of the Elements
+        // follows a Curse of Weakness and takes its place (one curse per
+        // warlock on a target).
         struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
@@ -431,6 +435,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 6, "Blood Presence", 20}, {11, 7, "Purge", 21}, {11, 7, "Earthbind Totem", 22}, {1, 1, "Cleave", 0}, {4, 3, "Multi-Shot", 0},
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
+            {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
         };
         size_t passed = 0;
         for (const auto& a : abilities) {
@@ -589,6 +594,14 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     if (!p.comboPoints) { last = "no combo points from Sinister Strike (" + result + ")"; continue; }
                 }
                 const uint8_t comboBefore = p.comboPoints;
+                uint32_t firstCurse = 0;
+                if (a.kind == 26 && std::string(a.name) == "Curse of the Elements") {
+                    for (auto id : p.knownSpells) if (const auto* sd = content.spell(id); sd && sd->name == "Curse of Weakness" && sd->unsupportedReason.empty()) firstCurse = id;
+                    arena.execute(p, {LocalAction::CastSpell, foeGuid, firstCurse}, players, result); arena.tick(0.05f, players);
+                    bool held = false; for (const auto& v : arena.npcs()) if (v.guid == foeGuid) for (const auto& b : v.npcBuffs) if (b.spellId == firstCurse && b.casterGuid == p.guid) held = true;
+                    if (!held) { last = "Curse of Weakness did not land first (" + result + ")"; continue; }
+                    p.mana = p.maxMana; p.globalCooldownMs = 0;
+                }
                 if (!arena.execute(p, {LocalAction::CastSpell, a.kind == 15 || a.kind == 18 || a.kind == 22 ? p.guid : foeGuid, spellId}, players, result)) {
                     last = result;
                     if (a.kind == 21 && result.find("Nothing to dispel") != std::string::npos) { landed = true; break; }
@@ -652,6 +665,19 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     landed = sd && pct == sd->armorDebuffPct && pct && !p.comboPoints && held > (comboBefore - 1) * 6000u && held <= comboBefore * 6000u;
                     if (!landed) result = "armor debuff=" + std::to_string(held) + "ms " + std::to_string(pct) + "% combo " + std::to_string(comboBefore) + "->" + std::to_string(p.comboPoints) + " (" + result + ")";
                 }
+                else if (a.kind == 26) {
+                    const auto* sd = content.spell(spellId);
+                    const LocalNpcBuff* curse = nullptr; bool other = false; uint32_t armor = 0;
+                    if (after) for (const auto& b : after->npcBuffs) { if (b.spellId == spellId && b.casterGuid == p.guid) curse = &b; if (firstCurse && b.spellId == firstCurse) other = true; }
+                    if (after) armor = localNpcArmorAfterDebuffs(1000, *after);
+                    landed = sd && curse && !other && curse->remainingMs > 0 && curse->remainingMs <= sd->durationMs &&
+                             curse->attackPower == sd->targetDebuffAttackPower && curse->resistance == sd->targetDebuffResistance &&
+                             curse->damageTakenPct == sd->targetDebuffDamageTakenPct && curse->castSpeedPct == sd->targetDebuffCastSpeedPct &&
+                             (curse->attackPower < 0 || curse->damageTakenPct > 0 || curse->castSpeedPct < 0) &&
+                             armor == 1000u - 10u * sd->targetDebuffArmorPct;
+                    if (!landed) result = std::string("curse ") + (curse ? "held" : "missing") + (other ? ", first curse kept" : "") + " armor " + std::to_string(armor) + (curse ? " ap " + std::to_string(curse->attackPower) + " pct " + std::to_string(curse->armorPct) + " ms " + std::to_string(curse->remainingMs) : std::string()) +
+                                       (sd ? " def ap " + std::to_string(sd->targetDebuffAttackPower) + " pct " + std::to_string(sd->targetDebuffArmorPct) + " ms " + std::to_string(sd->durationMs) : std::string()) + " (" + result + ")";
+                }
                 else if (a.kind == 11) {
                     // A level 80 Ambush can kill a start-zone creature outright: then no points remain.
                     const bool killed = !after || after->dead;
@@ -670,7 +696,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, armor reductions, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, armor reductions, curses, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.

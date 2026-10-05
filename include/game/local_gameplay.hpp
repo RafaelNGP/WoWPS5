@@ -1285,6 +1285,13 @@ struct LocalSpellDefinition {
     // SPELL_AURA_MOD_RESISTANCE_PCT (101) on the armor of one hostile creature
     // (Expose Armor): the percentage taken off, and the effect slot it rides.
     uint8_t armorDebuffPct = 0, armorDebuffEffectSlot = 0;
+    // A curse's stat auras on one hostile creature (Curse of Weakness, of the
+    // Elements, of Tongues), landed as one LocalNpcBuff of the caster's:
+    // attack power and resistance (negative), damage taken (positive, on
+    // its schools), cast speed (negative, ApplyCastTimePercentMod's sign),
+    // armor percentage off, and the effect slots (bit k = column 71+k).
+    int32_t targetDebuffAttackPower = 0, targetDebuffResistance = 0, targetDebuffDamageTakenPct = 0, targetDebuffCastSpeedPct = 0;
+    uint8_t targetDebuffResistanceSchool = 0, targetDebuffDamageTakenSchool = 0, targetDebuffArmorPct = 0, targetDebuffEffectMask = 0;
 
     std::string iconPath, unsupportedReason;
 };
@@ -1623,6 +1630,8 @@ struct LocalNpcBuff {
     // 2.39 (authority-only): a self stun (1) / root (2), invisibility.
     uint8_t selfControl=0;
     bool invisible=false;
+    // A player's curse (authority-only): armor MOD_RESISTANCE_PCT taken off.
+    uint8_t armorPct=0;
     bool operator==(const LocalNpcBuff&) const = default;
 };
 /// The sum of one creature-buff field over the creature's live buffs

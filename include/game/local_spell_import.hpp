@@ -1400,6 +1400,26 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         // Clip, Concussive Shot, Curse of Exhaustion): its slow percentage
         // through the creature snare the Frost spells use.
         if(confuseControl&&type==6&&u(95+effect)==33&&u(86+effect)==6&&!u(89+effect)&&!u(116+effect))continue;
+        // A warlock curse on one hostile creature (Curse of Weakness, of the
+        // Elements, of Tongues): fixed stat auras that land as one creature
+        // aura of the warlock's. MOD_ATTACK_POWER (99) and armor
+        // MOD_RESISTANCE_PCT (101) down, MOD_RESISTANCE (22) down and
+        // MOD_DAMAGE_PERCENT_TAKEN (87) up on its schools, HASTE_SPELLS (216)
+        // down; Tongues' MOD_LANGUAGE (75) has nothing to change on a creature.
+        if(!creatureCaster&&d.spellFamily==5&&d.dispelType==2&&type==6&&u(86+effect)==6&&!u(89+effect)&&!u(116+effect)&&
+           u(74+effect)<=1&&f(77+effect)==0&&d.durationMs&&d.durationMs<=600000&&!u(spell335::ProcFlags)&&!u(spell335::ProcCharges)) {
+            const auto aura=u(95+effect);const auto misc=u(110+effect);
+            const int32_t amount=i(80+effect)+int32_t(u(74+effect));
+            bool taken=true;
+            if(aura==75)continue;
+            if(aura==99&&amount<0&&amount>=-100000&&!d.targetDebuffAttackPower)d.targetDebuffAttackPower=amount;
+            else if(aura==101&&misc==1&&amount<0&&amount>-100&&!d.targetDebuffArmorPct)d.targetDebuffArmorPct=uint8_t(-amount);
+            else if(aura==22&&misc>=2&&misc<=126&&!(misc&1)&&amount<0&&amount>=-100000&&!d.targetDebuffResistance){d.targetDebuffResistance=amount;d.targetDebuffResistanceSchool=uint8_t(misc);}
+            else if(aura==87&&misc>=2&&misc<=126&&!(misc&1)&&amount>0&&amount<=100&&!d.targetDebuffDamageTakenPct){d.targetDebuffDamageTakenPct=amount;d.targetDebuffDamageTakenSchool=uint8_t(misc);}
+            else if(aura==216&&amount<0&&amount>-100&&!d.targetDebuffCastSpeedPct)d.targetDebuffCastSpeedPct=amount;
+            else taken=false;
+            if(taken){d.targetDebuffEffectMask|=uint8_t(1u<<effect);harm=true;continue;}
+        }
         // SPELL_AURA_MOD_RESISTANCE_PCT on the armor of one hostile target
         // (Expose Armor): a fixed percentage for the aura's duration, which a
         // finisher draws from its combo points.

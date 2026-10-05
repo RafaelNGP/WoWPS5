@@ -60,6 +60,8 @@ inline bool localNpcSilenced(const LocalRealmNpc& n) {
 // scales the total (UNIT_MOD_ARMOR, TOTAL_PCT), after the flat buffs.
 inline uint32_t localNpcArmorAfterDebuffs(uint32_t armor,const LocalRealmNpc& n) {
     for(const auto& a:n.armorDebuffs)if(a.remainingMs&&a.percent)armor=uint32_t(uint64_t(armor)*(100u-std::min<uint32_t>(99,a.percent))/100u);
+    // Curse of Weakness: the same armor term from a warlock's creature aura.
+    for(const auto& b:n.npcBuffs)if((b.remainingMs||b.indefinite)&&b.armorPct)armor=uint32_t(uint64_t(armor)*(100u-std::min<uint32_t>(99,b.armorPct))/100u);
     return armor;
 }
 // The longest a control can hold: talents and combo points included once the
