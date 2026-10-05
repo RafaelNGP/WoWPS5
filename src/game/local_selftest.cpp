@@ -387,7 +387,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         SELFTEST_CHECK(bow && sword2h && arrows);
         // kind: 0 damages the enemy, 1 lands (interrupt, taunt), 2 creates an
         // item, 3 raises the caster's stats, 4 mounts the caster, 5 teleports it,
-        // 6 charges it into melee range of the enemy with rage.
+        // 6 charges it into melee range of the enemy with rage, 7 kills with a
+        // Drain Soul channel for a Soul Shard.
         struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
@@ -399,7 +400,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 8, "Arcane Brilliance", 3}, {4, 11, "Gift of the Wild", 3},
             {1, 9, "Drain Life", 0}, {1, 8, "Arcane Missiles", 0}, {1, 5, "Mind Flay", 0}, {1, 8, "Teleport: Stormwind", 5},
             {1, 8, "Blizzard", 0}, {1, 2, "Consecration", 0}, {1, 9, "Rain of Fire", 0},
-            {1, 1, "Hamstring", 1}, {4, 3, "Concussive Shot", 1}, {1, 1, "Charge", 6},
+            {1, 1, "Hamstring", 1}, {4, 3, "Concussive Shot", 1}, {1, 1, "Charge", 6}, {1, 9, "Drain Soul", 7}, {1, 9, "Summon Voidwalker", 8},
         };
         size_t passed = 0;
         for (const auto& a : abilities) {
@@ -437,7 +438,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             }
             const uint32_t reagentBefore = [&] { const auto* sd = content.spell(spellId); uint32_t n = 0;
                 for (const auto& st : p.inventory) if (sd && st.itemId == sd->reagentItems[0]) n += st.count; return n; }();
-            if (a.kind >= 2 && a.kind <= 5) {
+            if ((a.kind >= 2 && a.kind <= 5) || a.kind == 8) {
                 const auto meleeBefore = localMeleeStats(p, content); const auto healthBefore = p.maxHealth; const auto items = p.inventory.size();
                 p.ridingSkill = 150; p.mana = p.maxMana; p.globalCooldownMs = 0;
                 bool ok = arena.execute(p, {LocalAction::CastSpell, p.guid, spellId}, players, result);
@@ -448,6 +449,9 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 if (a.kind == 3) ok = ok && (meleeAfter.attackPower > meleeBefore.attackPower || p.maxHealth > healthBefore ||
                                              meleeAfter.attributes[3] > meleeBefore.attributes[3]);
                 if (a.kind == 4) ok = ok && p.mountSpellId == spellId;
+                if (a.kind == 8) { bool summoned = false;
+                    for (const auto& v : arena.pets()) if (v.ownerGuid == p.guid && !v.dead) summoned = true;
+                    ok = ok && summoned; if (!summoned && ok) result = "no demon"; }
                 if (a.kind == 5) { const auto* to = content.spellDestination(spellId);
                     ok = ok && to && p.mapId == to->mapId && std::hypot(p.x - to->x, p.y - to->y) < 5; }
                 if (const auto* sd = content.spell(spellId); ok && sd && sd->reagentItems[0]) {
@@ -471,7 +475,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 const LocalRealmNpc* n = nullptr;
                 for (const auto& v : arena.npcs()) if (v.guid == foeGuid) n = &v;
                 if (!n || n->dead) break;
-                const bool ranged = (a.cls == 3 && std::string(a.name) != "Raptor Strike") || a.kind == 6;
+                const bool ranged = (a.cls == 3 && std::string(a.name) != "Raptor Strike") || a.kind == 6 || a.kind == 7;
                 const float gap = ranged ? 15.f : 1.5f;
                 p.x = n->x - gap; p.y = n->y; p.z = n->z; p.orientation = 0; ++p.positionRevision;
                 p.mana = a.kind == 6 ? 0 : p.maxMana; p.runeCooldownMs.fill(0); p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear();
@@ -496,7 +500,14 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 arena.tick(0.05f, players);
                 const LocalRealmNpc* after = nullptr;
                 for (const auto& v : arena.npcs()) if (v.guid == foeGuid) after = &v;
-                if (a.kind == 6) landed = p.lastCastSpellId == spellId && after && std::hypot(after->x - p.x, after->y - p.y) < 6 &&
+                if (a.kind == 7) {
+                    for (int t = 0; t < 200 && after && !after->dead; ++t) { p.health = p.maxHealth; arena.tick(0.05f, players); after = nullptr;
+                        for (const auto& v : arena.npcs()) if (v.guid == foeGuid) after = &v; }
+                    uint32_t shards = 0; for (const auto& st : p.inventory) if (st.itemId == 6265) shards += st.count;
+                    landed = shards > 0;
+                    if (!landed) result = "no Soul Shard after the kill";
+                }
+                else if (a.kind == 6) landed = p.lastCastSpellId == spellId && after && std::hypot(after->x - p.x, after->y - p.y) < 6 &&
                                           p.mana > 0 && p.attackTarget == foeGuid;
                 else if (a.kind == 1) landed = p.lastCastSpellId == spellId;
                 else if (a.kind == 0) {
@@ -512,7 +523,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, interrupts, taunts, spells, conjuring, stat buffs, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.

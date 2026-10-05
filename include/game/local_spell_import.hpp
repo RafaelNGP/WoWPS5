@@ -1138,7 +1138,11 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     const bool areaAura=creatureCaster?false:decodeClientAreaAuraProfile(t,row,d);
     // Higher Claw ranks carry legacy proc flags, but their exact profile has
     // no aura/trigger effect that could install a proc. No generic bypass.
-    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster)
+    // Drain Soul: a channel whose SPELL_AURA_CHANNEL_DEATH_ITEM (86) yields a
+    // Soul Shard; its caster-side proc aura is the execute-range bonus script.
+    bool deathItemChannel=false;
+    if(!creatureCaster&&(u(5)&0x44u))for(uint32_t e=0;e<3;++e)if(u(71+e)==6&&u(95+e)==86&&u(86+e)==6)deathItemChannel=true;
+    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel)
         unavailable("This proc family or its trigger conditions are not implemented");
     // Spell.dbc column 38 is BaseLevel and column 39 is SpellLevel
     // (DBCStructure.h:1679-1680). previously both this field and d.spellLevel
@@ -1315,6 +1319,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         if(areaAura){buffTarget=kSourceTargetUnitCaster;continue;}
         if(d.formId||formBoost||formResource)continue; // Exact outer profile verified above; local form rules own its effects.
         if(bloodthirst && effect==1){harm=true;continue;} // Reviewed destination dummy arms internal aura.
+        if(deathItemChannel&&type==6&&(u(95+effect)==86||(u(95+effect)==42&&u(86+effect)==1))) {
+            if(u(95+effect)==86)d.soulShardOnKill=true;
+            continue;
+        }
         if(d.groundRadius&&type==27) {
             // The area's own periodic damage; its dummy, snare and slow ride along.
             if(u(95+effect)==3&&d.durationMs&&u(98+effect)>0&&u(98+effect)<=d.durationMs&&!d.periodicDamage) {
@@ -1345,7 +1353,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         }
         const auto target=u(86+effect), secondary=u(89+effect);
         if(!arcaneExplosion && !(type==5&&target==1&&secondary==17) && !(d.groundRadius&&type==2&&target==16&&!secondary) && (secondary || (target!=1&&target!=6&&target!=21&&target!=25&&!(chainHeal&&target==45)))) unavailable("Area or scripted targeting is not implemented");
-        if(type==6 && (u(95+effect)==3 || u(95+effect)==8) && (u(spell335::ProcFlags)||u(spell335::ProcCharges)||u(116+effect)))
+        if(type==6 && (u(95+effect)==3 || u(95+effect)==8) && (((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!deathItemChannel)||u(116+effect)))
             unavailable("Periodic proc, charge or triggered effects are not implemented");
         if(snare&&(effect==0||(effect==2&&d.snareZeroHealingMarker))){harm=true;continue;}
         // A creature caster's hostile slow or armor reduction (generated SmartAI
@@ -1557,7 +1565,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     }
     if(d.channel&&!creatureCaster) {
         if(!d.periodicDamage||d.damage||d.weaponDamage||healing||buff)unavailable("Channeled spells are not implemented");
-        else d.soulShardOnKill=d.name=="Drain Soul";
+        else d.soulShardOnKill=d.soulShardOnKill||d.name=="Drain Soul";
     }
     if(!setAside.empty()) {
         const bool directHit=(d.damage||d.weaponDamage||d.interruptCast||d.taunt||d.charge||d.periodicDamage)&&!healing&&!buff&&!d.controlProfile;
