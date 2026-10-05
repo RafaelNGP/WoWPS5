@@ -3149,7 +3149,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -7336,7 +7336,11 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // SpellInfo::CalcCastTime: the talent's SPELLMOD_CASTING_TIME, then
     // Unit::ModSpellCastTime's UNIT_MOD_CAST_SPEED for a non-ability spell
     // (a creature's MOD_CASTING_SPEED_NOT_STACK view, 2.37).
-    const auto castTime=d->sourceAbilityOrTrade?localSpellCastTime(p,c,*d):localPlayerCastTimeModified(p,localSpellCastTime(p,c,*d));
+    auto castTime=d->sourceAbilityOrTrade?localSpellCastTime(p,c,*d):localPlayerCastTimeModified(p,localSpellCastTime(p,c,*d));
+    // A class buff's MOD_CASTING_SPEED_NOT_STACK (Bloodlust, Heroism): the strongest one.
+    if(!d->sourceAbilityOrTrade&&castTime){int32_t pct=0;
+        for(const auto& a:p.statAuras)if(a.remainingMs)if(const auto* bd=c.spell(a.spellId);bd&&bd->classBuff)pct=std::max(pct,bd->classBuffCastSpeedPct);
+        if(pct>0)castTime=uint32_t(std::max<double>(1,double(castTime)*100.0/(100.0+pct)));}
     if(!finishing&&castTime) {
         prepareLocalSpellCost(p,cost,appliedCostAura);
         p.castingSpellId=d->id;p.castTarget=cmd.target;p.castRemainingMs=p.castTotalMs=castTime;
@@ -7887,7 +7891,10 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
             LOG_INFO("[LOCAL_GROUND_AREA] player=",p.guid," spell=",d->id," radius=",d->groundRadius," extra targets=",spread);
         }
     }
-    if(buff){
+    // Bloodlust / Heroism: a target holding Sated or Exhaustion gets neither
+    // the buff nor a new marker; the cast itself still happens.
+    const bool skipHeld=healed&&std::any_of(d->skipIfHoldsAuras.begin(),d->skipIfHoldsAuras.end(),[&](uint32_t id){return id&&localHoldsStatAura(*healed,id);});
+    if(buff&&!skipHeld){
         // Cast-phase charge removal and direct-hit procs may erase or append
         // aura entries. Resolve the reserved buff by identity again, never by
         // an index captured before those callbacks.
@@ -7942,7 +7949,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     }
     // A script's after-hit auras (spell_pal_immunities: Forbearance and the
     // markers), added to the target as fresh timed auras.
-    if(healed)for(auto id:d->afterHitAuras)if(const auto* m=id?c.spell(id):nullptr) {
+    if(healed&&!skipHeld)for(auto id:d->afterHitAuras)if(const auto* m=id?c.spell(id):nullptr) {
         auto it=std::find_if(healed->statAuras.begin(),healed->statAuras.end(),[&](const auto& a){return a.spellId==id;});
         LocalStatAura a{id,m->durationMs,healed->mapId,healed->instanceId,p.guid,0};
         if(it!=healed->statAuras.end())*it=a;else healed->statAuras.push_back(a);

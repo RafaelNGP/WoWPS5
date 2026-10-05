@@ -983,7 +983,8 @@ inline const LocalDiseaseSpell* localDiseaseSpell(uint32_t id) {
 struct LocalRealmMarkerAura { uint32_t id; const char* name; uint32_t durationMs; };
 inline const LocalRealmMarkerAura* localRealmMarkerAura(uint32_t id) {
     static constexpr LocalRealmMarkerAura markers[]={{25771,"Forbearance",120000},{61987,"Avenging Wrath Marker",30000},
-        {61988,"Divine Shield Exclude Aura",180000},{41425,"Hypothermia",30000},{6788,"Weakened Soul",15000}};
+        {61988,"Divine Shield Exclude Aura",180000},{41425,"Hypothermia",30000},{6788,"Weakened Soul",15000},
+        {57724,"Sated",600000},{57723,"Exhaustion",600000}};
     for(const auto& m:markers)if(m.id==id)return &m;
     return nullptr;
 }
@@ -1455,6 +1456,12 @@ struct LocalSpellDefinition {
     // Hunter's Mark: the ranged attack power its RANGED_ATTACK_POWER_ATTACKER_BONUS
     // gives attackers of the marked creature, one creature per hunter.
     int32_t targetDebuffRangedAttackerAp = 0;
+    // Bloodlust / Heroism: SPELL_AURA_MOD_MELEE_RANGED_HASTE (192) and
+    // SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK (65) on the class buff; a target
+    // holding one of these auras (Sated, Exhaustion) is left out
+    // (spell_sha_bloodlust / spell_sha_heroism).
+    int32_t classBuffMeleeRangedHastePct = 0, classBuffCastSpeedPct = 0;
+    std::array<uint32_t,2> skipIfHoldsAuras{};
     // Death Grip (spell_dk_death_grip on 49576): the creature is pulled in
     // front of the knight (49560's jump, 57604), its cast stops, and it is
     // taunted (49560's MOD_TAUNT and SPELL_EFFECT_ATTACK_ME).

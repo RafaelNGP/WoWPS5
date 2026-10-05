@@ -1307,7 +1307,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // Power Word: Shield, Hypothermia after Ice Block, the Avenging Wrath
     // marker after Avenging Wrath); DoTriggersOnSpellHit adds Divine Shield's
     // exclude aura beside 61987. Every realm marker is negative.
-    if(!creatureCaster&&d.spellFamily&&!d.forbearanceCheck) {
+    // spell_sha_bloodlust / spell_sha_heroism: Sated or Exhaustion after the
+    // hit (10 min), and neither lands on a target holding either.
+    if(!creatureCaster&&d.spellFamily==11&&(d.id==2825||d.id==32182)){d.afterHitAuras={d.id==2825?57724u:57723u,0,0};d.skipIfHoldsAuras={57724,57723};}
+    if(!creatureCaster&&d.spellFamily&&!d.forbearanceCheck&&!d.skipIfHoldsAuras[0]) {
         const uint32_t pre=d.excludeTargetAuraSpell?d.excludeTargetAuraSpell:d.excludeCasterAuraSpell;
         if(pre)d.afterHitAuras={pre,pre==61987?61988u:0u,0};
     }
@@ -1462,6 +1465,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 else if(au==42&&inertProc){} // Barkskin's proc: chance 0, no spell_proc row
                 else if(au==4&&!amount&&d.id==48792){} // Icebound Fortitude's empty dummy
                 else if((au==69||au==267)&&d.id==48707&&misc==126&&amount>0&&amount<=100)percentage=true; // Anti-Magic Shell
+                else if((au==192||au==65)&&(d.id==2825||d.id==32182)&&amount>0&&amount<=100)percentage=true; // Bloodlust, Heroism
+                else if(au==61&&(d.id==2825||d.id==32182)){} // their MOD_SCALE: the model's size only
                 else if(au==21&&u(86+e)==1&&!misc&&amount>0&&amount<=100&&u(98+e)>=1000&&u(98+e)<5000)percentage=true; // Viper: mana %
                 else modelled=false;
             }
@@ -1651,6 +1656,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(au==39&&misc>0&&misc<=127)d.classBuffSchoolImmunity|=uint8_t(misc); // Divine Shield, Hand of Protection
             if(au==77&&localControlMechanic(misc))d.classBuffMechanicImmunity|=1u<<misc; // Fear Ward
             if(au==149&&tg==1&&misc==127&&amount>0&&amount<=100)d.classBuffPushbackPct=uint8_t(amount); // Barkskin
+            if((d.id==2825||d.id==32182)&&amount>0&&amount<=100){if(au==192)d.classBuffMeleeRangedHastePct=amount;else if(au==65)d.classBuffCastSpeedPct=amount;}
             if(d.id==48707&&misc==126&&amount>0&&amount<=100){ // Anti-Magic Shell: its absorb pool and aura immunity
                 if(au==69){d.magicShellAbsorbPct=uint8_t(amount);d.buffAbsorb=1;d.absorbSchoolMask=126;}
                 else if(au==267){d.magicShellHealthPct=uint8_t(amount);d.classBuffAuraImmunitySchool=126;}

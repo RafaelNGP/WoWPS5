@@ -119,7 +119,10 @@ inline LocalRangedAmounts localRangedAmounts(const LocalRealmPlayer& p,const Loc
     const auto ap=std::clamp(double(baseAp)+itemAp,0.0,1000000.0);
     a.basePeriodMs=weapon->delay;
     const float haste=std::clamp(float(hasteRating)*ratio->haste,0.f,1000.f);
-    a.periodMs=uint32_t(std::clamp(weapon->delay/(1.f+haste/100.f),1.f,60000.f));
+    int32_t lustHaste=0; // MOD_MELEE_RANGED_HASTE on a class buff (Bloodlust, Heroism)
+    for(const auto& sa:p.statAuras)if(sa.remainingMs&&sa.mapId==p.mapId&&sa.instanceId==p.instanceId)
+        if(const auto* sd=c.spell(sa.spellId);sd&&sd->classBuff)lustHaste=std::max(lustHaste,sd->classBuffMeleeRangedHastePct);
+    a.periodMs=uint32_t(std::clamp(weapon->delay/(1.f+haste/100.f)/(1.f+float(std::clamp(lustHaste,0,100))/100.f),1.f,60000.f));
     a.schoolMask=wand?1u<<weapon->school[0]:d.schoolMask;
     const float seconds=weapon->delay/1000.f;
     const float bonus=float(ap/14)*seconds+ammoDps*seconds;

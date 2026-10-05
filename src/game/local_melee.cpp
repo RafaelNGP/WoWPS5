@@ -592,6 +592,11 @@ float localMeleeSpeed(const LocalRealmPlayer& p,const LocalWorldContent& c,bool 
     for(const auto& a:p.statAuras)if(a.remainingMs&&a.mapId==p.mapId&&a.instanceId==p.instanceId)
         if(const auto* d=c.spell(a.spellId);d&&d->classBuff)buffHaste=std::max(buffHaste,d->classBuffMeleeHastePct);
     multiplier*=1+double(std::clamp(buffHaste,0,100))/100;
+    // MOD_MELEE_RANGED_HASTE on a class buff (Bloodlust, Heroism), its own term.
+    int32_t lustHaste=0;
+    for(const auto& a:p.statAuras)if(a.remainingMs&&a.mapId==p.mapId&&a.instanceId==p.instanceId)
+        if(const auto* d=c.spell(a.spellId);d&&d->classBuff)lustHaste=std::max(lustHaste,d->classBuffMeleeRangedHastePct);
+    multiplier*=1+double(std::clamp(lustHaste,0,100))/100;
     // Unit::ApplyAttackTimePercentMod for a creature's MOD_MELEE_HASTE view:
     // a positive amount divides the attack time, a negative one multiplies it.
     if(const auto viewHaste=localPlayerViewModifiers(p,1).hastePct;viewHaste>0)multiplier*=1+double(viewHaste)/100;
