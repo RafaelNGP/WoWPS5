@@ -973,6 +973,7 @@ struct LocalSpellDefinition {
     int32_t classBuffSpeedPct=0,classBuffDodgePct=0; // aura 31 (Sprint), aura 49 (Evasion)
     int32_t classBuffRangedAttackPower=0; // aura 124 (Aspect of the Hawk)
     int32_t classBuffMeleeHastePct=0; // aura 138 (Slice and Dice)
+    int32_t classBuffDamagePct=0,classBuffDamageTakenPct=0,classBuffArmorPct=0; // a presence: aura 79, 87, 142
     bool onlyStealthed=false; // SPELL_ATTR0_ONLY_STEALTHED outside Stealth's form (Ravage, Pounce)
     uint32_t comboDurationMaxMs=0; // a finisher's duration at five points (SpellDuration MaxDuration)
     uint32_t trackCreatureMask=0; // aura 44 (Track Beasts...): creature types shown on the minimap

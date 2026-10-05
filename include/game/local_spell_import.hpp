@@ -1154,7 +1154,9 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         if(u(71+e)==6&&u(95+e)==44&&u(86+e)==1&&i(110+e)>=1&&i(110+e)<=12)trackerSpell=true;
     // Prowl: the cat's stealth, held until cancelled or broken (localStealthed).
     const bool prowlSpell=!creatureCaster&&d.id==kLocalProwlSpell&&u(40)==21&&u(71)==6&&u(95)==16&&u(86)==1;
-    const bool untilCancelled=aspectSpell||trackerSpell||prowlSpell;
+    // A death knight presence (SPELL_SPECIFIC_PRESENCE): one at a time, until changed.
+    const bool presenceSpell=!creatureCaster&&u(40)==21&&localSpellSpecific(d)==LocalSpellSpecific::Presence;
+    const bool untilCancelled=aspectSpell||trackerSpell||prowlSpell||presenceSpell;
     // A shaman totem: one SPELL_EFFECT_SUMMON whose SummonProperties row is a
     // totem slot (63 fire, 81 earth, 82 water, 83 air; Title 4).
     const bool totemSummon=!creatureCaster&&d.spellFamily==11&&u(71)==28&&!u(72)&&!u(73)&&u(110)&&
@@ -1329,8 +1331,9 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             const auto ty=u(71+e),au=u(95+e),tg=u(86+e);
             if(untilCancelled&&ty==6&&tg==1&&(au==42||au==87||au==168)&&i(80+e)==-1)continue; // talent proc hook, empty modifier
             if(prowlSpell&&ty==6&&tg==1&&au==33)continue; // its slow
+            if(presenceSpell&&ty==6&&tg==1&&(au==10||au==107||au==118))continue; // threat, global cooldown, marker
             if((ty!=6&&ty!=35&&ty!=65)||u(89+e)||u(116+e)||(tg!=1&&tg!=21&&tg!=25&&tg!=20&&tg!=22&&tg!=30&&tg!=31&&tg!=56&&tg!=57&&tg!=0))shape=false;
-            if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99||(tg==1&&(au==31||au==49||au==124)&&i(80+e)>=0)||(trackerSpell&&au==44)||(prowlSpell&&au==16))any=true;
+            if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99||(tg==1&&(au==31||au==49||au==124)&&i(80+e)>=0)||(trackerSpell&&au==44)||(prowlSpell&&au==16)||(presenceSpell&&(au==79||au==142||au==138)))any=true;
         }
         classBuffSpell=any&&shape&&((!u(spell335::ProcFlags)&&!u(spell335::ProcCharges))||untilCancelled);
     }
@@ -1359,7 +1362,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         }
         if(d.groundRadius&&type==27) {
             // The area's own periodic damage; its dummy, snare and slow ride along.
-            if(u(95+effect)==3&&d.durationMs&&u(98+effect)>0&&u(98+effect)<=d.durationMs&&!d.periodicDamage) {
+            // Death and Decay ticks through a periodic dummy (aura 226) its script turns into shadow damage.
+            if((u(95+effect)==3||(u(95+effect)==226&&d.spellFamily==15))&&d.durationMs&&u(98+effect)>0&&u(98+effect)<=d.durationMs&&!d.periodicDamage) {
                 const int32_t gb=i(80+effect),gd=i(74+effect);
                 if(gb>=0&&gb<100000&&gd>=0&&gd<100000){d.periodicEffectSlot=uint8_t(effect);d.periodicDamage=uint32_t(gb+1);
                     d.periodicDamageMax=uint32_t(gb+std::max(1,gd));d.periodicIntervalMs=u(98+effect);harm=true;}
@@ -1373,6 +1377,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
            i(80+effect)<-1&&i(80+effect)>=-100&&d.durationMs&&d.durationMs<=600000&&!u(116+effect)&&u(46)!=1) { // range 1: a talent's triggered daze
             d.snarePercent=uint8_t(-(i(80+effect)+1));harm=true;continue;
         }
+        // A death knight strike's script dummy (Death Strike's heal, Obliterate's
+        // disease consumption) and Chains of Ice's own dummy and fading slow.
+        if(!creatureCaster&&d.spellFamily==15&&type==3&&(d.weaponDamage||u(86+effect)==1))continue;
+        if(!creatureCaster&&d.spellFamily==15&&d.snarePercent&&type==6&&u(95+effect)==226)continue;
         // A generic finisher's script dummies (its attack-power terms) are set
         // aside; Slice and Dice's melee haste lands on the rogue as a class buff.
         if(!combo&&d.comboFinisher&&type==3)continue;
@@ -1388,6 +1396,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         if(classBuffSpell) {
             const auto au=u(95+effect),tg=u(86+effect);const int32_t amount=i(80+effect)+1,misc=i(110+effect);
             if(au==44&&tg==1&&misc>=1&&misc<=12)d.trackCreatureMask|=1u<<(misc-1);
+            if(presenceSpell&&au==87&&tg==1&&misc==127&&amount<0&&amount>-100)d.classBuffDamageTakenPct+=amount; // Frost Presence
             if(amount>0&&amount<=100000) {
                 if(au==29){for(int k=0;k<5;++k)if(misc==-1||misc==k)d.classBuffStats[size_t(k)]+=amount;}
                 else if(au==99)d.classBuffAttackPower+=amount;
@@ -1396,6 +1405,9 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 else if(au==31&&tg==1)d.classBuffSpeedPct+=amount;
                 else if(au==49&&tg==1)d.classBuffDodgePct+=amount;
                 else if(au==124&&tg==1)d.classBuffRangedAttackPower+=amount;
+                else if(au==138&&tg==1&&amount<=100)d.classBuffMeleeHastePct+=amount;
+                else if(au==142&&tg==1&&misc==1&&amount<=1000)d.classBuffArmorPct+=amount;
+                else if(au==79&&tg==1&&misc==127&&amount<=1000)d.classBuffDamagePct+=amount;
             }
             d.classBuff=true;buff=true;
             buffTarget=(tg==21||tg==25)?tg:(buffTarget?buffTarget:1);

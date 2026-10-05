@@ -398,7 +398,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // is a dispel the caster has nothing for (SPELL_FAILED_NOTHING_TO_DISPEL),
         // 17 a damage finisher and 18 a self-buff finisher after a Sinister
         // Strike (both at level 20, so the builder does not kill the enemy), 19
-        // a cat opener: refused outside Prowl, then struck from Prowl.
+        // a cat opener: refused outside Prowl, then struck from Prowl, 20 a
+        // presence held until another presence replaces it.
         struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
@@ -417,6 +418,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {11, 7, "Strength of Earth Totem", 14}, {11, 7, "Healing Stream Totem", 14}, {11, 7, "Searing Totem", 15},
             {1, 2, "Cleanse", 16}, {4, 11, "Cure Poison", 16},
             {1, 4, "Rupture", 17}, {1, 4, "Slice and Dice", 18}, {4, 11, "Ravage", 19},
+            {1, 6, "Death Strike", 0}, {1, 6, "Obliterate", 0}, {1, 6, "Death and Decay", 0}, {1, 6, "Chains of Ice", 1},
+            {1, 6, "Blood Presence", 20},
         };
         size_t passed = 0;
         for (const auto& a : abilities) {
@@ -457,7 +460,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             }
             const uint32_t reagentBefore = [&] { const auto* sd = content.spell(spellId); uint32_t n = 0;
                 for (const auto& st : p.inventory) if (sd && st.itemId == sd->reagentItems[0]) n += st.count; return n; }();
-            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || (a.kind >= 12 && a.kind <= 14) || a.kind == 16) {
+            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || (a.kind >= 12 && a.kind <= 14) || a.kind == 16 || a.kind == 20) {
                 const auto meleeBefore = localMeleeStats(p, content); const auto healthBefore = p.maxHealth; const auto items = p.inventory.size();
                 const auto* autoShot = content.spell(75);
                 const auto rangedBefore = autoShot ? localRangedAmounts(p, content, *autoShot) : LocalRangedAmounts{};
@@ -473,6 +476,15 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 if (a.kind == 4) ok = ok && p.mountSpellId == spellId;
                 if (a.kind == 9) ok = ok && localFormRunPercent(p, content) > 120.f;
                 if (a.kind == 10) ok = ok && meleeAfter.dodge > meleeBefore.dodge + 40.f;
+                if (a.kind == 20 && ok) {
+                    for (int t = 0; t < 400; ++t) arena.tick(0.05f, players);
+                    const auto held = [&](const char* name) { for (const auto& s : p.statAuras) if (const auto* sd = content.spell(s.spellId); sd && sd->name == name && s.remainingMs) return true; return false; };
+                    uint32_t frost = 0; for (auto id : p.knownSpells) if (const auto* sd = content.spell(id); sd && sd->name == "Frost Presence" && sd->unsupportedReason.empty()) frost = id;
+                    ok = held(a.name) && frost;
+                    p.globalCooldownMs = 0; p.runeCooldownMs.fill(0);
+                    ok = ok && arena.execute(p, {LocalAction::CastSpell, p.guid, frost}, players, result) && !held(a.name) && held("Frost Presence");
+                    if (!ok) result = "presence not held or not exclusive (" + result + ")";
+                }
                 if (a.kind == 14 && ok) {
                     const auto* totem = [&]() -> const LocalRealmPet* { for (const auto& v : arena.pets()) if (v.ownerGuid == p.guid && v.summonSpellId == spellId && v.kind == LocalPetKind::Totem) return &v; return nullptr; }();
                     const auto* t = content.totem(spellId);
@@ -612,7 +624,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, Prowl, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, Prowl, presences, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.

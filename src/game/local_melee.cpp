@@ -159,7 +159,11 @@ static uint32_t armorFromAttributes(const LocalRealmPlayer& p,const LocalWorldCo
     // agility, flat equipment armor and Mark of the Wild are added.
     const auto* form=localActiveForm(p);
     const float formMultiplier=form?float(form->armorPercent)/100.f:1.f;
-    const float armorMultiplier=formMultiplier*localTalentEquipmentArmorMultiplier(p,c);
+    // Frost Presence: aura 142 on the equipment BASE_VALUE, like a form.
+    float presenceMultiplier=1.f;
+    for(const auto& a:p.statAuras)if(a.remainingMs&&a.mapId==p.mapId&&a.instanceId==p.instanceId)
+        if(const auto* d=c.spell(a.spellId);d&&d->classBuff&&d->classBuffArmorPct>0)presenceMultiplier*=1.f+float(d->classBuffArmorPct)/100.f;
+    const float armorMultiplier=formMultiplier*presenceMultiplier*localTalentEquipmentArmorMultiplier(p,c);
     // Keep fractional positive weapon modifiers in TOTAL_VALUE too. Source
     // Player::UpdateArmor truncates only after summing the complete float value.
     float totalValue=flatArmor;

@@ -14,6 +14,10 @@ inline float localTimedDamageMultiplier(const LocalRealmPlayer& p,const LocalWor
     float value=1.f;
     for(const auto& aura:p.statAuras) {
         const auto* d=c.spell(aura.spellId);
+        // A presence (until cancelled): aura 79 damage done, aura 87 damage taken.
+        if(d&&d->classBuff&&aura.remainingMs&&aura.mapId==p.mapId&&aura.instanceId==p.instanceId) {
+            value*=1.f+float(taken?d->classBuffDamageTakenPct:d->classBuffDamagePct)/100.f;continue;
+        }
         if(!aura.remainingMs||aura.mapId!=p.mapId||aura.instanceId!=p.instanceId||aura.casterGuid!=p.guid||
            !d||aura.remainingMs>d->durationMs||!localTimedDamageTalentReady(p,c,*d))continue;
         const auto percent=taken?d->damageTakenPct:d->physicalDamageDonePct;
