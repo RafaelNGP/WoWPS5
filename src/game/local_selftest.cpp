@@ -442,7 +442,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
-            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2},
         };
         size_t passed = 0;
         for (const auto& a : abilities) {
@@ -498,6 +498,11 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 arena.tick(0.05f, players);
                 const auto meleeAfter = localMeleeStats(p, content);
                 if (a.kind == 2) ok = ok && p.inventory.size() > items;
+                // A unique creation (healthstones) is refused while one is carried.
+                if (a.kind == 2 && ok) if (const auto* sd = content.spell(spellId); sd && sd->createItemUnique) {
+                    p.globalCooldownMs = 0; p.mana = p.maxMana; std::string again;
+                    ok = !arena.execute(p, {LocalAction::CastSpell, p.guid, spellId}, players, again) && again.find("too many") != std::string::npos;
+                    if (!ok) result = "second healthstone not refused (" + again + ")"; }
                 if (a.kind == 3) ok = ok && (meleeAfter.attackPower > meleeBefore.attackPower || p.maxHealth > healthBefore ||
                                              meleeAfter.attributes[3] > meleeBefore.attributes[3]);
                 if (a.kind == 4) ok = ok && p.mountSpellId == spellId;

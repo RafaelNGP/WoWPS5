@@ -1307,6 +1307,9 @@ struct LocalSpellDefinition {
     // SpellBaseDamageBonusDone's half adds nothing). CalcValue's level term.
     uint32_t lifeTapAmount = 0;
     float lifeTapPerLevel = 0;
+    // The created item is unique (item_template maxcount 1, the healthstones):
+    // a second cast is SPELL_FAILED_TOO_MANY_OF_ITEM while one is carried.
+    bool createItemUnique = false;
 
     std::string iconPath, unsupportedReason;
 };

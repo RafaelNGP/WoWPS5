@@ -988,6 +988,15 @@ inline void decodeCreatureEffects(const ClientSpellTables& t,uint32_t row,LocalS
 /// rules. Build 12340 column layout, matching Data/expansions/wotlk/dbc_layouts.json.
 // creatureCaster: the row is decoded for a creature. SpellInfo::CalcPowerCost
 // never reads ManaCostPerlevel (column 43), so it does not block such a row.
+// spell_warl_create_healthstone::iTypes, first column: the healthstone of
+// each Create Healthstone rank (Minor ... Fel).
+inline uint32_t localHealthstoneItem(uint32_t spellId) {
+    switch(spellId) {
+    case 6201: return 5512; case 6202: return 5511; case 5699: return 5509; case 11729: return 5510;
+    case 11730: return 9421; case 27230: return 22103; case 47871: return 36889; case 47878: return 36892;
+    default: return 0;
+    }
+}
 inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpellDefinition& d, bool creatureCaster=false) {
     const auto u=[&](uint32_t col){return t.spells->getUInt32(row,col);};
     const auto i=[&](uint32_t col){return t.spells->getInt32(row,col);};
@@ -1711,6 +1720,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             d.chargeRage=uint16_t((base+1)/10); // Charge's script: tenths of rage.
         } else if(type==5&&!creatureCaster&&(target==1||target==0)&&(secondary==17||!secondary)) {
             d.teleport=true;
+        } else if(type==77&&!creatureCaster&&d.spellFamily==5&&effect==0&&target==1&&!secondary&&!u(72)&&!u(73)&&localHealthstoneItem(d.id)) {
+            // spell_warl_create_healthstone: the rank's healthstone (without the
+            // Improved Healthstone talent, which the realm does not grant).
+            d.createItemId=localHealthstoneItem(d.id);d.createItemCount=1;d.createItemUnique=true;
         } else if(lifeTap&&type==3&&effect==0) {
             d.lifeTapAmount=uint32_t(i(80)+1);d.lifeTapPerLevel=f(77); // CalcValue: base + 1 (one die side)
         } else if(type==77&&!creatureCaster&&d.spellFamily==5&&target==6&&!secondary&&!i(80+effect)&&!u(74+effect)&&!u(116+effect)&&
