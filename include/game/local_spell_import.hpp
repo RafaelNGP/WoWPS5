@@ -1272,7 +1272,17 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if(!creatureCaster&&u(21)==2&&!u(20)&&!u(22)&&!u(23)&&!u(24)&&!u(25)&&!u(26)&&!u(27))d.targetMaxHealthPct=20;
     // Stealth's CasterAuraStateNot 12 (Faerie Fire) never holds here: no
     // creature in this realm casts it on a player.
-    else if(u(20)||u(21)||(u(22)&&!((d.id==1784||d.id==kLocalProwlSpell)&&u(22)==12))||u(23)||u(24)||u(25)||u(26)||(u(27)&&!chargeSpell)) unavailable("Aura requirements are not implemented");
+    else if(u(20)||u(21)||(u(22)&&!((d.id==1784||d.id==kLocalProwlSpell)&&u(22)==12))||u(23)||u(24)||u(25)||
+            (u(26)&&!localRealmMarkerAura(u(26)))||(u(27)&&!chargeSpell&&!localRealmMarkerAura(u(27)))) unavailable("Aura requirements are not implemented");
+    // The exclusion markers the realm itself applies (Forbearance family).
+    if(!creatureCaster&&localRealmMarkerAura(u(26)))d.excludeCasterAuraSpell=u(26);
+    if(!creatureCaster&&localRealmMarkerAura(u(27)))d.excludeTargetAuraSpell=u(27);
+    // spell_pal_immunities (498 Divine Protection, 642 Divine Shield, 1022 Hand
+    // of Protection and its ranks): the Forbearance check and the three auras
+    // added after the hit.
+    if(!creatureCaster&&d.spellFamily==10&&(d.id==498||d.id==642||d.id==1022||d.id==5599||d.id==10278)) {
+        d.forbearanceCheck=true;d.afterHitAuras={25771,61987,61988};
+    }
     // SPELL_ATTR0_ONLY_STEALTHED: the rogue openers also require Stealth's
     // form; Prowl (a cat-form aura) is not implemented, so Ravage and Pounce wait.
     if(!creatureCaster&&(u(4)&0x20000u)&&!(u(12)&(1u<<29)))d.onlyStealthed=true; // Ravage, Pounce: under Prowl
@@ -1394,6 +1404,23 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if((ty!=6&&ty!=35&&ty!=65)||u(89+e)||u(116+e)||(tg!=1&&tg!=21&&tg!=25&&tg!=20&&tg!=22&&tg!=30&&tg!=31&&tg!=56&&tg!=57&&tg!=0))shape=false;
             if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99||(tg==1&&(au==31||au==49||au==124)&&i(80+e)>=0)||(tg==1&&au==22&&(i(110+e)&1)&&i(80+e)>=0)||(trackerSpell&&au==44)||(prowlSpell&&au==16)||(presenceSpell&&(au==79||au==142||au==138)))any=true;
         }
+        // Immunity and damage / healing percentages (Divine Shield, Divine
+        // Protection, Hand of Protection, Avenging Wrath, Shield Wall) admit a
+        // class buff only when every aura in it is one the realm models, so a
+        // spell is never imported with its penalty and without its benefit
+        // (Divine Plea, Aspect of the Viper: their mana regeneration is not).
+        if(!any&&shape) {
+            bool modelled=true,percentage=false;
+            for(uint32_t e=0;e<3;++e)if(u(71+e)) {
+                const auto au=u(95+e);const int32_t misc=i(110+e),amount=i(80+e)+int32_t(u(74+e)?1:0);
+                if(au==39&&misc>0&&misc<=127)percentage=true;
+                else if(u(86+e)==1&&(au==79||au==87||au==136||au==118)&&misc==127)percentage=true;
+                else if(au==25&&u(86+e)!=1){} // Hand of Protection's pacify on its target
+                else if(au==108&&!amount){} // Avenging Wrath's empty spell modifier
+                else modelled=false;
+            }
+            any=percentage&&modelled;
+        }
         classBuffSpell=any&&shape&&((!u(spell335::ProcFlags)&&!u(spell335::ProcCharges))||untilCancelled);
     }
     // A ground area: SPELL_EFFECT_PERSISTENT_AREA_AURA (27) at the destination
@@ -1492,6 +1519,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             const auto au=u(95+effect),tg=u(86+effect);const int32_t amount=i(80+effect)+1,misc=i(110+effect);
             if(au==44&&tg==1&&misc>=1&&misc<=12)d.trackCreatureMask|=1u<<(misc-1);
             if(presenceSpell&&au==87&&tg==1&&misc==127&&amount<0&&amount>-100)d.classBuffDamageTakenPct+=amount; // Frost Presence
+            if(au==39&&misc>0&&misc<=127)d.classBuffSchoolImmunity|=uint8_t(misc); // Divine Shield, Hand of Protection
+            // Divine Shield's damage done and Divine Protection's damage taken.
+            if(!presenceSpell&&tg==1&&misc==127&&amount<0&&amount>-100){if(au==79)d.classBuffDamagePct+=amount;else if(au==87)d.classBuffDamageTakenPct+=amount;}
+            if(au==136&&tg==1&&misc==127&&amount>0&&amount<=1000)d.classBuffHealingDonePct+=amount; // Avenging Wrath
             if(amount>0&&amount<=100000) {
                 if(au==29){for(int k=0;k<5;++k)if(misc==-1||misc==k)d.classBuffStats[size_t(k)]+=amount;}
                 else if(au==99)d.classBuffAttackPower+=amount;

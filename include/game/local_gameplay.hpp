@@ -894,6 +894,16 @@ struct LocalPassiveCastModifier {
     std::array<uint32_t,3> mask{};
 };
 static_assert(sizeof(LocalPassiveCastModifier)==20, "Bounded modifier record size");
+// Auras the realm applies only as the after-hit of another spell's script,
+// with their client/server duration: Forbearance (SpellDuration 4), the
+// Avenging Wrath marker (9) and Divine Shield's exclude aura (spell_dbc, 25).
+struct LocalRealmMarkerAura { uint32_t id; const char* name; uint32_t durationMs; };
+inline const LocalRealmMarkerAura* localRealmMarkerAura(uint32_t id) {
+    static constexpr LocalRealmMarkerAura markers[]={{25771,"Forbearance",120000},{61987,"Avenging Wrath Marker",30000},
+        {61988,"Divine Shield Exclude Aura",180000}};
+    for(const auto& m:markers)if(m.id==id)return &m;
+    return nullptr;
+}
 struct LocalSpellDefinition {
     uint16_t passiveArmorAttackPowerDivisor=0;
     uint8_t passiveOffhandDamagePct=0,passiveWeaponHitPct=0;
@@ -1318,6 +1328,20 @@ struct LocalSpellDefinition {
     // direct damage on a target with a warlock Immolate (periodic, flags[0]
     // 0x4) from anyone (Spell::EffectSchoolDMG).
     bool immolateBonus = false;
+    // SPELL_AURA_SCHOOL_IMMUNITY (39) on a class buff (Divine Shield, Hand of
+    // Protection): the schools whose damage the holder ignores.
+    uint8_t classBuffSchoolImmunity = 0;
+    // SPELL_AURA_MOD_HEALING_DONE_PERCENT (136, Avenging Wrath): healing done.
+    int32_t classBuffHealingDonePct = 0;
+    // ExcludeCasterAuraSpell / ExcludeTargetAuraSpell when the excluded aura
+    // is one the realm applies (localRealmMarkerAura): refused while held.
+    uint32_t excludeCasterAuraSpell = 0, excludeTargetAuraSpell = 0;
+    // Auras the spell's script adds to the target after the hit
+    // (spell_pal_immunities: Forbearance and the two markers).
+    std::array<uint32_t,3> afterHitAuras{};
+    // spell_pal_immunities::CheckCast: refused on a target holding Forbearance
+    // or the Avenging Wrath marker.
+    bool forbearanceCheck = false;
 
     std::string iconPath, unsupportedReason;
 };

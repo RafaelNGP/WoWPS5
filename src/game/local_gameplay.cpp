@@ -76,6 +76,16 @@ namespace wowee::game {
 namespace {
 // Unit::SpellHealingBonusTaken: the recipient's own MOD_HEALING_PCT class
 // buffs (Demon Skin, Demon Armor) multiply with the creature views.
+bool localHoldsStatAura(const LocalRealmPlayer& p,uint32_t spellId){
+    return std::any_of(p.statAuras.begin(),p.statAuras.end(),[&](const auto& a){return a.spellId==spellId&&a.remainingMs;});
+}
+// SPELL_AURA_MOD_HEALING_DONE_PERCENT on the healer's class buffs (Avenging Wrath).
+uint32_t localHealingDoneWithBuffs(const LocalWorldContent& c,const LocalRealmPlayer& p,uint32_t amount){
+    int32_t pct=0;
+    for(const auto& a:p.statAuras)if(a.remainingMs&&a.mapId==p.mapId&&a.instanceId==p.instanceId)
+        if(const auto* d=c.spell(a.spellId);d&&d->classBuff)pct+=d->classBuffHealingDonePct;
+    return pct?uint32_t(std::clamp<int64_t>(int64_t(amount)*(100+std::max(-100,pct))/100,0,1000000)):amount;
+}
 uint32_t localHealingTakenWithBuffs(const LocalWorldContent& c,const LocalRealmPlayer& p,uint32_t amount){
     int32_t pct=0;
     for(const auto& a:p.statAuras)if(a.remainingMs&&a.mapId==p.mapId&&a.instanceId==p.instanceId)
@@ -2794,6 +2804,20 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         a.snarePercent=t.snarePct;a.durationMs=t.snareMs;
         sorted.push_back(std::move(a));
     }
+    // The markers a script adds after its hit (Forbearance...), held as timed
+    // auras with no effect of their own.
+    std::vector<std::pair<uint32_t,const LocalSpellDefinition*>> markers;
+    for(const auto& d:sorted)for(auto id:d.afterHitAuras)if(id)markers.emplace_back(id,&d);
+    std::vector<LocalSpellDefinition> synthesized;
+    for(const auto& [id,from]:markers)if(const auto* m=localRealmMarkerAura(id);m&&
+        !std::any_of(sorted.begin(),sorted.end(),[&](const auto& d){return d.id==id;})&&
+        !std::any_of(synthesized.begin(),synthesized.end(),[&](const auto& d){return d.id==id;})) {
+        LocalSpellDefinition a;a.id=id;a.name=m->name;a.clientSpell=true;a.allowableClasses=from->allowableClasses;
+        a.triggeredOnly=true;a.maxAuraStacks=1;a.durationMs=m->durationMs;a.spellFamily=from->spellFamily;
+        a.classBuff=true;a.buffSelfOnly=true; // a timed aura with no effect of its own
+        synthesized.push_back(std::move(a));
+    }
+    for(auto& a:synthesized)sorted.push_back(std::move(a));
     std::sort(sorted.begin(),sorted.end(),[](const auto& a,const auto& b){return a.id<b.id;});
     hash(0x42313153);hash(uint32_t(sorted.size()));
     for(const auto& d:sorted) {
@@ -2860,7 +2884,9 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(d.controlProfile);hash(d.controlEffectSlot);hash(d.armorDebuffPct);hash(d.armorDebuffEffectSlot);
         for(const auto* a:{&d.targetDebuffAttackPower,&d.targetDebuffResistance,&d.targetDebuffDamageTakenPct,&d.targetDebuffCastSpeedPct})hash(uint32_t(*a));
         hash(uint32_t(d.targetDebuffResistanceSchool)|uint32_t(d.targetDebuffDamageTakenSchool)<<8|uint32_t(d.targetDebuffArmorPct)<<16|uint32_t(d.targetDebuffEffectMask)<<24);
-        hash(uint32_t(d.controlDamageCapPct)|uint32_t(d.controlSingleTarget)<<8);hash(uint32_t(d.classBuffHealingTakenPct));hash(d.lifeTapAmount);hash(uint32_t(d.createItemUnique));hash(uint32_t(d.directLeechPct)|uint32_t(d.immolateBonus)<<16);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);}
+        hash(uint32_t(d.controlDamageCapPct)|uint32_t(d.controlSingleTarget)<<8);hash(uint32_t(d.classBuffHealingTakenPct));hash(d.lifeTapAmount);hash(uint32_t(d.createItemUnique));hash(uint32_t(d.directLeechPct)|uint32_t(d.immolateBonus)<<16);
+        hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
+        for(auto id:d.afterHitAuras)hash(id);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -5096,6 +5122,8 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
     }
     if(cmd.action==LocalAction::CancelStatAura){
         if(cmd.target||cmd.bid||!cmd.id)return reject("Invalid buff cancellation");
+        // Forbearance and the immunity markers are negative: never cancelled.
+        if(localRealmMarkerAura(cmd.id))return reject("That aura cannot be cancelled");
         const auto periods=meleePeriods(p,c);
         const auto statsRemoved=std::erase_if(p.statAuras,[&](const auto& a){return a.spellId==cmd.id;});
         const auto healsRemoved=std::erase_if(g.periodicHeals,[&](const auto& a){return a.target==p.guid&&a.spell==cmd.id;});
@@ -6417,6 +6445,14 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(d->teleport&&!c.spellDestination(d->id))return reject("This destination is not available here");
     if(d->teleport&&(p.flight.active||p.transportEntry))return reject("You can't do that right now");
     // spell_warl_life_tap::CheckCast: more health than the tap (else it fizzles).
+    if(d->excludeCasterAuraSpell&&localHoldsStatAura(p,d->excludeCasterAuraSpell))return reject("You can't do that yet");
+    if(d->forbearanceCheck||d->excludeTargetAuraSpell) {
+        const LocalRealmPlayer* target=&p;
+        if(!d->buffSelfOnly)for(const auto* q:players)if(q&&q->guid==cmd.target)target=q;
+        // spell_pal_immunities::CheckCast (SPELL_FAILED_TARGET_AURASTATE).
+        if(d->forbearanceCheck&&(localHoldsStatAura(*target,25771)||localHoldsStatAura(*target,61987)))return reject("Target is affected by Forbearance");
+        if(d->excludeTargetAuraSpell&&localHoldsStatAura(*target,d->excludeTargetAuraSpell))return reject("You can't do that yet");
+    }
     if(d->lifeTapAmount&&p.health<=scaledSpellAmount(p,*d,d->lifeTapAmount,d->lifeTapAmount,d->lifeTapPerLevel))return reject("Not enough health");
     if(d->createItemUnique&&totalItem(p,d->createItemId))return reject("You have too many of that item already");
     if(d->createItemId){auto probe=p;for(size_t r=0;r<d->reagentItems.size();++r)if(d->reagentItems[r])removeItem(probe,d->reagentItems[r],d->reagentCounts[r]);
@@ -7218,7 +7254,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         if(a.kind==uint8_t(LocalNpcControlKind::Stun))localResetNpcSpellState(*n);
     }
     if(healed&&d->heal){
-        uint32_t amount=localSpellAmountAfterTalents(p,c,*d,localSpellEffectAmountAfterTalents(p,c,*d,spellAmount(p,*d,true),false),false);
+        uint32_t amount=localHealingDoneWithBuffs(c,p,localSpellAmountAfterTalents(p,c,*d,localSpellEffectAmountAfterTalents(p,c,*d,spellAmount(p,*d,true),false),false));
         for(size_t i=0;i<chainCount;++i) {
             auto* recipient=chainPlayers[i];const auto before=recipient->health;
             const bool critical=g.rollSpellCritical(p,*d);
@@ -7232,7 +7268,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     }
     if(d->periodicHeal) {
         Impl::PeriodicHeal aura{p.guid,healed->guid,d->id,talentedDuration,d->periodicIntervalMs,d->periodicIntervalMs,
-            localSpellAmountAfterTalents(p,c,*d,localSpellEffectAmountAfterTalents(p,c,*d,scaledSpellAmount(p,*d,d->periodicHeal,d->periodicHealMax,d->periodicHealPerLevel),true),true),p.mapId,p.instanceId};
+            localHealingDoneWithBuffs(c,p,localSpellAmountAfterTalents(p,c,*d,localSpellEffectAmountAfterTalents(p,c,*d,scaledSpellAmount(p,*d,d->periodicHeal,d->periodicHealMax,d->periodicHealPerLevel),true),true)),p.mapId,p.instanceId};
         aura.critChanceBasisPoints=localPeriodicCritChanceBasisPoints(&p,c,*d);
         if(healSlot<g.periodicHeals.size())
             aura.stacks=nextLocalAuraStack(g.periodicHeals[healSlot].spell,g.periodicHeals[healSlot].stacks,*d);
@@ -7321,6 +7357,14 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
                 if(old&&localElementalShield(*d)&&localElementalShield(*old))shieldCooldown=std::max(shieldCooldown,healed->statAuras[i].procCooldownMs);});
         if(localElementalShield(*d))healed->statAuras[buffSlot].procCooldownMs=std::min(shieldCooldown,d->proc.cooldownMs);
         stats(*healed,c,false);
+    }
+    // A script's after-hit auras (spell_pal_immunities: Forbearance and the
+    // markers), added to the target as fresh timed auras.
+    if(healed)for(auto id:d->afterHitAuras)if(const auto* m=id?c.spell(id):nullptr) {
+        auto it=std::find_if(healed->statAuras.begin(),healed->statAuras.end(),[&](const auto& a){return a.spellId==id;});
+        LocalStatAura a{id,m->durationMs,healed->mapId,healed->instanceId,p.guid,0};
+        if(it!=healed->statAuras.end())*it=a;else healed->statAuras.push_back(a);
+        LOG_INFO("[LOCAL_MARKER] player=",healed->guid," aura=",id," by spell=",d->id);
     }
     if((d->comboProfile||d->meleeSpecialProfile||d->stormstrikeProfile==1||d->comboGain)&&n&&!n->dead){
         if(d->comboGain)addLocalCombo(p,*n,d->comboGain);

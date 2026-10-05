@@ -108,7 +108,13 @@
     }
     /// Unit::MeleeDamageBonusTaken / SpellDamageBonusTaken on a player from the
     /// creature views it carries: flat MOD_DAMAGE_TAKEN, then MOD_DAMAGE_PERCENT_TAKEN.
-    static uint32_t npcDamageTakenByPlayer(const LocalRealmPlayer& p,uint32_t damage,uint32_t schoolMask) {
+    uint32_t npcDamageTakenByPlayer(const LocalRealmPlayer& p,uint32_t damage,uint32_t schoolMask) const {
+        // Unit::IsImmunedToDamage: every school of the hit is one the player's
+        // class buffs make it immune to (Divine Shield, Hand of Protection).
+        uint8_t immune=0;
+        for(const auto& a:p.statAuras)if(a.remainingMs&&a.mapId==p.mapId&&a.instanceId==p.instanceId)
+            if(const auto* d=content->spell(a.spellId);d&&d->classBuff)immune|=d->classBuffSchoolImmunity;
+        if(immune&&(schoolMask&127u)&&((schoolMask&127u)&~uint32_t(immune))==0)return 0;
         const auto m=localPlayerViewModifiers(p,uint8_t(schoolMask&127u));
         if(!m.damageTakenFlat&&!m.damageTakenPct)return damage;
         const int64_t flat=std::max<int64_t>(0,int64_t(damage)+m.damageTakenFlat);
