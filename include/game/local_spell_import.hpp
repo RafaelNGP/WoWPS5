@@ -1243,6 +1243,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if(u(41)!=0&&u(41)!=1&&u(41)!=3&&u(41)!=5&&u(41)!=6&&!lifeTap)
         unavailable("This power system is not implemented");
     if(lifeTap)d.resourceType=0; // no cost: health is spent by the effect itself
+    if(!creatureCaster&&d.spellFamily==15){bool periodic=false;const auto ap=localDeathKnightApBonus(d.id,periodic);(periodic?d.periodicApPer100k:d.apBonusPer100k)=ap;}
     if(u(226)) {
         const auto runeRow=ClientSpellTables::lookup(t.runeCostIndex,u(226));
         if(runeRow<0) unavailable("SpellRuneCost record missing or incompatible");

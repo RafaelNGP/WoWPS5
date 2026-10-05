@@ -905,6 +905,21 @@ inline constexpr uint32_t kLocalIceBlockSpell = 45438;
 // The two death knight diseases, by spell_bonus_data at the pin: no base
 // damage (EffectBasePoints -1) and 0.06325 x attack power per tick.
 struct LocalDiseaseSpell { uint32_t id; const char* name; uint32_t apPer100k; };
+// spell_bonus_data ap_bonus rows of death knight spells at the pin, by the
+// player spell they apply to (Death and Decay's row is its triggered 52212).
+inline uint32_t localDeathKnightApBonus(uint32_t id,bool& periodic) {
+    periodic=false;
+    switch(id) {
+    case 45477:case 49896:case 49903:case 49904:case 49909:return 10000;   // Icy Touch 0.1
+    case 48721:case 49939:case 49940:case 49941:return 6000;               // Blood Boil 0.06
+    case 49184:case 51409:case 51410:case 51411:return 20000;              // Howling Blast 0.2
+    case 47632:return 15000;                                                // Death Coil 0.15
+    case 47476:return 6000;                                                 // Strangulate 0.06
+    case 50842:return 4000;                                                 // Pestilence 0.04
+    case 43265:case 49936:case 49937:case 49938:periodic=true;return 4805;  // Death and Decay (52212) 0.04805
+    default:return 0;
+    }
+}
 inline const LocalDiseaseSpell* localDiseaseSpell(uint32_t id) {
     static constexpr LocalDiseaseSpell diseases[]={{55095,"Frost Fever",6325},{55078,"Blood Plague",6325}};
     for(const auto& d:diseases)if(d.id==id)return &d;
@@ -1376,6 +1391,10 @@ struct LocalSpellDefinition {
     // On the synthesized disease: each tick is this share of the caster's
     // attack power at application (spell_bonus_data ap_dot_bonus x 100000).
     uint32_t diseaseApPer100k = 0;
+    // spell_bonus_data ap_bonus at the pin (Unit::SpellDamageBonusDone's
+    // attack-power term) for the death knight's spells, x100000: the direct
+    // hit, and a ground area's tick (Death and Decay: its triggered 52212).
+    uint32_t apBonusPer100k = 0, periodicApPer100k = 0;
     // SPELL_AURA_REDUCE_PUSHBACK (149) on a class buff (Barkskin): percent.
     uint8_t classBuffPushbackPct = 0;
     // An absorb shield's RealPointsPerLevel (Ice Barrier): the amount is the

@@ -886,8 +886,12 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     for (int t = 0; t < 64; ++t) { p.attackTarget = 0; p.health = p.maxHealth; arena.tick(0.05f, players); }
                     const uint32_t h1 = npcNow() ? npcNow()->health : 0;
                     const bool frost = z && z->id == 55095;
-                    landed = z && z->diseaseApPer100k && h1 < h0 && (frost ? slow == -14 : slow == 0);
-                    if (!landed) result = "disease " + std::to_string(z ? z->id : 0) + " health " + std::to_string(h0) + "->" + std::to_string(h1) + " slow " + std::to_string(slow) + " (" + result + ")";
+                    // Icy Touch's own hit carries spell_bonus_data's 10% of attack power.
+                    const uint32_t hit = before > h0 ? before - h0 : 0;
+                    const uint32_t apPart = uint32_t(localMeleeStats(p, content).attackPower * (sd ? sd->apBonusPer100k : 0) / 100000);
+                    const bool apOk = !frost || (sd && sd->apBonusPer100k == 10000 && apPart > 0 && hit >= sd->damage + apPart * 95 / 100);
+                    landed = z && z->diseaseApPer100k && h1 < h0 && (frost ? slow == -14 : slow == 0) && apOk;
+                    if (!landed) result = "hit " + std::to_string(hit) + " ap part " + std::to_string(apPart) + " disease " + std::to_string(z ? z->id : 0) + " health " + std::to_string(h0) + "->" + std::to_string(h1) + " slow " + std::to_string(slow) + " (" + result + ")";
                 }
                 else if (a.kind == 41) {
                     const auto npcNow = [&]() -> const LocalRealmNpc* { for (const auto& v : arena.npcs()) if (v.guid == foeGuid) return &v; return nullptr; };
