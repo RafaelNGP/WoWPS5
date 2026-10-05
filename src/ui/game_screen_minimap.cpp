@@ -1,4 +1,5 @@
 #include "game/group_defines.hpp"
+#include "game/local_melee.hpp"
 #include "ui/game_screen.hpp"
 #include "rendering/shadow_quality.hpp"
 #include "ui/settings_schema.hpp"
@@ -672,6 +673,22 @@ void GameScreen::renderMinimapRares(const MinimapFrame& frame, const EntityList&
     // Rare tracker: use the same live creature-rank classification as the world map.
     // This is independent of generic NPC dots so enabling rare tracking consistently
     // shows spawned rares on both maps without adding every nearby creature.
+    // Creature tracking (Track Beasts, Sense Undead...): living creatures of
+    // the tracked types as yellow dots, whatever the NPC-dot setting.
+    if (const uint32_t tracked = gameHandler.localTrackedCreatureMask()) {
+        for (const auto& entity : minimapUnits) {
+            auto unit = std::static_pointer_cast<game::Unit>(entity);
+            if (!unit || unit->getHealth() == 0) continue;
+            const uint32_t type = game::localNpcCreatureType(unit->getEntry());
+            if (!type || type > 32 || !(tracked & (1u << (type - 1)))) continue;
+            float sx = 0.0f, sy = 0.0f;
+            if (!frame.projectEntity(*entity, sx, sy)) continue;
+            frame.drawList->AddCircleFilled(ImVec2(sx, sy), 2.5f, IM_COL32(255, 220, 40, 235));
+            frame.drawList->AddCircle(ImVec2(sx, sy), 2.5f, IM_COL32(60, 40, 0, 200), 0, 1.0f);
+            if (cursorNearBlip(sx, sy, kSmallBlipHoverRadius) && !unit->getName().empty())
+                ImGui::SetTooltip("%s", unit->getName().c_str());
+        }
+    }
     if (settingsPanel_.showRareTracker_) {
         for (const auto& entity : minimapUnits) {
             auto unit = std::static_pointer_cast<game::Unit>(entity);

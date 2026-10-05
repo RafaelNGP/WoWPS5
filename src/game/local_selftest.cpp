@@ -392,7 +392,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // 6 charges it into melee range of the enemy with rage, 7 kills with a
         // Drain Soul channel for a Soul Shard, 8 summons a demon, 9 speeds the
         // caster up, 10 raises its dodge, 11 opens from Stealth for combo points,
-        // 12 holds a hunter aspect until another aspect replaces it.
+        // 12 holds a hunter aspect until another aspect replaces it, 13 tracks
+        // a creature type until another tracking replaces it.
         struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
@@ -407,6 +408,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 1, "Hamstring", 1}, {4, 3, "Concussive Shot", 1}, {1, 1, "Charge", 6}, {1, 9, "Drain Soul", 7}, {1, 9, "Summon Voidwalker", 8},
             {1, 4, "Sprint", 9}, {1, 4, "Evasion", 10}, {1, 4, "Ambush", 11}, {1, 4, "Garrote", 11}, {1, 4, "Cheap Shot", 11},
             {4, 3, "Aspect of the Hawk", 12}, {4, 3, "Aspect of the Cheetah", 9},
+            {4, 3, "Track Beasts", 13}, {1, 2, "Sense Undead", 13},
         };
         size_t passed = 0;
         for (const auto& a : abilities) {
@@ -446,7 +448,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             }
             const uint32_t reagentBefore = [&] { const auto* sd = content.spell(spellId); uint32_t n = 0;
                 for (const auto& st : p.inventory) if (sd && st.itemId == sd->reagentItems[0]) n += st.count; return n; }();
-            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || a.kind == 12) {
+            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || a.kind >= 12) {
                 const auto meleeBefore = localMeleeStats(p, content); const auto healthBefore = p.maxHealth; const auto items = p.inventory.size();
                 const auto* autoShot = content.spell(75);
                 const auto rangedBefore = autoShot ? localRangedAmounts(p, content, *autoShot) : LocalRangedAmounts{};
@@ -461,6 +463,17 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 if (a.kind == 4) ok = ok && p.mountSpellId == spellId;
                 if (a.kind == 9) ok = ok && localFormRunPercent(p, content) > 120.f;
                 if (a.kind == 10) ok = ok && meleeAfter.dodge > meleeBefore.dodge + 40.f;
+                if (a.kind == 13 && ok) {
+                    for (int t = 0; t < 400; ++t) arena.tick(0.05f, players);
+                    uint32_t mask = 0; size_t trackers = 0;
+                    for (const auto& s : p.statAuras) if (const auto* sd = content.spell(s.spellId); sd && s.remainingMs && sd->trackCreatureMask) { mask |= sd->trackCreatureMask; ++trackers; }
+                    ok = trackers == 1 && mask == content.spell(spellId)->trackCreatureMask && mask;
+                    uint32_t other = 0; for (auto id : p.knownSpells) if (const auto* sd = content.spell(id); sd && id != spellId && sd->trackCreatureMask && sd->unsupportedReason.empty() && localSpellFormReady(p, *sd)) other = id;
+                    if (ok && other) { p.globalCooldownMs = 0; ok = arena.execute(p, {LocalAction::CastSpell, p.guid, other}, players, result);
+                        trackers = 0; for (const auto& s : p.statAuras) if (const auto* sd = content.spell(s.spellId); sd && s.remainingMs && sd->trackCreatureMask) { ++trackers; ok = ok && s.spellId == other; }
+                        ok = ok && trackers == 1; }
+                    if (!ok) result = "tracking not held or not exclusive (" + result + ")";
+                }
                 if (a.kind == 12 && ok) {
                     // An aspect does not expire; another aspect replaces it.
                     for (int t = 0; t < 400; ++t) arena.tick(0.05f, players);
@@ -551,7 +564,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.

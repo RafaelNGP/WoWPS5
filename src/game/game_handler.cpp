@@ -3313,6 +3313,13 @@ void GameHandler::rebuildCompanions() const {
              critterSpells_.size(), " critters from ", known.size(), " known spells");
 }
 
+uint32_t GameHandler::localTrackedCreatureMask() const {
+    uint32_t mask=0;
+    if(auto* realm=localServiceRealm())if(const auto* player=realm->localPlayer())
+        for(const auto& a:player->statAuras)if(a.remainingMs)if(const auto* d=realm->content().spell(a.spellId))mask|=d->trackCreatureMask;
+    return mask;
+}
+
 uint32_t GameHandler::getBonusActionBarOffset() const {
     if(auto* realm=localServiceRealm())if(const auto* player=realm->localPlayer())if(const auto* f=localActiveForm(*player))return f->bar;
     const uint8_t form = shapeshiftFormId_;

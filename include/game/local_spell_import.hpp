@@ -1147,6 +1147,12 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // effects are talent hooks (Improved Aspect of the Hawk, the Cheetah's daze)
     // and are set aside; Cheetah's daze is the combat rule in the runtime.
     const bool aspectSpell=!creatureCaster&&d.spellFamily==9&&u(40)==21&&localSpellSpecific(d)==LocalSpellSpecific::Aspect;
+    // Creature tracking (SPELL_AURA_TRACK_CREATURES on the caster, until
+    // cancelled; Gas Cloud Tracking 30645 is a quest workaround, not one).
+    bool trackerSpell=false;
+    if(!creatureCaster&&u(40)==21&&d.id!=30645)for(uint32_t e=0;e<3;++e)
+        if(u(71+e)==6&&u(95+e)==44&&u(86+e)==1&&i(110+e)>=1&&i(110+e)<=12)trackerSpell=true;
+    const bool untilCancelled=aspectSpell||trackerSpell;
     if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&d.id!=1784) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
     // Spell.dbc column 38 is BaseLevel and column 39 is SpellLevel
@@ -1302,15 +1308,15 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // or attack power (99). Party/raid forms land on the caster here (and on a
     // friendly target when cast at one); other auras in it are set aside.
     bool classBuffSpell=false;
-    if(!creatureCaster&&(d.durationMs||aspectSpell)) {
+    if(!creatureCaster&&(d.durationMs||untilCancelled)) {
         bool any=false,shape=true;
         for(uint32_t e=0;e<3;++e) if(u(71+e)) {
             const auto ty=u(71+e),au=u(95+e),tg=u(86+e);
-            if(aspectSpell&&ty==6&&tg==1&&(au==42||au==87)&&i(80+e)==-1)continue; // talent proc hook, empty modifier
+            if(untilCancelled&&ty==6&&tg==1&&(au==42||au==87||au==168)&&i(80+e)==-1)continue; // talent proc hook, empty modifier
             if((ty!=6&&ty!=35&&ty!=65)||u(89+e)||u(116+e)||(tg!=1&&tg!=21&&tg!=25&&tg!=20&&tg!=22&&tg!=30&&tg!=31&&tg!=56&&tg!=57&&tg!=0))shape=false;
-            if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99||(tg==1&&(au==31||au==49||au==124)&&i(80+e)>=0))any=true;
+            if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99||(tg==1&&(au==31||au==49||au==124)&&i(80+e)>=0)||(trackerSpell&&au==44))any=true;
         }
-        classBuffSpell=any&&shape&&((!u(spell335::ProcFlags)&&!u(spell335::ProcCharges))||aspectSpell);
+        classBuffSpell=any&&shape&&((!u(spell335::ProcFlags)&&!u(spell335::ProcCharges))||untilCancelled);
     }
     // A ground area: SPELL_EFFECT_PERSISTENT_AREA_AURA (27) at the destination
     // (28) or the caster (18), with a fixed radius.
@@ -1358,6 +1364,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         }
         if(classBuffSpell) {
             const auto au=u(95+effect),tg=u(86+effect);const int32_t amount=i(80+effect)+1,misc=i(110+effect);
+            if(au==44&&tg==1&&misc>=1&&misc<=12)d.trackCreatureMask|=1u<<(misc-1);
             if(amount>0&&amount<=100000) {
                 if(au==29){for(int k=0;k<5;++k)if(misc==-1||misc==k)d.classBuffStats[size_t(k)]+=amount;}
                 else if(au==99)d.classBuffAttackPower+=amount;

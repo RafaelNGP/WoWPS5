@@ -1039,6 +1039,8 @@ public:
     }
     // Returns the creature rank (0=Normal,1=Elite,2=RareElite,3=Boss,4=Rare)
     // or -1 if not cached yet
+    /// Creature types (bit type-1) the local character's tracking aura shows on the minimap.
+    uint32_t localTrackedCreatureMask() const;
     int getCreatureRank(uint32_t entry) const {
         return entityController_->getCreatureRank(entry);
     }

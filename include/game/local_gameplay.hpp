@@ -968,6 +968,7 @@ struct LocalSpellDefinition {
     int32_t classBuffAttackPower=0,classBuffArmor=0,classBuffHealth=0;
     int32_t classBuffSpeedPct=0,classBuffDodgePct=0; // aura 31 (Sprint), aura 49 (Evasion)
     int32_t classBuffRangedAttackPower=0; // aura 124 (Aspect of the Hawk)
+    uint32_t trackCreatureMask=0; // aura 44 (Track Beasts...): creature types shown on the minimap
     /// A player channel (Mind Flay, Drain Life, Drain Soul): its periodic
     /// effect runs while the caster keeps channelling; moving ends both.
     bool channel=false,periodicLeech=false,soulShardOnKill=false;
