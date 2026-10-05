@@ -1435,6 +1435,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 else if(au==77&&localControlMechanic(misc))percentage=true; // Fear Ward: mechanic immunity
                 else if(au==149&&u(86+e)==1&&misc==127&&amount>0&&amount<=100)percentage=true; // Barkskin: no pushback
                 else if(au==42&&inertProc){} // Barkskin's proc: chance 0, no spell_proc row
+                else if(au==4&&!amount&&d.id==48792){} // Icebound Fortitude's empty dummy
                 else if(au==21&&u(86+e)==1&&!misc&&amount>0&&amount<=100&&u(98+e)>=1000&&u(98+e)<5000)percentage=true; // Viper: mana %
                 else modelled=false;
             }
