@@ -2809,7 +2809,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         // creature types and combat states it may be cast at.
         hash(d.sourceRangeFlags);hash(d.sourceFacingFlags);hash(d.targetCreatureType);
         hash(uint32_t(d.weaponDamage)|uint32_t(d.normalizedWeapon)<<1|uint32_t(d.interruptCast)<<2|uint32_t(d.taunt)<<3|uint32_t(d.charge)<<4|uint32_t(d.outOfCombatOnly)<<5);hash(d.chargeRage);hash(d.weaponPercent);hash(d.targetMaxHealthPct);hash(d.createItemId);hash(d.createItemCount);hash(uint32_t(d.channel)|uint32_t(d.periodicLeech)<<1|uint32_t(d.soulShardOnKill)<<2|uint32_t(d.teleport)<<3|uint32_t(d.groundAtCaster)<<4);{uint32_t gr;std::memcpy(&gr,&d.groundRadius,4);hash(gr);}for(size_t r=0;r<d.reagentItems.size();++r){hash(d.reagentItems[r]);hash(d.reagentCounts[r]);}
-        hash(uint32_t(d.classBuff));for(auto v:d.classBuffStats)hash(uint32_t(v));hash(uint32_t(d.classBuffAttackPower));hash(uint32_t(d.classBuffArmor));hash(uint32_t(d.classBuffHealth));hash(uint32_t(d.classBuffSpeedPct));hash(uint32_t(d.classBuffDodgePct));hash(uint32_t(d.classBuffRangedAttackPower));hash(d.trackCreatureMask);hash(d.totemEntry);hash(d.dispelMask);
+        hash(uint32_t(d.classBuff));for(auto v:d.classBuffStats)hash(uint32_t(v));hash(uint32_t(d.classBuffAttackPower));hash(uint32_t(d.classBuffArmor));hash(uint32_t(d.classBuffHealth));hash(uint32_t(d.classBuffSpeedPct));hash(uint32_t(d.classBuffDodgePct));hash(uint32_t(d.classBuffRangedAttackPower));hash(d.trackCreatureMask);hash(d.totemEntry);hash(d.dispelMask);hash(uint32_t(d.classBuffMeleeHastePct));hash(d.comboDurationMaxMs);
         hash(uint32_t(d.sourceOnlyPeacefulTargets));
         // P05 line of sight : two peers must agree on which casts are
         // exempt from the test before they can agree on the test's answer.
@@ -6310,7 +6310,8 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(!localSpellEquipmentReady(p,c,*d))return reject("Required spell equipment is not equipped");
     if(!d->maxAuraStacks)return reject("Invalid aura stack limit");
     // An aspect lasts until cancelled: it holds a fixed lease that never counts down.
-    const auto talentedDuration=d->classBuff&&d->indefiniteDuration?kLocalIndefiniteAuraMs:localSpellDuration(p,c,*d);
+    const auto talentedDuration=d->classBuff&&d->indefiniteDuration?kLocalIndefiniteAuraMs:
+        localSpellDuration(p,c,*d)+(d->comboFinisher&&d->comboDurationMaxMs>d->durationMs?(d->comboDurationMaxMs-d->durationMs)*std::min<uint32_t>(5,p.comboPoints)/5:0);
     const auto talentedGlobalCooldown=localSpellGlobalCooldown(p,c,*d);
     if(!finishing&&p.castingSpellId)return reject("A spell is already being cast; move or stop to cancel");
     if(!finishing&&p.globalCooldownMs)return reject("Global cooldown is active");
@@ -6413,6 +6414,10 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         if(!n||!localComboFacingReady(p,*n,d->requiresBehind))return reject(d->requiresBehind?"Stand behind the enemy and face it":"Face the enemy");
         if(d->comboFinisher&&!localComboTargetValid(p,n))return reject("Build combo points on this enemy first");
     }
+    // A generic finisher: on the enemy holding the points, or (Slice and Dice) on
+    // the rogue, spending whatever points it has.
+    else if(d->comboFinisher&&(localHasTimedAura(*d)?!(p.comboPoints&&validLocalComboView(p)):!localComboTargetValid(p,n)))
+        return reject("Build combo points on this enemy first");
     const auto* stormMain=d->stormstrikeProfile==1?c.spell(32175):nullptr;
     const auto* stormOff=d->stormstrikeProfile==1?c.spell(32176):nullptr;
     if(d->stormstrikeProfile==1) {
@@ -6770,7 +6775,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(d->formId&&p.classId==11&&p.resourceType!=LocalResourceType::Mana)p.druidMana-=paidCost;else p.mana-=paidCost;
     if(!avoided)p.mana-=extraEnergy;
     if(d->comboFinisher&&!avoided)clearLocalCombo(p);
-    if(localStealthed(p))leaveLocalForm(p); // An attack ends Stealth, even one that kills.
+    if(localStealthed(p)&&n&&!d->formId)leaveLocalForm(p); // An attack ends Stealth, even one that kills.
     if(d->comboGain&&!avoided&&p.comboTarget!=cmd.target)clearLocalCombo(p);
     if(cost&&(p.resourceType==LocalResourceType::Mana||(d->formId&&p.classId==11)))p.manaRegenDelayMs=5000;
     if(d->formId){

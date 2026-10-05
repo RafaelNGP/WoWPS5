@@ -570,6 +570,11 @@ float localMeleeAuraHastePct(const LocalRealmPlayer& p,const LocalWorldContent& 
 float localMeleeSpeed(const LocalRealmPlayer& p,const LocalWorldContent& c,bool off){
     const auto a=localWeaponAmounts(p,c,off);if(!a.active)return 0;
     double multiplier=(1+double(localMeleeStats(p,c).haste)/100)*(1+double(localMeleeAuraHastePct(p,c))/100);
+    // Slice and Dice (a class buff's aura 138): the strongest one.
+    int32_t buffHaste=0;
+    for(const auto& a:p.statAuras)if(a.remainingMs&&a.mapId==p.mapId&&a.instanceId==p.instanceId)
+        if(const auto* d=c.spell(a.spellId);d&&d->classBuff)buffHaste=std::max(buffHaste,d->classBuffMeleeHastePct);
+    multiplier*=1+double(std::clamp(buffHaste,0,100))/100;
     // Unit::ApplyAttackTimePercentMod for a creature's MOD_MELEE_HASTE view:
     // a positive amount divides the attack time, a negative one multiplies it.
     if(const auto viewHaste=localPlayerViewModifiers(p,1).hastePct;viewHaste>0)multiplier*=1+double(viewHaste)/100;

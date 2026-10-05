@@ -970,6 +970,8 @@ struct LocalSpellDefinition {
     int32_t classBuffAttackPower=0,classBuffArmor=0,classBuffHealth=0;
     int32_t classBuffSpeedPct=0,classBuffDodgePct=0; // aura 31 (Sprint), aura 49 (Evasion)
     int32_t classBuffRangedAttackPower=0; // aura 124 (Aspect of the Hawk)
+    int32_t classBuffMeleeHastePct=0; // aura 138 (Slice and Dice)
+    uint32_t comboDurationMaxMs=0; // a finisher's duration at five points (SpellDuration MaxDuration)
     uint32_t trackCreatureMask=0; // aura 44 (Track Beasts...): creature types shown on the minimap
     uint8_t dispelMask=0; // friendly SPELL_EFFECT_DISPEL: bit per DispelType (1 magic, 2 curse, 3 disease, 4 poison)
     uint32_t totemEntry=0; // SPELL_EFFECT_SUMMON of a totem (SummonProperties 63/81/82/83); totems.json says what it does

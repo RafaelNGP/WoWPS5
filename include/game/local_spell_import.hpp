@@ -1250,6 +1250,14 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     else if(durationRow>=0) {
         const auto duration=t.durations->getInt32(durationRow,1);
         if(duration>0&&duration<=3600000) d.durationMs=uint32_t(duration);
+        // A rogue/druid finisher outside the reviewed combo profiles
+        // (SPELL_ATTR1_REQ_COMBO_POINTS1/2: Rupture, Slice and Dice): it spends
+        // the points, and Aura::CalcMaxDuration adds (max - base) / 5 per point.
+        if(!creatureCaster&&!d.comboProfile&&(u(5)&0x500000u)&&(d.spellFamily==8||d.spellFamily==7)) {
+            d.comboFinisher=true;
+            const auto maxDuration=t.durations->getInt32(durationRow,3);
+            if(duration>0&&maxDuration>duration&&maxDuration<=3600000)d.comboDurationMaxMs=uint32_t(maxDuration);
+        }
         // SpellDuration.dbc -1 is not a lease: the aura lives until it is
         // replaced or cancelled. durationMs stays zero and the source fact is
         // carried on its own flag instead of being rounded into a timer.
@@ -1362,6 +1370,12 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
            i(80+effect)<-1&&i(80+effect)>=-100&&d.durationMs&&d.durationMs<=600000&&!u(116+effect)&&u(46)!=1) { // range 1: a talent's triggered daze
             d.snarePercent=uint8_t(-(i(80+effect)+1));harm=true;continue;
         }
+        // A generic finisher's script dummies (its attack-power terms) are set
+        // aside; Slice and Dice's melee haste lands on the rogue as a class buff.
+        if(!combo&&d.comboFinisher&&type==3)continue;
+        if(!combo&&d.comboFinisher&&type==6&&u(95+effect)==138&&u(86+effect)==1&&!u(89+effect)&&i(80+effect)>=0&&i(80+effect)<100) {
+            d.classBuff=true;d.classBuffMeleeHastePct=i(80+effect)+1;buff=true;buffTarget=1;continue;
+        }
         // SPELL_EFFECT_ADD_COMBO_POINTS on the enemy of an opener outside the
         // reviewed combo profiles (Ambush, Garrote, Cheap Shot).
         if(!combo&&type==80&&u(86+effect)==6&&!u(89+effect)&&!u(116+effect)&&u(74+effect)<=1) {
@@ -1441,7 +1455,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         const auto base=i(80+effect), dice=i(74+effect);const auto scale=f(77+effect);
         const float perCombo=f(119+effect);
         if(base < -1 || base > 100000 || dice<0 || dice>100000 || !std::isfinite(scale)||std::abs(scale)>10000 ||
-           !std::isfinite(perCombo)||perCombo<0||perCombo>100000||(perCombo!=0&&(!combo||!d.comboFinisher))) {
+           !std::isfinite(perCombo)||perCombo<0||perCombo>100000||(perCombo!=0&&!d.comboFinisher)) {
             if(!rider(effect,"Invalid or combo-point effect amount is not implemented"))
                 unavailable("Invalid or combo-point effect amount is not implemented");
             continue;

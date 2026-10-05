@@ -395,7 +395,9 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // 12 holds a hunter aspect until another aspect replaces it, 13 tracks
         // a creature type until another tracking replaces it, 14 puts down a
         // support totem (heal, party aura), 15 an attack totem at the enemy, 16
-        // is a dispel the caster has nothing for (SPELL_FAILED_NOTHING_TO_DISPEL).
+        // is a dispel the caster has nothing for (SPELL_FAILED_NOTHING_TO_DISPEL),
+        // 17 a damage finisher and 18 a self-buff finisher after a Sinister
+        // Strike (both at level 20, so the builder does not kill the enemy).
         struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
@@ -413,13 +415,14 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {4, 3, "Track Beasts", 13}, {1, 2, "Sense Undead", 13},
             {11, 7, "Strength of Earth Totem", 14}, {11, 7, "Healing Stream Totem", 14}, {11, 7, "Searing Totem", 15},
             {1, 2, "Cleanse", 16}, {4, 11, "Cure Poison", 16},
+            {1, 4, "Rupture", 17}, {1, 4, "Slice and Dice", 18},
         };
         size_t passed = 0;
         for (const auto& a : abilities) {
             LocalGameplay arena; SELFTEST_CHECK(arena.loadContent(worldPath, error));
             SELFTEST_CHECK(arena.setStarterSpells(*clientSpells, "selftest", error));
             LocalRealmPlayer p; p.guid = 500 + passed; p.race = a.race; p.classId = a.cls; p.name = "Tester";
-            arena.initializePlayer(p, true, 80);
+            arena.initializePlayer(p, true, a.kind >= 17 ? 20 : 80);
             // Ebon Hold's creatures are scripted, not fair game: test a death
             // knight in Northshire like everyone else's first enemies.
             if (a.cls == 6) for (const auto& start : c.catalog->starts()) if (start.race == 1 && start.classId == 1) {
@@ -538,7 +541,15 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 p.health = p.maxHealth;
                 const uint32_t before = n->health;
                 if (a.kind == 15) p.attackTarget = foeGuid;
-                if (!arena.execute(p, {LocalAction::CastSpell, a.kind == 15 ? p.guid : foeGuid, spellId}, players, result)) {
+                if (a.kind >= 17) {
+                    uint32_t builder = 0;
+                    for (auto id : p.knownSpells) if (const auto* sd = content.spell(id); sd && sd->name == "Sinister Strike" && sd->unsupportedReason.empty()) builder = id;
+                    arena.execute(p, {LocalAction::CastSpell, foeGuid, builder}, players, result);
+                    arena.tick(0.05f, players);
+                    p.mana = p.maxMana; p.globalCooldownMs = 0;
+                    if (!p.comboPoints) { last = "no combo points from Sinister Strike (" + result + ")"; continue; }
+                }
+                if (!arena.execute(p, {LocalAction::CastSpell, a.kind == 15 || a.kind == 18 ? p.guid : foeGuid, spellId}, players, result)) {
                     last = result;
                     if (std::getenv("ABILITY_VERBOSE")) out << "  " << a.name << " attempt " << attempt << ": " << result << " form=" << p.formSpellId << "\n";
                     // A stance-bound ability (Overpower): take the next known stance and retry.
@@ -567,12 +578,17 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 else if (a.kind == 6) landed = p.lastCastSpellId == spellId && after && std::hypot(after->x - p.x, after->y - p.y) < 6 &&
                                           p.mana > 0 && p.attackTarget == foeGuid;
                 else if (a.kind == 1) landed = p.lastCastSpellId == spellId;
+                else if (a.kind == 18) {
+                    uint32_t held = 0; for (const auto& s : p.statAuras) if (s.spellId == spellId) held = s.remainingMs;
+                    landed = !p.comboPoints && held > 6000;
+                    if (!landed) result = "combo=" + std::to_string(p.comboPoints) + " aura=" + std::to_string(held) + "ms";
+                }
                 else if (a.kind == 11) {
                     // A level 80 Ambush can kill a start-zone creature outright: then no points remain.
                     const bool killed = !after || after->dead;
                     landed = p.lastCastSpellId == spellId && !localStealthed(p) && (killed || (p.comboPoints > 0 && p.comboTarget == foeGuid));
                     if (!landed) result = "combo=" + std::to_string(p.comboPoints) + " stealthed=" + std::to_string(localStealthed(p)) + " last=" + std::to_string(p.lastCastSpellId); }
-                else if (a.kind == 0 || a.kind == 15) {
+                else if (a.kind == 0 || a.kind == 15 || a.kind == 17) {
                     // A damage-over-time spell lands its first tick a few seconds later.
                     for (int t = 0; t < 90 && after && !after->dead && after->health >= before; ++t) {
                         p.health = p.maxHealth; arena.tick(0.05f, players); after = nullptr;
@@ -585,7 +601,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.
