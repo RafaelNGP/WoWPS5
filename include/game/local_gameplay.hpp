@@ -1353,6 +1353,9 @@ struct LocalSpellDefinition {
     bool classBuffImmunityCharge = false;
     // SPELL_AURA_REDUCE_PUSHBACK (149) on a class buff (Barkskin): percent.
     uint8_t classBuffPushbackPct = 0;
+    // An absorb shield's RealPointsPerLevel (Ice Barrier): the amount is the
+    // caster-level CalcValue at application, kept in the aura's snapshot.
+    float buffAbsorbPerLevel = 0;
 
     std::string iconPath, unsupportedReason;
 };

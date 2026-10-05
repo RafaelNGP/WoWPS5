@@ -41,7 +41,7 @@ inline uint32_t localAbsorbDamage(LocalRealmPlayer& p,const LocalWorldContent& c
            unsigned(d->manaPerAbsorbMilli!=0)!=category)continue;
         // Wards store the caster-scaled absorb amount at application time.
         // Clamping that snapshot to raw DBC base points would erase spell power.
-        const auto absorbLimit=d->wardProfile?1000000u:
+        const auto absorbLimit=d->wardProfile||d->buffAbsorbPerLevel!=0.f?1000000u:
             localStackedAuraAmount(d->buffAbsorb,std::min(a.stacks,d->maxAuraStacks));
         a.absorbRemaining=std::min(a.absorbRemaining,absorbLimit);
         auto absorbed=std::min(damage,a.absorbRemaining);

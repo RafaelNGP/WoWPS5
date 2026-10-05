@@ -1645,14 +1645,14 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             d.manaPer5=low;buff=true;buffTarget=1;
         } else if(type==6 && (u(95+effect)==34 || (u(95+effect)==22 && u(110+effect)==1) ||
              (u(95+effect)==69 && u(110+effect) && u(110+effect)<=127)) &&
-           (target==1 || target==21 || target==25) && !secondary && d.durationMs && scale==0 && dice<=1 && low>0 &&
+           (target==1 || target==21 || target==25) && !secondary && d.durationMs && (scale==0 || (u(95+effect)==69 && scale>0 && scale<100)) && dice<=1 && low>0 &&
            !u(spell335::ProcFlags) && !u(spell335::ProcCharges) && !u(116+effect) && !(u(4)&64u)) {
             if(buffTarget && buffTarget!=target)unavailable("Mixed buff targets are not implemented");
             buffTarget=target;
             if(u(95+effect)==34)d.buffHealth+=low;
             else if(u(95+effect)==22)d.buffArmor+=low;
             else {if(d.absorbSchoolMask && d.absorbSchoolMask!=u(110+effect))unavailable("Mixed absorb schools are not implemented");
-                d.buffAbsorb+=low;d.absorbSchoolMask=u(110+effect);}
+                d.buffAbsorb+=low;d.absorbSchoolMask=u(110+effect);d.buffAbsorbPerLevel=scale;}
             buff=true;
         } else if(!combo&&(type==58||type==121||type==17)&&target==6&&!secondary) {
             // Spell::EffectWeaponDmg for a single hostile target: the weapon's
