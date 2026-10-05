@@ -262,8 +262,17 @@ void LocalFrameXml::publish() {
         lua_newtable(L);int i=0;
         for(const auto& o:q.objectives){lua_newtable(L);
             const auto* item=c.item(o.entry);const auto* mob=c.npc(o.entry);
-            str(L,"text",o.type==game::LocalQuestObjective::Type::Script?o.text:o.type==game::LocalQuestObjective::Type::Collect?(item?item->name:"Item"):(mob?mob->name:"Target"));
-            str(L,"type",o.type==game::LocalQuestObjective::Type::Script?"event":o.type==game::LocalQuestObjective::Type::Collect?"item":"monster");
+            const auto* go=(o.type==game::LocalQuestObjective::Type::GameObject)?c.gameObject(o.entry):nullptr;
+            if(!go && o.type==game::LocalQuestObjective::Type::GameObject) {
+                for(const auto& g:c.gameObjects) if(g.entry==o.entry || g.id==o.entry) { go=&g; break; }
+            }
+            std::string objText;
+            if(o.type==game::LocalQuestObjective::Type::Script) objText=o.text;
+            else if(o.type==game::LocalQuestObjective::Type::Collect) objText=item?item->name:"Item";
+            else if(o.type==game::LocalQuestObjective::Type::GameObject) objText=go?go->name:"Object";
+            else objText=mob?mob->name:"Target";
+            str(L,"text",objText);
+            str(L,"type",o.type==game::LocalQuestObjective::Type::Script?"event":o.type==game::LocalQuestObjective::Type::Collect?"item":o.type==game::LocalQuestObjective::Type::GameObject?"object":"monster");
             num(L,"count",o.count);num(L,"done",progress && size_t(i)<progress->progress.size()?progress->progress[i]:0);
             lua_rawseti(L,-2,++i);
         }lua_setfield(L,-2,"objectives");

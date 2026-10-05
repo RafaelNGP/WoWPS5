@@ -1464,7 +1464,7 @@ struct LocalSpellDefinition {
     std::string iconPath, unsupportedReason;
 };
 struct LocalQuestObjective {
-    enum class Type : uint8_t { Kill = 0, Collect = 1, Talk = 2, Script = 3 };
+    enum class Type : uint8_t { Kill = 0, Collect = 1, Talk = 2, Script = 3, GameObject = 4 };
     Type type = Type::Kill;
     uint32_t entry = 0;
     uint16_t count = 1;
@@ -2080,6 +2080,7 @@ struct LocalGameObject {
     uint32_t poolId=0;
     // GAMEOBJECT_TYPE_CHAIR: data0 slots and data1 height (low/medium/high).
     uint8_t chairSlots=0, chairHeight=0;
+    bool questGiver=false;
 };
 /// Original SMART_ACTION_TALK rows (tools/local_realm/compile_creature_talk.py).
 enum class LocalCreatureTalkEvent : uint8_t { Aggro=1, Kill=2, Death=3, QuestAccept=4, QuestReward=5,
@@ -2220,7 +2221,7 @@ inline bool localGameObjectVisible(const LocalGameObject& object,const LocalReal
         localPhaseVisible(player.phaseMask,object.requiredPhaseMask,object.excludedPhaseMask);
 }
 inline bool localGameObjectUsable(const LocalGameObject& object,const LocalRealmPlayer& player) {
-    if(object.kind==LocalGameObjectKind::Decorative || !localGameObjectVisible(object,player) || player.dead || player.ghost || !player.health ||
+    if((object.kind==LocalGameObjectKind::Decorative && !object.questGiver) || !localGameObjectVisible(object,player) || player.dead || player.ghost || !player.health ||
        player.vehicleGuid || player.flight.active || player.transportEntry || player.castingSpellId || player.attackTarget ||
        !localScriptConditionMatches(player,object.requiredScriptId,object.requiredValue))return false;
     // Range first: most of the ~900 placed objects are far away every frame.
@@ -2374,6 +2375,7 @@ struct LocalWorldContent {
     uint8_t tameableFamily(uint32_t entry) const;
     const LocalNpcDefinition* npc(uint32_t id) const;
     std::vector<LocalQuestDefinition> questsForNpc(uint32_t entry) const;
+    std::vector<LocalQuestDefinition> questsForGameObject(uint32_t entry) const;
 };
 /// Whether an active quest still needs this item (collect objective below its
 /// count). Mirrors Player::HasQuestForItem for quest loot and INTERACT_COND.

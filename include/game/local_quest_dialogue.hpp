@@ -82,4 +82,15 @@ inline bool localQuestOffered(const LocalRealmPlayer& p, const LocalRealmNpc& n,
         return q.turnInEntry==n.entry && progress->status!=LocalQuestStatus::Rewarded;
     return q.giverEntry==n.entry && !localQuestAcceptanceError(p,q);
 }
+inline bool localQuestOffered(const LocalRealmPlayer& p, const LocalGameObject& go,
+                             const LocalQuestDefinition& q) {
+    const float dx = p.x - go.x, dy = p.y - go.y, dz = p.z - go.z;
+    const float maxRange = std::max(go.useRadius, 8.0f);
+    if(dx*dx + dy*dy + dz*dz > maxRange*maxRange || p.race<1 || p.race>32 ||
+       p.classId<1 || p.classId>32 ||
+       std::binary_search(p.completedQuestIds.begin(),p.completedQuestIds.end(),q.id)) return false;
+    if(const auto* progress=localQuestProgress(p,q.id))
+        return (q.turnInEntry==go.entry || q.turnInEntry==go.id) && progress->status!=LocalQuestStatus::Rewarded;
+    return (q.giverEntry==go.entry || q.giverEntry==go.id || go.questGiver) && !localQuestAcceptanceError(p,q);
+}
 }

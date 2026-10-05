@@ -4604,6 +4604,7 @@ std::vector<LocalRealmPortal> LocalRealm::availablePortals() const {
     return result;
 }
 std::vector<LocalQuestDefinition> LocalRealm::questsForNpc(uint32_t entry) const { return content().questsForNpc(entry); }
+std::vector<LocalQuestDefinition> LocalRealm::questsForGameObject(uint32_t entry) const { return content().questsForGameObject(entry); }
 
 // --- Travel ----------------------------------------------------------------
 //

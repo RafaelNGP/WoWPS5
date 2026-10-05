@@ -56,6 +56,15 @@ std::string itemName(const game::LocalWorldContent& content, uint32_t id) {
 std::string objectiveName(const game::LocalWorldContent& content, const game::LocalQuestObjective& objective) {
     if (objective.type == game::LocalQuestObjective::Type::Collect) return itemName(content, objective.entry);
     if(objective.type==game::LocalQuestObjective::Type::Script)return objective.text;
+    if(objective.type==game::LocalQuestObjective::Type::GameObject) {
+        const auto* go = content.gameObject(objective.entry);
+        if(!go) {
+            for(const auto& item : content.gameObjects) {
+                if(item.entry == objective.entry || item.id == objective.entry) { go = &item; break; }
+            }
+        }
+        return go ? go->name : "Object " + std::to_string(objective.entry);
+    }
     const auto* npc = content.npc(objective.entry);
     return npc ? npc->name : "Target " + std::to_string(objective.entry);
 }
@@ -163,7 +172,21 @@ void Application::renderLocalRealmOverlay() {
     auto interact = [&] {
         if (self.dead) return;
         if(self.vehicleGuid){localRealm_->exitVehicle();return;}
-        if(const auto* object=localRealm_->nearbyGameObject()){useLocalRealmObject(object->id);return;}
+        if(const auto* object=localRealm_->nearbyGameObject()){
+            const auto goQuests=localRealm_->questsForGameObject(object->entry);
+            const bool hasOfferedQuests = object->questGiver || std::any_of(goQuests.begin(), goQuests.end(), [&](const auto& q){
+                return game::localQuestOffered(self, *object, q);
+            });
+            if(hasOfferedQuests) {
+                localRealmDialogueNpc_ = game::localGameObjectGuid(object->id);
+                localRealmDialogueQuest_ = 0;
+                localRealmDialogueFocus_ = true;
+                localRealmNpcPanelOpen_ = localRealmInventoryOpen_ = localRealmJournalOpen_ = false;
+                return;
+            }
+            useLocalRealmObject(object->id);
+            return;
+        }
         const auto* npc = target();
         if (!npc || distanceTo(self, *npc) > 8.0f) {
             npc = nullptr;
@@ -785,6 +808,130 @@ void Application::renderLocalRealmOverlay() {
     }
 
     if (localRealmDialogueNpc_) {
+        const bool isGameObject = (localRealmDialogueNpc_ & 0xffffffff00000000ULL) == 0xf110000100000000ULL;
+        if (isGameObject) {
+            const uint32_t goId = uint32_t(localRealmDialogueNpc_ & 0xffffffffULL);
+            const auto* object = content.gameObject(goId);
+            const float dx = object ? self.x - object->x : 999.f, dy = object ? self.y - object->y : 999.f, dz = object ? self.z - object->z : 999.f;
+            const float maxRange = object ? std::max(object->useRadius, 8.0f) : 0.f;
+            if (!object || self.dead || dx*dx + dy*dy + dz*dz > maxRange*maxRange) {
+                localRealmDialogueNpc_ = 0;
+                localRealmDialogueQuest_ = 0;
+            } else {
+                const auto& go = *object;
+                const float s = std::min(scale, std::max(.4f,(io.DisplaySize.y-115.f)/512.f));
+                const ImVec2 origin(margin, std::min(85.f*s,io.DisplaySize.y-512.f*s-margin));
+                ImGui::SetNextWindowPos(origin);
+                ImGui::SetNextWindowSize(ImVec2(384*s,512*s));
+                if(localRealmDialogueFocus_) ImGui::SetNextWindowFocus();
+                ImGui::Begin("##LocalOriginalDialogue",nullptr,ImGuiWindowFlags_NoDecoration |
+                    ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoSavedSettings);
+                if ((io.ConfigFlags & ImGuiConfigFlags_NavEnableGamepad) &&
+                    (io.BackendFlags & ImGuiBackendFlags_HasGamepad)) ImGui::SetNavCursorVisible(true);
+                ImGui::SetWindowFontScale(s);
+                auto* d=ImGui::GetWindowDrawList();
+                auto point=[&](float x,float y){return ImVec2(origin.x+x*s,origin.y+y*s);};
+                d->AddRectFilled(point(21,75),point(324,432),IM_COL32(220,194,142,255));
+                const char* pieces[] = {"TopLeft","TopRight","BotLeft","BotRight"};
+                for(int i=0;i<4;++i) {
+                    const std::string path=std::string("Interface/QuestFrame/UI-QuestGreeting-")+pieces[i]+".blp";
+                    const auto texture=art(path.c_str());
+                    const float x=(i%2)*256.f,y=(i/2)*256.f,w=i%2?128.f:256.f;
+                    if(texture)d->AddImage(texture,point(x,y),point(x+w,y+256));
+                }
+                ImGui::SetCursorPos(ImVec2(77*s,23*s));
+                ImGui::PushTextWrapPos(315*s);
+                ImGui::TextColored(ImVec4(1,.84f,.38f,1),"%s",go.name.c_str());
+                ImGui::PopTextWrapPos();
+                const auto quests=localRealm_->questsForGameObject(go.entry);
+                const game::LocalQuestDefinition* selected=nullptr;
+                for(const auto& q:quests) if(q.id==localRealmDialogueQuest_ && game::localQuestOffered(self,go,q)) selected=&q;
+                if(!selected) localRealmDialogueQuest_=0;
+                const auto* progress=selected?game::localQuestProgress(self,selected->id):nullptr;
+                ImGui::SetCursorPos(ImVec2(33*s,85*s));
+                ImGui::PushStyleColor(ImGuiCol_Text,ImVec4(.16f,.10f,.055f,1));
+                ImGui::BeginChild("DialogueText",ImVec2(280*s,314*s),false);
+                if (ImGui::IsKeyPressed(ImGuiKey_GamepadL1))
+                    ImGui::SetScrollY(std::max(0.f, ImGui::GetScrollY()-120.f*s));
+                if (ImGui::IsKeyPressed(ImGuiKey_GamepadR1))
+                    ImGui::SetScrollY(ImGui::GetScrollY()+120.f*s);
+                if(selected) {
+                    ImGui::TextWrapped("%s",selected->title.c_str());
+                    ImGui::Separator();
+                    std::string description=selected->description;
+                    for(size_t p=0;(p=description.find("$N",p))!=std::string::npos;p+=self.name.size()) description.replace(p,2,self.name);
+                    for(size_t p=0;(p=description.find("$B",p))!=std::string::npos;++p) description.replace(p,2,"\n");
+                    ImGui::TextWrapped("%s",description.c_str());
+                    ImGui::Spacing();ImGui::TextUnformatted("Quest Objectives");
+                    for(size_t i=0;i<selected->objectives.size();++i) {
+                        const auto& o=selected->objectives[i];
+                        const auto done=progress && i<progress->progress.size()?progress->progress[i]:0;
+                        ImGui::TextWrapped("%s: %u / %u",objectiveName(content,o).c_str(),done,o.count);
+                    }
+                    ImGui::Spacing();ImGui::TextUnformatted("Rewards");
+                    ImGui::Text("%u XP | %u Copper",selected->xp,selected->money);
+                    for(size_t i=0;i<game::localQuestRewardCount(*selected);++i) {
+                        const auto reward=game::localQuestRewardAt(*selected,i);
+                        ImGui::TextWrapped("%s x%u",itemName(content,reward.itemId).c_str(),reward.count);
+                    }
+                    if(!selected->rewardChoices.empty())ImGui::TextUnformatted("Choose one reward:");
+                    for(size_t i=0;i<selected->rewardChoices.size();++i) {
+                        const auto reward=selected->rewardChoices[i];
+                        const auto label=itemName(content,reward.itemId)+" x"+std::to_string(reward.count);
+                        ImGui::PushID(int(i));ImGui::BeginDisabled(!progress || progress->status!=game::LocalQuestStatus::Complete);
+                        if(ImGui::Button(label.c_str()) && localRealm_->turnInQuest(selected->id,localRealmDialogueNpc_,uint32_t(i+1))) {
+                            localRealmDialogueQuest_=0;localRealmDialogueFocus_=true;
+                        }
+                        ImGui::EndDisabled();ImGui::PopID();
+                    }
+                } else {
+                    ImGui::TextWrapped("%s",go.name.c_str());
+                    ImGui::Spacing();
+                    bool offered=false;
+                    for(const auto& q:quests) {
+                        if(!game::localQuestOffered(self,go,q))continue;
+                        const auto* active=game::localQuestProgress(self,q.id);
+                        const std::string title=std::string(active?"? ":"! ")+q.title+"##"+std::to_string(q.id);
+                        const bool clicked=ImGui::Selectable(title.c_str(),false,0,ImVec2(0,26*s));
+                        if(!offered && localRealmDialogueFocus_) {
+                            ImGui::SetKeyboardFocusHere(-1);localRealmDialogueFocus_=false;
+                        }
+                        if(clicked) {localRealmDialogueQuest_=q.id;localRealmDialogueFocus_=true;}
+                        offered=true;
+                    }
+                }
+                ImGui::EndChild();
+                ImGui::PopStyleColor();
+                ImGui::SetCursorPos(ImVec2(33*s,405*s));
+                if(selected) {
+                    const bool complete=progress && progress->status==game::LocalQuestStatus::Complete;
+                    const bool accept=!progress && self.quests.size()<game::LocalGameplay::MaxQuests;
+                    ImGui::BeginDisabled((!complete && !accept) || (complete && !selected->rewardChoices.empty()));
+                    if(ImGui::Button(complete?"Complete Quest":progress?"In Progress":"Accept",ImVec2(138*s,24*s))) {
+                        const bool okay=complete?localRealm_->turnInQuest(selected->id,localRealmDialogueNpc_):localRealm_->acceptQuest(selected->id,localRealmDialogueNpc_);
+                        if(okay) {localRealmDialogueQuest_=0;localRealmDialogueFocus_=true;}
+                    }
+                    if(localRealmDialogueFocus_ && (complete||accept) && localRealmDialogueQuest_) {
+                        ImGui::SetKeyboardFocusHere(-1);localRealmDialogueFocus_=false;
+                    }
+                    ImGui::EndDisabled();ImGui::SameLine();
+                    if(ImGui::Button("Back",ImVec2(130*s,24*s))) {
+                        localRealmDialogueQuest_=0;localRealmDialogueFocus_=true;
+                    }
+                    if(localRealmDialogueFocus_ && !complete && !accept && localRealmDialogueQuest_) {
+                        ImGui::SetKeyboardFocusHere(-1);localRealmDialogueFocus_=false;
+                    }
+                } else {
+                    if(ImGui::Button("Close",ImVec2(138*s,24*s)))localRealmDialogueNpc_=0;
+                    if(localRealmDialogueFocus_ && !localRealmDialogueQuest_) {
+                        ImGui::SetKeyboardFocusHere(-1);localRealmDialogueFocus_=false;
+                    }
+                }
+                ImGui::SetCursorPos(ImVec2(30*s,464*s));
+                ImGui::TextWrapped("D-pad: select | L1/R1: scroll | Cross: confirm | Circle: back");
+                ImGui::End();
+            }
+        } else {
         const auto found = std::find_if(npcs.begin(), npcs.end(), [&](const auto& n) {
             return n.guid == localRealmDialogueNpc_;
         });
@@ -1046,6 +1193,7 @@ void Application::renderLocalRealmOverlay() {
             ImGui::End();
         }
     }
+}
 
     if (localRealmNpcPanelOpen_) {
         const float width = std::min(430.0f*scale, io.DisplaySize.x*.45f);

@@ -864,11 +864,34 @@ bool localPlayerNeedsQuestItem(const LocalRealmPlayer& player,const LocalWorldCo
     return false;
 }
 bool localGameObjectUsable(const LocalGameObject& object,const LocalRealmPlayer& player,const LocalWorldContent& content) {
-    if(!localGameObjectUsable(object,player))return false;
-    if(!object.questLootOnly)return true;
-    return std::any_of(object.lootTable.begin(),object.lootTable.end(),[&](const auto& row){
+    bool neededForQuestObjective = false;
+    for(const auto& q:player.quests) {
+        if(q.status!=LocalQuestStatus::Active)continue;
+        const auto* def=content.quest(q.id);if(!def)continue;
+        for(size_t i=0;i<def->objectives.size();++i) {
+            const auto& obj=def->objectives[i];
+            if(obj.type==LocalQuestObjective::Type::GameObject && (obj.entry==object.entry || obj.entry==object.id))
+                if(i<q.progress.size() && q.progress[i]<obj.count) { neededForQuestObjective = true; break; }
+        }
+        if(neededForQuestObjective) break;
+    }
+    if(!localGameObjectUsable(object,player)) {
+        if(!neededForQuestObjective) return false;
+        if(!localGameObjectVisible(object,player) || player.dead || player.ghost || !player.health ||
+           player.vehicleGuid || player.flight.active || player.transportEntry || player.castingSpellId || player.attackTarget ||
+           !localScriptConditionMatches(player,object.requiredScriptId,object.requiredValue)) return false;
+        const float dx=object.x-player.x,dy=object.y-player.y,dz=object.z-player.z;
+        if(!std::isfinite(dx+dy+dz) || dx*dx+dy*dy+dz*dz>object.useRadius*object.useRadius) return false;
+    }
+    if(object.questGiver || neededForQuestObjective) return true;
+    if(!object.questLootOnly) return true;
+    const bool tableNeeds = std::any_of(object.lootTable.begin(),object.lootTable.end(),[&](const auto& row){
         return row.questRequired && localPlayerNeedsQuestItem(player,content,row.itemId);
     });
+    const bool lootNeeds = std::any_of(object.loot.begin(),object.loot.end(),[&](const auto& item){
+        return localPlayerNeedsQuestItem(player,content,item.itemId);
+    });
+    return tableNeeds || lootNeeds;
 }
 const LocalGameObject* LocalWorldContent::nearbyGameObject(const LocalRealmPlayer& player) const {
     const LocalGameObject* best=nullptr;float distance=std::numeric_limits<float>::max();
@@ -944,6 +967,20 @@ std::vector<LocalQuestDefinition> LocalWorldContent::questsForNpc(uint32_t entry
         for (const auto id:found->second) if (const auto* q=quest(id)) {
             if (std::none_of(result.begin(),result.end(),[&](const auto& d){return d.id==id;}))
                 result.push_back(*q);
+        }
+    }
+    return result;
+}
+std::vector<LocalQuestDefinition> LocalWorldContent::questsForGameObject(uint32_t entry) const {
+    auto result = questsForNpc(entry);
+    if (const auto* obj = gameObject(entry)) {
+        if (obj->entry != entry && obj->entry != 0) {
+            auto more = questsForNpc(obj->entry);
+            for (auto& q : more) {
+                if (std::none_of(result.begin(), result.end(), [&](const auto& existing){ return existing.id == q.id; })) {
+                    result.push_back(std::move(q));
+                }
+            }
         }
     }
     return result;
@@ -4173,7 +4210,7 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
             if(!validLocalQuestRewards(d))throw std::runtime_error("Invalid quest reward bundle");
             for(const auto& objective:array(v,"objectives",4)) {
                 LocalQuestObjective o;const auto type=label(objective,"type",16);
-                if(type=="kill")o.type=LocalQuestObjective::Type::Kill;else if(type=="collect")o.type=LocalQuestObjective::Type::Collect;else if(type=="talk")o.type=LocalQuestObjective::Type::Talk;else if(type=="script")o.type=LocalQuestObjective::Type::Script;else throw std::runtime_error("Unknown quest objective type");
+                if(type=="kill")o.type=LocalQuestObjective::Type::Kill;else if(type=="collect")o.type=LocalQuestObjective::Type::Collect;else if(type=="talk")o.type=LocalQuestObjective::Type::Talk;else if(type=="script")o.type=LocalQuestObjective::Type::Script;else if(type=="gameobject"||type=="object")o.type=LocalQuestObjective::Type::GameObject;else throw std::runtime_error("Unknown quest objective type");
                 o.entry=number(objective,"entry",0,UINT32_MAX);o.count=uint16_t(number(objective,"count",1,65535));o.text=label(objective,"text",128,false);if(o.type==LocalQuestObjective::Type::Script && (!o.entry || o.text.empty()))throw std::runtime_error("Script objective needs a state ID and text");if(!o.count)throw std::runtime_error("Zero objective count");d.objectives.push_back(o);
             }
             attachQuestChain(*c,d);c->quests.push_back(std::move(d));
@@ -4229,6 +4266,7 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
             }
             if(!validLocalGameObjectLootTable(object.lootTable))throw std::runtime_error("Invalid game object loot table");
             object.questLootOnly=v.value("questLootOnly",false);object.persistent=v.value("persistent",false);
+            object.questGiver=v.value("questGiver",false);
             if(object.persistent && !v.contains("respawnMs"))object.respawnMs=0; // never depletes
             object.poolId=number(v,"poolId",0,UINT32_MAX);
             object.chairSlots=uint8_t(number(v,"chairSlots",0,kLocalMaxChairSlots));object.chairHeight=uint8_t(number(v,"chairHeight",0,2));
@@ -4631,13 +4669,24 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
                     throw std::runtime_error("Script timer uses a world event phase bit");
         }
         for(const auto& d:c->quests) {
-            if(!c->npc(d.giverEntry)||!c->npc(d.turnInEntry)||(!d.chainGate.defined && d.prerequisite&&!c->quest(d.prerequisite)))throw std::runtime_error("Quest references missing NPC/prerequisite");
+            auto contactExists = [&](uint32_t entry) {
+                if (c->npc(entry)) return true;
+                if (c->gameObject(entry)) return true;
+                return std::any_of(c->gameObjects.begin(), c->gameObjects.end(), [&](const auto& go){ return go.entry == entry || go.id == entry; });
+            };
+            if(!contactExists(d.giverEntry)||!contactExists(d.turnInEntry)||(!d.chainGate.defined && d.prerequisite&&!c->quest(d.prerequisite)))throw std::runtime_error("Quest references missing NPC/prerequisite");
             if((d.rewardItem&&!c->item(d.rewardItem))||(!d.rewardItem&&d.rewardCount))throw std::runtime_error("Quest reward item missing");
             for(const auto& r:d.additionalRewards)if(!c->item(r.itemId))throw std::runtime_error("Additional quest reward item missing");
             for(const auto& r:d.rewardChoices)if(!c->item(r.itemId))throw std::runtime_error("Quest choice item missing");
             std::set<std::pair<unsigned,uint32_t>> objectives;
             for(const auto& o:d.objectives) {
-                if(o.type!=LocalQuestObjective::Type::Script && (o.type==LocalQuestObjective::Type::Collect?!c->item(o.entry):!c->npc(o.entry)))throw std::runtime_error("Quest objective reference missing");
+                if(o.type == LocalQuestObjective::Type::Collect) {
+                    if(!c->item(o.entry)) throw std::runtime_error("Quest objective reference missing");
+                } else if(o.type == LocalQuestObjective::Type::GameObject) {
+                    if(!contactExists(o.entry)) throw std::runtime_error("Quest objective reference missing");
+                } else if(o.type != LocalQuestObjective::Type::Script) {
+                    if(!c->npc(o.entry)) throw std::runtime_error("Quest objective reference missing");
+                }
                 if(!objectives.emplace(unsigned(o.type),o.entry).second)throw std::runtime_error("Duplicate quest objective");
             }
             std::set<uint32_t> chain;const LocalQuestDefinition* q=&d;
@@ -5243,7 +5292,7 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         if(!localGameObjectUsable(*object,p,c) || localCombatActive(p,g.npcs))return reject("Object is unavailable; check range, quest and character state");
         if(!g.collision.isInLineOfSight(object->mapId,p.x,p.y,p.z+1,object->x,object->y,object->z+1,false))return reject("Object is out of sight");
         auto* shared=const_cast<LocalGameObjectState*>(gameObjectState(object->id));
-        if(object->kind!=LocalGameObjectKind::Script) {
+        if(localGameObjectStateful(object->kind)) {
             if(!shared || cmd.bid!=shared->revision)return reject("Object changed; try again");
             if(shared->status==kLocalGameObjectDepleted)return reject("Object is depleted");
             if(shared->status==kLocalGameObjectDormant)return reject("Object is not here right now");
@@ -5255,7 +5304,9 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         }))return reject("Object has no available action");
         auto staged=p;
         auto next=shared?*shared:LocalGameObjectState{};
-        if(object->kind==LocalGameObjectKind::Chest || object->kind==LocalGameObjectKind::Resource) {
+        const bool providesLoot = object->kind==LocalGameObjectKind::Chest || object->kind==LocalGameObjectKind::Resource ||
+                                  !object->loot.empty() || !object->lootTable.empty();
+        if(providesLoot) {
             for(const auto& item:object->loot)if(!addItem(staged,c,item.itemId,item.count))return reject("Inventory full; nothing was collected");
             if(!object->lootTable.empty()) {
                 // One authority roll per use. Rejection below discards the
@@ -5276,8 +5327,10 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
             }
             if(uint64_t(staged.money)+object->money>1000000000ULL)return reject("Money limit; nothing was collected");
             staged.money+=object->money;
-            if(object->persistent){next.status=kLocalGameObjectReady;next.remainingMs=0;}
-            else {next.status=kLocalGameObjectDepleted;next.remainingMs=object->respawnMs;}
+            if(shared) {
+                if(object->persistent){next.status=kLocalGameObjectReady;next.remainingMs=0;}
+                else {next.status=kLocalGameObjectDepleted;next.remainingMs=object->respawnMs;}
+            }
             // Gathering skill: Player::UpdateGatherSkill against the lock's
             // required value, accumulated like crafting (localCraftSkillChance).
             if(object->kind==LocalGameObjectKind::Resource) {
@@ -5299,6 +5352,9 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
             next.status=uint8_t(cmd.buyout);next.remainingMs=next.status?object->respawnMs:0;
         }
         LocalScriptActionBatch actions;
+        objectiveCredit(staged,c,LocalQuestObjective::Type::GameObject,object->entry,&actions);
+        if(object->id!=object->entry)
+            objectiveCredit(staged,c,LocalQuestObjective::Type::GameObject,object->id,&actions);
         if(!applyScriptTriggers(staged,c,LocalScriptTriggerKind::ObjectUse,object->id,&actions))return reject("Object script could not be applied");
         bool scriptsOk=false;questStatus(staged,c,false,&scriptsOk,&actions);
         if(!scriptsOk)return reject("Quest completion script could not be applied");
@@ -6404,6 +6460,103 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         if(n&&!n->dead&&npcVisibleTo(p,*n)&&n->mapId==p.mapId&&n->instanceId==p.instanceId&&distance2(p,*n)<=100*100)
             g.smartFireEvents(*n,kLocalSmartEventReceiveEmote,p.guid,players,cmd.id);
         result="Emote";return true;
+    }
+    if((cmd.target & 0xffffffff00000000ULL) == 0xf110000100000000ULL) {
+        const uint32_t objectId = uint32_t(cmd.target & 0xffffffffULL);
+        const auto* object = c.gameObject(objectId);
+        if(!object) return reject("Unknown game object");
+        if(!localGameObjectVisible(*object, p)) return reject("Object is not visible");
+        const float dx = object->x - p.x, dy = object->y - p.y, dz = object->z - p.z;
+        const float maxRange = std::max(object->useRadius, 8.0f);
+        if(dx*dx + dy*dy + dz*dz > maxRange * maxRange) return reject("Move within 8 yards of the target");
+        if(localCombatActive(p, g.npcs)) return reject("Cannot interact while in combat");
+        if(p.dead || p.ghost) return reject("You are dead");
+        if(cmd.action == LocalAction::AcceptQuest) {
+            const auto* def = c.quest(cmd.id);
+            if(!def || (def->giverEntry != object->entry && def->giverEntry != object->id && !object->questGiver))
+                return reject("This character does not offer that quest");
+            if (def->requiredSkill) {
+                const auto* line = localProfession(skillLines(), def->requiredSkill);
+                const auto known = std::find_if(p.professions.begin(), p.professions.end(),
+                    [&](const LocalProfessionSkill& s) { return s.skillId == def->requiredSkill; });
+                if (!line) return reject("This quest requires a skill this realm does not model");
+                if (known == p.professions.end()) return reject("This quest requires " + line->name);
+            }
+            if(const auto* reason = localQuestAcceptanceError(p, *def)) return reject(reason);
+            auto candidate = p;
+            LocalScriptActionBatch actions;
+            LocalQuestProgress q;
+            q.id = cmd.id;
+            q.progress.resize(def->objectives.size(), 0);
+            candidate.quests.push_back(std::move(q));
+            if(def->startItem && totalItem(candidate, def->startItem) < def->startItemCount &&
+               !addItem(candidate, c, def->startItem, uint16_t(def->startItemCount - totalItem(candidate, def->startItem))))
+                return reject("Inventory is full");
+            if(!applyScriptTriggers(candidate, c, LocalScriptTriggerKind::QuestAccept, cmd.id, &actions))
+                return reject("Quest script transition could not be applied");
+            bool scriptsOk = false;
+            questStatus(candidate, c, false, &scriptsOk, &actions);
+            if(!scriptsOk) return reject("Quest completion script failed");
+            if(!commitScriptActions(candidate, actions)) return false;
+            p = std::move(candidate);
+            result = "Accepted: " + def->title;
+            return true;
+        }
+        if(cmd.action == LocalAction::TurnInQuest) {
+            const auto* def = c.quest(cmd.id);
+            if(!def || (def->turnInEntry != object->entry && def->turnInEntry != object->id && !object->questGiver))
+                return reject("Wrong quest recipient");
+            if(!validLocalQuestRewards(*def)) return reject("Invalid quest reward bundle");
+            if(def->rewardChoices.empty() ? cmd.bid != 0 : cmd.bid == 0 || cmd.bid > def->rewardChoices.size())
+                return reject("Choose a valid quest reward before completing this quest");
+            if (questRewarded(p, cmd.id)) return reject("Quest reward already claimed");
+            auto candidate = p;
+            LocalScriptActionBatch actions;
+            questStatus(candidate, c, false, nullptr, &actions);
+            const auto progress = std::find_if(candidate.quests.begin(), candidate.quests.end(), [&](const LocalQuestProgress& q){ return q.id == cmd.id; });
+            if(progress == candidate.quests.end() || progress->status != LocalQuestStatus::Complete)
+                return reject("Quest objectives are not complete, or reward already claimed");
+            if (candidate.completedQuestIds.size() >= MaxCompletedQuests)
+                return reject("Completed quest history storage limit reached; reward remains unclaimed");
+            if (uint64_t(candidate.money) + def->money > 1000000000ULL)
+                return reject("Quest reward would exceed the money limit; reward remains unclaimed");
+            for(const auto& obj : def->objectives)
+                if(obj.type == LocalQuestObjective::Type::Collect) removeItem(candidate, obj.entry, obj.count);
+            if(def->startItem)
+                if(const auto held = totalItem(candidate, def->startItem)) removeItem(candidate, def->startItem, held);
+            for(size_t i = 0; i < localQuestRewardCount(*def); ++i) {
+                const auto r = localQuestRewardAt(*def, i);
+                if(!addItem(candidate, c, r.itemId, r.count))
+                    return reject("Inventory full or reward unavailable; entire quest reward remains unclaimed");
+            }
+            if(cmd.bid) {
+                const auto r = def->rewardChoices[cmd.bid - 1];
+                if(!addItem(candidate, c, r.itemId, r.count))
+                    return reject("Inventory full or reward unavailable; entire quest reward remains unclaimed");
+            }
+            candidate.money += def->money;
+            experience(candidate, c, def->xp);
+            for (const auto& reward : def->reputationRewards) {
+                int32_t delta = reward.overrideValue ? reward.overrideValue / 100 : 0;
+                if (!delta && reward.valueId && impl_->questRepRowsLoaded) {
+                    const auto field = unsigned(std::abs(reward.valueId));
+                    if (field < 10) delta = reward.valueId < 0 ? impl_->questRepLosses[field] : impl_->questRepGains[field];
+                }
+                if (reward.factionId && delta) localChangeReputation(candidate, reward.factionId, delta);
+            }
+            if(!applyScriptTriggers(candidate, c, LocalScriptTriggerKind::QuestReward, cmd.id, &actions))
+                return reject("Quest reward script transition could not be applied");
+            candidate.quests.erase(progress);
+            candidate.completedQuestIds.insert(std::lower_bound(candidate.completedQuestIds.begin(), candidate.completedQuestIds.end(), cmd.id), cmd.id);
+            stats(candidate, c, false);
+            questStatus(candidate, c, false, nullptr, &actions);
+            if(!commitScriptActions(candidate, actions)) return false;
+            p = std::move(candidate);
+            result = "Quest rewarded: " + def->title;
+            LOG_INFO("[LOCAL_QUEST_REWARD] applied player=", p.guid, " quest=", cmd.id, " choice=", cmd.bid, " fixed=", localQuestRewardCount(*def));
+            return true;
+        }
+        return reject("Unsupported local action");
     }
     if(!n||!npcVisibleTo(p,*n)||distance2(p,*n)>8*8)return reject("Move within 8 yards of the target");
     if(cmd.action==LocalAction::Loot) {

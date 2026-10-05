@@ -295,6 +295,7 @@ public:
     bool boardTransport(uint32_t transportEntry);
     bool leaveTransport();
     std::vector<LocalQuestDefinition> questsForNpc(uint32_t entry) const;
+    std::vector<LocalQuestDefinition> questsForGameObject(uint32_t entry) const;
     const std::vector<LocalRealmNpc>& npcs() const;
     /// The owned creatures on this character's map and instance: the authority's
     /// own roster, or the replicated copy a guest received.

@@ -435,7 +435,7 @@ bool LocalWorldCatalog::quest(uint32_t id,LocalQuestDefinition& result,std::stri
         if(j.contains("rewardChoices"))for(const auto& r:array(j,"rewardChoices",6))q.rewardChoices.push_back(stack(r));
         if(j.contains("reputationRewards"))for(const auto& r:array(j,"reputationRewards",5)){LocalQuestReputationReward rr;rr.factionId=number(r,"factionId",0,UINT32_MAX);rr.valueId=signedNumber(r,"valueId",0,-9,9);rr.overrideValue=signedNumber(r,"overrideValue",0,-4200000,4200000);q.reputationRewards.push_back(rr);}
         if(!validLocalQuestRewards(q))throw std::runtime_error("Invalid catalog quest reward bundle");
-        for(const auto& o:array(j,"objectives",4)){LocalQuestObjective d;const auto t=label(o,"type",16);if(t=="kill")d.type=LocalQuestObjective::Type::Kill;else if(t=="collect")d.type=LocalQuestObjective::Type::Collect;else if(t=="talk")d.type=LocalQuestObjective::Type::Talk;else throw std::runtime_error("Unsupported catalog objective");d.entry=number(o,"entry",0,UINT32_MAX);d.count=uint16_t(number(o,"count",1,65535));if(!d.entry||!d.count)throw std::runtime_error("Zero catalog objective");q.objectives.push_back(d);}
+        for(const auto& o:array(j,"objectives",4)){LocalQuestObjective d;const auto t=label(o,"type",16);if(t=="kill")d.type=LocalQuestObjective::Type::Kill;else if(t=="collect")d.type=LocalQuestObjective::Type::Collect;else if(t=="talk")d.type=LocalQuestObjective::Type::Talk;else if(t=="gameobject"||t=="object")d.type=LocalQuestObjective::Type::GameObject;else throw std::runtime_error("Unsupported catalog objective");d.entry=number(o,"entry",0,UINT32_MAX);d.count=uint16_t(number(o,"count",1,65535));if(!d.entry||!d.count)throw std::runtime_error("Zero catalog objective");q.objectives.push_back(d);}
         if(!q.giverEntry||!q.turnInEntry||!q.minLevel||q.objectives.empty())throw std::runtime_error("Incomplete catalog quest");
         result=std::move(q);return true;
     }catch(const std::exception& e){error=e.what();return false;}
@@ -447,6 +447,9 @@ bool LocalWorldCatalog::questsForNpc(uint32_t id,std::vector<LocalQuestDefinitio
         if(!j.is_array()||j.size()>512)throw std::runtime_error("Catalog quest contact bound");
         for(const auto& qid:j){if(!qid.is_number_unsigned()&&!qid.is_number_integer())throw std::runtime_error("Invalid catalog contact ID");const auto idValue=qid.get<int64_t>();if(idValue<1||uint64_t(idValue)>UINT32_MAX)throw std::runtime_error("Invalid catalog contact ID");LocalQuestDefinition q;if(!quest(uint32_t(idValue),q,error))throw std::runtime_error(error.empty()?"Missing catalog contact quest":error);result.push_back(std::move(q));}return true;
     }catch(const std::exception& e){result.clear();error=e.what();return false;}
+}
+bool LocalWorldCatalog::questsForGameObject(uint32_t id,std::vector<LocalQuestDefinition>& result,std::string& error) const {
+    return questsForNpc(id, result, error);
 }
 uint32_t LocalWorldCatalog::fingerprint()const{return impl_->fingerprint;}
 const std::vector<LocalCatalogStart>& LocalWorldCatalog::starts()const{return impl_->starts;}

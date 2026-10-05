@@ -1741,6 +1741,130 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
 
         out << "PASS bags & professions (G6): bag container slots, dynamic inventory expansion, unequip restrictions, mining harvesting, smelting at forge, blacksmithing at anvil\n";
     }
+
+    // -------------------------------------------------------------------------
+    // 7. GameObject Quest Interactions (G2/G3)
+    // -------------------------------------------------------------------------
+    {
+        auto contentPtr = std::make_shared<LocalWorldContent>(world.content());
+
+        // 7a. Setup GameObject Questgiver (e.g. Wanted Poster, entry 180001, id 990101)
+        LocalGameObject poster;
+        poster.id = 990101;
+        poster.entry = 180001;
+        poster.name = "Wanted Poster";
+        poster.mapId = p.mapId;
+        poster.x = p.x + 1.0f;
+        poster.y = p.y;
+        poster.z = p.z;
+        poster.kind = LocalGameObjectKind::Decorative;
+        poster.questGiver = true;
+        poster.useRadius = 5.0f;
+
+        // 7b. Setup GameObject Objective Target (e.g. Ancient Shrine, entry 180002, id 990102)
+        LocalGameObject shrine;
+        shrine.id = 990102;
+        shrine.entry = 180002;
+        shrine.name = "Ancient Shrine";
+        shrine.mapId = p.mapId;
+        shrine.x = p.x + 1.5f;
+        shrine.y = p.y;
+        shrine.z = p.z;
+        shrine.kind = LocalGameObjectKind::Decorative;
+        shrine.useRadius = 5.0f;
+
+        // 7c. Setup GameObject Quest Loot Chest (entry 180003, id 990103)
+        LocalGameObject chest;
+        chest.id = 990103;
+        chest.entry = 180003;
+        chest.name = "Hidden Relic Chest";
+        chest.mapId = p.mapId;
+        chest.x = p.x + 2.0f;
+        chest.y = p.y;
+        chest.z = p.z;
+        chest.kind = LocalGameObjectKind::Chest;
+        chest.useRadius = 5.0f;
+        chest.persistent = true;
+        LocalItemDefinition questItem;
+        questItem.id = 54321;
+        questItem.name = "Ancient Relic";
+        contentPtr->items.push_back(questItem);
+        std::sort(contentPtr->items.begin(), contentPtr->items.end(), [](const auto& a, const auto& b) { return a.id < b.id; });
+        chest.loot = {{questItem.id, 1}};
+
+        contentPtr->gameObjects.push_back(poster);
+        contentPtr->gameObjects.push_back(shrine);
+        contentPtr->gameObjects.push_back(chest);
+        std::sort(contentPtr->gameObjects.begin(), contentPtr->gameObjects.end(), [](const auto& a, const auto& b) { return a.id < b.id; });
+
+        LocalQuestDefinition qDef;
+        qDef.id = 9901;
+        qDef.title = "Wanted: Ancient Relic";
+        qDef.description = "Investigate the shrine and retrieve the relic.";
+        qDef.giverEntry = poster.entry;
+        qDef.turnInEntry = poster.entry;
+        qDef.minLevel = 1;
+        qDef.xp = 500;
+        qDef.money = 1000;
+        qDef.objectives.push_back({LocalQuestObjective::Type::GameObject, shrine.entry, 1, "Investigate Shrine"});
+        qDef.objectives.push_back({LocalQuestObjective::Type::Collect, questItem.id, 1, "Ancient Relic"});
+        contentPtr->quests.push_back(qDef);
+        std::sort(contentPtr->quests.begin(), contentPtr->quests.end(), [](const auto& a, const auto& b) { return a.id < b.id; });
+
+        world.useContent(contentPtr);
+
+        // 7d. Verify questsForGameObject returns the quest
+        const auto offered = world.content().questsForGameObject(poster.entry);
+        SELFTEST_CHECK(!offered.empty());
+        SELFTEST_CHECK(offered[0].id == qDef.id);
+
+        // 7e. Accept quest targeting GameObject GUID
+        const uint64_t posterGuid = localGameObjectGuid(poster.id);
+        const LocalRealmCommand acceptCmd{LocalAction::AcceptQuest, posterGuid, qDef.id};
+        ok = world.execute(p, acceptCmd, players, res);
+        SELFTEST_CHECK(ok);
+        SELFTEST_CHECK(p.quests.size() >= 1);
+        auto* progress = localQuestProgress(p, qDef.id);
+        SELFTEST_CHECK(progress != nullptr);
+        SELFTEST_CHECK(progress->status == LocalQuestStatus::Active);
+        SELFTEST_CHECK(progress->progress.size() == 2);
+        SELFTEST_CHECK(progress->progress[0] == 0);
+        SELFTEST_CHECK(progress->progress[1] == 0);
+
+        // 7f. Interact with Shrine (GameObject objective) -> awards credit
+        const uint64_t shrineGuid = localGameObjectGuid(shrine.id);
+        const LocalRealmCommand shrineCmd{LocalAction::UseGameObject, shrineGuid, shrine.id};
+        ok = world.execute(p, shrineCmd, players, res);
+        SELFTEST_CHECK(ok);
+        progress = localQuestProgress(p, qDef.id);
+        SELFTEST_CHECK(progress != nullptr);
+        SELFTEST_CHECK(progress->progress[0] == 1);
+        SELFTEST_CHECK(progress->status == LocalQuestStatus::Active);
+
+        // 7g. Loot chest -> collects quest item and updates collect objective
+        const uint64_t chestGuid = localGameObjectGuid(chest.id);
+        const uint32_t chestRev = world.gameObjectState(chest.id) ? world.gameObjectState(chest.id)->revision : 1;
+        const LocalRealmCommand chestCmd{LocalAction::UseGameObject, chestGuid, chest.id, chestRev};
+        ok = world.execute(p, chestCmd, players, res);
+        SELFTEST_CHECK(ok);
+        SELFTEST_CHECK(hasItem(questItem.id) >= 1);
+        progress = localQuestProgress(p, qDef.id);
+        SELFTEST_CHECK(progress != nullptr);
+        SELFTEST_CHECK(progress->progress[1] == 1);
+        SELFTEST_CHECK(progress->status == LocalQuestStatus::Complete);
+
+        // 7h. Turn in quest targeting GameObject GUID
+        const uint32_t initialMoney = p.money;
+        const LocalRealmCommand turnInCmd{LocalAction::TurnInQuest, posterGuid, qDef.id};
+        ok = world.execute(p, turnInCmd, players, res);
+        SELFTEST_CHECK(ok);
+        SELFTEST_CHECK(p.money == initialMoney + qDef.money);
+        SELFTEST_CHECK(std::binary_search(p.completedQuestIds.begin(), p.completedQuestIds.end(), qDef.id));
+        SELFTEST_CHECK(localQuestProgress(p, qDef.id) == nullptr);
+        SELFTEST_CHECK(hasItem(questItem.id) == 0);
+
+        out << "PASS gameobject quests (G2/G3): questgiver poster, interaction objective, quest item loot, turn-in at gameobject\n";
+    }
     return true;
 }
 #undef SELFTEST_CHECK

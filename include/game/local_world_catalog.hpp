@@ -44,6 +44,7 @@ public:
     bool item(uint32_t id, LocalItemDefinition& result, std::string& error) const;
     bool quest(uint32_t id, LocalQuestDefinition& result, std::string& error) const;
     bool questsForNpc(uint32_t id, std::vector<LocalQuestDefinition>& result, std::string& error) const;
+    bool questsForGameObject(uint32_t id, std::vector<LocalQuestDefinition>& result, std::string& error) const;
     // 2.39: the spawn's default movement (false when it idles or the catalog
     // carries no motion table) and a waypoint_data path (at most 1024 nodes).
     bool spawnMotion(uint32_t guid, LocalSpawnMotion& result) const;
