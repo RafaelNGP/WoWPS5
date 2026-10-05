@@ -1499,6 +1499,9 @@ struct LocalSpellDefinition {
     // Inner Fire: its charges (Spell.dbc ProcCharges); each melee or ranged
     // hit the holder takes spends one (spell_proc -588), the last ends it.
     uint8_t classBuffHitCharges = 0;
+    // Frost Nova: SPELL_AURA_MOD_ROOT on every creature its caster-area damage
+    // hits, for the spell's duration, held as a damage-capped root.
+    bool areaRoot = false;
     // Frost Armor: Chilled, the PROC_TRIGGER_SPELL its holder puts on a
     // creature that lands a melee hit on it (spell_proc -168): the creature's
     // attack speed (aura 138) and movement (aura 33) slowed for its duration.

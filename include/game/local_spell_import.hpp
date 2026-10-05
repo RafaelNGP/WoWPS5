@@ -1248,7 +1248,12 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             break;
         }
     const bool chillArmor=chillEffect<3;
-    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!rootControl&&!incinerate&&!innerFire&&!chillArmor&&d.id!=1784&&d.id!=21084&&d.id!=20154&&
+    // Frost Nova: frost damage and a root on the enemies around the mage
+    // (22/15 on both effects); its taken-damage proc flags are the root's 10%
+    // damage cap, as Entangling Roots'.
+    const bool frostNova=!creatureCaster&&d.spellFamily==3&&(d.spellFamilyFlags[0]&0x40u)&&u(71)==2&&u(86)==22&&u(89)==15&&
+        u(72)==6&&u(96)==26&&u(87)==22&&u(90)==15&&!u(73)&&!u(116)&&!u(117)&&u(spell335::ProcFlags)==0xa22a8u&&!u(spell335::ProcCharges);
+    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!rootControl&&!incinerate&&!innerFire&&!chillArmor&&!frostNova&&d.id!=1784&&d.id!=21084&&d.id!=20154&&
        !(d.id==6346&&u(spell335::ProcCharges)==1)&&!(d.id==22812&&!u(spell335::ProcChance))) // Fear Ward's immunity charge, Barkskin's inert proc (classBuff) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
     // Spell.dbc column 38 is BaseLevel and column 39 is SpellLevel
@@ -1754,6 +1759,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         // A heal at TARGET_UNIT_TARGET_CHAINHEAL_ALLY with no chain targets
         // (Healing Wave ranks 1-10) heals one ally, as TARGET_UNIT_TARGET_ALLY.
         const auto target=(u(86+effect)==45&&!chainHeal&&type==10&&u(104+effect)<=1&&!secondary)?21u:u(86+effect);
+        if(frostNova&&arcaneExplosion&&effect==1){d.areaRoot=true;d.controlDamageCapPct=10;harm=true;continue;}
         if(!arcaneExplosion && !(type==5&&target==1&&secondary==17) && !(d.groundRadius&&type==2&&target==16&&!secondary) && (secondary || (target!=1&&target!=6&&target!=21&&target!=25&&!(chainHeal&&target==45)))) unavailable("Area or scripted targeting is not implemented");
         if(type==6 && (u(95+effect)==3 || u(95+effect)==8) && (((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!deathItemChannel&&!rootControl)||u(116+effect)))
             unavailable("Periodic proc, charge or triggered effects are not implemented");

@@ -84,8 +84,8 @@ inline bool validLocalNpcControls(const LocalRealmNpc& n,const LocalWorldContent
     if(n.controls.size()>kLocalMaxNpcControls || ((n.dead||n.transportEntry)&&!n.controls.empty()))return false;
     for(size_t i=0;i<n.controls.size();++i) {
         const auto& a=n.controls[i];const auto* d=c.spell(a.spellId);
-        if(!d||!d->unsupportedReason.empty()||!d->controlProfile||
-           a.kind!=uint8_t(d->controlProfile==2?LocalNpcControlKind::Silence:d->controlProfile==3?LocalNpcControlKind::Root:LocalNpcControlKind::Stun)||
+        if(!d||!d->unsupportedReason.empty()||(!d->controlProfile&&!d->areaRoot)||
+           a.kind!=uint8_t(d->areaRoot||d->controlProfile==3?LocalNpcControlKind::Root:d->controlProfile==2?LocalNpcControlKind::Silence:LocalNpcControlKind::Stun)||
            !a.casterGuid||!a.remainingMs||a.remainingMs>localControlDurationCeiling(*d)||
            localControlDurationCeiling(*d)>600000)return false;
         // One application per caster per spell, exactly as a snare. A second
