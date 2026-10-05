@@ -65,7 +65,14 @@ retry() {  # retry <tries> <command...>
     return 1
 }
 
-retry 3 "$ps5" ctl ping > /dev/null || { log "ps5vkctl does not answer (reload it: tools/ps5.sh payload ...)"; exit 1; }
+# After a console reboot ps5vkctl is gone: load it again once (through the
+# payload loader, which is all a reboot leaves running).
+if ! retry 3 "$ps5" ctl ping > /dev/null; then
+    vkctl=$root/../deps/PS5_Vulkan/build/ps5vkctl/ps5vkctl.elf
+    log "ps5vkctl does not answer; loading $vkctl"
+    [[ -f $vkctl ]] && "$ps5" payload "$vkctl" > /dev/null 2>&1; sleep 5
+    retry 3 "$ps5" ctl ping > /dev/null || { log "ps5vkctl does not answer (reload it: tools/ps5.sh payload ...)"; exit 1; }
+fi
 
 if ((deploy)); then
     log "build"

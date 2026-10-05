@@ -27,10 +27,11 @@ if [[ ${1:-} == --status ]]; then
 fi
 : "${PS5_HOST:?set PS5_HOST=<ps5 ip>}"
 if [[ ${ROUND_DETACHED:-0} != 1 ]]; then
+    if systemctl --user is-active -q "$unit"; then echo "a round is already running ($unit); check with: tools/ps5/round.sh --status"; exit 1; fi
     systemctl --user reset-failed "$unit" >/dev/null 2>&1 || true
     systemd-run --user --unit="$unit" --working-directory="$root" --setenv=ROUND_DETACHED=1 \
         --setenv=PS5_HOST="$PS5_HOST" ${WOWPS_DBC_DIR:+--setenv=WOWPS_DBC_DIR="$WOWPS_DBC_DIR"} \
-        "$root/tools/ps5/round.sh" "$@" >/dev/null
+        "$root/tools/ps5/round.sh" "$@" >/dev/null || { echo "could not start $unit"; exit 1; }
     echo "round started as $unit; check with: tools/ps5/round.sh --status"
     exit 0
 fi
