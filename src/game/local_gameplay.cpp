@@ -2860,7 +2860,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(d.controlProfile);hash(d.controlEffectSlot);hash(d.armorDebuffPct);hash(d.armorDebuffEffectSlot);
         for(const auto* a:{&d.targetDebuffAttackPower,&d.targetDebuffResistance,&d.targetDebuffDamageTakenPct,&d.targetDebuffCastSpeedPct})hash(uint32_t(*a));
         hash(uint32_t(d.targetDebuffResistanceSchool)|uint32_t(d.targetDebuffDamageTakenSchool)<<8|uint32_t(d.targetDebuffArmorPct)<<16|uint32_t(d.targetDebuffEffectMask)<<24);
-        hash(uint32_t(d.controlDamageCapPct)|uint32_t(d.controlSingleTarget)<<8);hash(uint32_t(d.classBuffHealingTakenPct));
+        hash(uint32_t(d.controlDamageCapPct)|uint32_t(d.controlSingleTarget)<<8);hash(uint32_t(d.classBuffHealingTakenPct));hash(d.lifeTapAmount);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -6416,6 +6416,8 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(d->outOfCombatOnly&&!finishing&&localCombatActive(p,g.npcs))return reject("You can't do that while in combat");
     if(d->teleport&&!c.spellDestination(d->id))return reject("This destination is not available here");
     if(d->teleport&&(p.flight.active||p.transportEntry))return reject("You can't do that right now");
+    // spell_warl_life_tap::CheckCast: more health than the tap (else it fizzles).
+    if(d->lifeTapAmount&&p.health<=scaledSpellAmount(p,*d,d->lifeTapAmount,d->lifeTapAmount,d->lifeTapPerLevel))return reject("Not enough health");
     if(d->createItemId){auto probe=p;for(size_t r=0;r<d->reagentItems.size();++r)if(d->reagentItems[r])removeItem(probe,d->reagentItems[r],d->reagentCounts[r]);
         if(!c.item(d->createItemId)||!addItem(probe,c,d->createItemId,d->createItemCount))return reject("Inventory is full");}
     if(d->mountDisplayId) {
@@ -7353,6 +7355,14 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
             for(auto& a:g.npcPeriodic)if(dispellable(a,uint8_t(1u<<type))){
                 LOG_INFO("[LOCAL_DISPEL] caster=",p.guid," target=",healed->guid," spell=",d->id," removed=",a.spell);a.remaining=0;break;}
         g.refreshHealingViews(players);stats(*healed,c,false);
+    }
+    if(d->lifeTapAmount) {
+        // spell_warl_life_tap::HandleDummy: ModifyHealth(-value), then the
+        // energize (31818) for the same value. CheckCast kept health above it.
+        const auto value=scaledSpellAmount(p,*d,d->lifeTapAmount,d->lifeTapAmount,d->lifeTapPerLevel);
+        p.health-=std::min(p.health-1,value);
+        if(p.resourceType==LocalResourceType::Mana)p.mana=std::min(p.maxMana,p.mana+value);
+        LOG_INFO("[LOCAL_LIFE_TAP] player=",p.guid," spell=",d->id," value=",value);
     }
     if(d->teleport)if(const auto* to=c.spellDestination(d->id)) {
         p.mapId=to->mapId;p.instanceId=0;p.x=to->x;p.y=to->y;p.z=to->z;p.orientation=to->orientation;

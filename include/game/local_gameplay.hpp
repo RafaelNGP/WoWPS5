@@ -1302,6 +1302,11 @@ struct LocalSpellDefinition {
     // SPELL_AURA_MOD_HEALING_PCT (118, all schools) on the caster of a class
     // buff (Demon Skin, Demon Armor): healing taken in percent.
     int32_t classBuffHealingTakenPct = 0;
+    // Life Tap (spell_warl_life_tap): the caster loses the dummy effect's
+    // value in health and gains it as mana (no spell power in the realm, so
+    // SpellBaseDamageBonusDone's half adds nothing). CalcValue's level term.
+    uint32_t lifeTapAmount = 0;
+    float lifeTapPerLevel = 0;
 
     std::string iconPath, unsupportedReason;
 };

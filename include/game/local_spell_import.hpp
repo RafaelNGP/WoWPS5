@@ -1204,8 +1204,13 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // returns before adding one), so its category metadata is not checked.
     if(d.cooldownCategory>100000||d.spellFamily>1000||(!creatureCaster&&d.categoryCooldownMs&&!d.cooldownCategory))unavailable("Invalid spell cooldown category metadata");
     if(d.resourceType==1||d.resourceType==6) d.mana=(d.mana+9)/10; // displayed rage/runic units
-    if(u(41)!=0&&u(41)!=1&&u(41)!=3&&u(41)!=5&&u(41)!=6)
+    // Life Tap: POWER_HEALTH with no cost, one DUMMY effect on the caster and
+    // the warlock family (its SpellScript, spell_warl_life_tap, does the work).
+    const bool lifeTap=!creatureCaster&&u(41)==0xFFFFFFFEu&&!u(42)&&!u(43)&&!u(44)&&!u(204)&&d.spellFamily==5&&
+        u(71)==3&&u(86)==1&&!u(89)&&!u(72)&&!u(73)&&u(74)==1&&i(80)>=0&&i(80)<100000&&std::isfinite(f(77))&&f(77)>=0&&f(77)<100;
+    if(u(41)!=0&&u(41)!=1&&u(41)!=3&&u(41)!=5&&u(41)!=6&&!lifeTap)
         unavailable("This power system is not implemented");
+    if(lifeTap)d.resourceType=0; // no cost: health is spent by the effect itself
     if(u(226)) {
         const auto runeRow=ClientSpellTables::lookup(t.runeCostIndex,u(226));
         if(runeRow<0) unavailable("SpellRuneCost record missing or incompatible");
@@ -1706,6 +1711,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             d.chargeRage=uint16_t((base+1)/10); // Charge's script: tenths of rage.
         } else if(type==5&&!creatureCaster&&(target==1||target==0)&&(secondary==17||!secondary)) {
             d.teleport=true;
+        } else if(lifeTap&&type==3&&effect==0) {
+            d.lifeTapAmount=uint32_t(i(80)+1);d.lifeTapPerLevel=f(77); // CalcValue: base + 1 (one die side)
         } else if(type==77&&!creatureCaster&&d.spellFamily==5&&target==6&&!secondary&&!i(80+effect)&&!u(74+effect)&&!u(116+effect)&&
                   effect==2&&u(71)==6&&u(95)==3&&u(71+1)==2) {
             // Immolate: a periodic fire aura, its opening hit, and a script
@@ -1733,7 +1740,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if(harm&&!d.schoolMask&&(!creatureCaster||d.damage||d.periodicDamage))unavailable("Damaging spell has no school");
     if(buff&&(harm||healing)) unavailable("Mixed stat buffs and other effects are not implemented");
     if(harm&&healing) unavailable("Mixed hostile/friendly spells are not implemented");
-    if(!harm&&!healing&&!buff&&!d.formId&&!formBoost&&!formResource&&!summonPet&&!areaAura&&!d.controlProfile&&!d.createItemId&&!d.teleport&&!d.totemEntry&&!d.dispelMask) unavailable("No supported direct or periodic damage/healing effect");
+    if(!harm&&!healing&&!buff&&!d.formId&&!formBoost&&!formResource&&!summonPet&&!areaAura&&!d.controlProfile&&!d.createItemId&&!d.teleport&&!d.totemEntry&&!d.dispelMask&&!d.lifeTapAmount) unavailable("No supported direct or periodic damage/healing effect");
     if(d.teleport&&(harm||healing||buff||d.createItemId))unavailable("Teleport beside other effects is not implemented");
     if(d.createItemId&&(harm||healing||buff))unavailable("Item creation beside other effects is not implemented");
     if(!creatureCaster){d.healingSelfOnly=healingTarget==1;d.buffSelfOnly=d.formId!=0||formBoost||formResource||buffTarget==1;}

@@ -417,7 +417,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // warlock fears a second (one target at a time), and broken by the
         // Shadow Bolts that spend the cap (each hit spends what it dealt). 28 is
         // a warlock armor: more armor and more healing taken while held, and
-        // Demon Skin replaces Demon Armor (SPELL_SPECIFIC_WARLOCK_ARMOR).
+        // Demon Skin replaces Demon Armor (SPELL_SPECIFIC_WARLOCK_ARMOR). 29 is
+        // Life Tap: health for the same mana, refused when it would kill.
         struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
@@ -441,7 +442,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
-            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29},
         };
         size_t passed = 0;
         for (const auto& a : abilities) {
@@ -483,12 +484,14 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             }
             const uint32_t reagentBefore = [&] { const auto* sd = content.spell(spellId); uint32_t n = 0;
                 for (const auto& st : p.inventory) if (sd && st.itemId == sd->reagentItems[0]) n += st.count; return n; }();
-            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || (a.kind >= 12 && a.kind <= 14) || a.kind == 16 || a.kind == 20 || a.kind == 28) {
+            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || (a.kind >= 12 && a.kind <= 14) || a.kind == 16 || a.kind == 20 || a.kind == 28 || a.kind == 29) {
                 const auto meleeBefore = localMeleeStats(p, content); const auto healthBefore = p.maxHealth; const auto items = p.inventory.size();
                 const auto armorBefore = localMeleeArmor(p, content);
                 const auto* autoShot = content.spell(75);
                 const auto rangedBefore = autoShot ? localRangedAmounts(p, content, *autoShot) : LocalRangedAmounts{};
                 p.ridingSkill = 150; p.mana = p.maxMana; p.globalCooldownMs = 0;
+                if (a.kind == 29) { p.mana = 0; p.health = p.maxHealth; }
+                const auto tapHealth = p.health;
                 bool ok = arena.execute(p, {LocalAction::CastSpell, p.guid, spellId}, players, result);
                 if (a.kind == 16) ok = !ok && result.find("Nothing to dispel") != std::string::npos;
                 for (int t = 0; t < 200 && p.castingSpellId; ++t) arena.tick(0.05f, players);
@@ -500,6 +503,17 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 if (a.kind == 4) ok = ok && p.mountSpellId == spellId;
                 if (a.kind == 9) ok = ok && localFormRunPercent(p, content) > 120.f;
                 if (a.kind == 10) ok = ok && meleeAfter.dodge > meleeBefore.dodge + 40.f;
+                if (a.kind == 29) {
+                    const auto tapped = tapHealth - p.health;
+                    ok = ok && tapped > 0 && p.mana == std::min(p.maxMana, tapped);
+                    // spell_warl_life_tap::CheckCast: not with the tap's health or less.
+                    p.health = tapped; p.globalCooldownMs = 0; p.cooldowns.clear();
+                    std::string refused;
+                    const bool second = arena.execute(p, {LocalAction::CastSpell, p.guid, spellId}, players, refused);
+                    ok = ok && !second && p.health == tapped;
+                    if (!ok) result = "tapped " + std::to_string(tapped) + " mana " + std::to_string(p.mana) + " second " + std::to_string(second) + " (" + result + " / " + refused + ")";
+                    p.health = p.maxHealth;
+                }
                 if (a.kind == 28 && ok) {
                     const auto held = [&](const char* name) { for (const auto& s : p.statAuras) if (const auto* sd = content.spell(s.spellId); sd && sd->name == name && s.remainingMs) return sd; return (const LocalSpellDefinition*)nullptr; };
                     const auto* armor = held(a.name);
@@ -767,7 +781,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, fears, armor reductions, curses, warlock armors, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, fears, armor reductions, curses, warlock armors, Life Tap, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.
