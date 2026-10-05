@@ -31,7 +31,18 @@ inline const LocalMeleeItem* worn(const LocalRealmPlayer& p,const LocalWorldCont
     const auto id=p.equipment[slot];const auto* d=c.item(id);const auto* item=localMeleeItem(id);
     if(!d||!item||item->scaling||!localEquipmentFits(d->inventoryType,d->slot,slot))return nullptr;
     uint64_t copies=0;for(const auto& s:p.inventory)if(s.itemId==id)copies+=s.count;
-    if(uint64_t(std::count(p.equipment.begin(),p.equipment.begin()+slot+1,id))>copies)return nullptr;
+    const auto needed=uint64_t(std::count(p.equipment.begin(),p.equipment.begin()+slot+1,id));
+    if(needed>copies)return nullptr;
+    size_t current=0;
+    for(const auto& stack:p.inventory){
+        if(stack.itemId==id){
+            if(current+stack.count>=needed){
+                if(stack.instance.maxDurability>0&&stack.instance.curDurability==0)return nullptr;
+                break;
+            }
+            current+=stack.count;
+        }
+    }
     return item;
 }
 }

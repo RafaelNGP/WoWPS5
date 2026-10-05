@@ -104,6 +104,51 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
     }
     out << "PASS class proficiencies: " << checked << " armor/weapon/shield/wand/dual-wield cases through EquipItem\n";
 
+    // ---- 1b. Durability catalog, migration, broken stat zeroing, repair command.
+    {
+        SELFTEST_CHECK(c.itemDurability.size() >= 20000);
+        const auto* dur25 = c.durability(25);
+        SELFTEST_CHECK(dur25 && dur25->maxDurability == 20 && dur25->costPerPoint == 800);
+        const auto* dur200 = c.durability(200);
+        SELFTEST_CHECK(dur200 && dur200->maxDurability == 60 && dur200->costPerPoint == 4000);
+
+        LocalRealmPlayer p; p.guid = 2; p.race = 1; p.classId = 1; p.level = 80; p.name = "DurabilityTest";
+        p.money = 100000;
+        p.gameplayInitialized = true;
+        p.inventory = {{25, 1, 0, {}}, {200, 1, 1, {}}};
+        game.initializePlayer(p, false);
+        SELFTEST_CHECK(p.inventory[0].instance.maxDurability == 20 && p.inventory[0].instance.curDurability == 20);
+        SELFTEST_CHECK(p.inventory[1].instance.maxDurability == 60 && p.inventory[1].instance.curDurability == 60);
+
+        std::vector<LocalRealmPlayer*> players{&p};
+        SELFTEST_CHECK(game.execute(p, {LocalAction::EquipItem, 0, 25}, players, result));
+        const size_t mhSlot = localEquipmentIndex(LocalEquipmentSlot::MainHand);
+        SELFTEST_CHECK(worn(p, c, mhSlot) != nullptr);
+
+        p.inventory[0].instance.curDurability = 0;
+        SELFTEST_CHECK(worn(p, c, mhSlot) == nullptr);
+
+        LocalRealmNpc repairNpc{};
+        repairNpc.guid = 9999;
+        repairNpc.entry = 54;
+        repairNpc.repairer = true;
+        repairNpc.vendor = true;
+        repairNpc.x = p.x; repairNpc.y = p.y; repairNpc.z = p.z;
+        game.setRemoteNpcs({repairNpc});
+
+        p.money = 5;
+        LocalRealmCommand repCmd{LocalAction::RepairEquipment};
+        repCmd.serviceNpcGuid = repairNpc.guid;
+        SELFTEST_CHECK(!game.execute(p, repCmd, players, result) && result.find("afford") != std::string::npos);
+
+        p.money = 1000;
+        SELFTEST_CHECK(game.execute(p, repCmd, players, result));
+        SELFTEST_CHECK(p.inventory[0].instance.curDurability == 20);
+        SELFTEST_CHECK(p.money < 1000);
+
+        out << "PASS durability & repair: " << c.itemDurability.size() << " catalog items, migration, broken stat zeroing, repair command\n";
+    }
+
     // ---- 2. Every catalog start: legal starting weapon, consumables.
     size_t starts = 0;
     for (const auto& start : c.catalog->starts()) {

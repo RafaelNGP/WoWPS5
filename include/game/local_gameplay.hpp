@@ -2045,6 +2045,12 @@ struct LocalWorldContent {
         const auto it=std::lower_bound(spellDestinations.begin(),spellDestinations.end(),spellId,[](const auto& d,uint32_t id){return d.spellId<id;});
         return it!=spellDestinations.end()&&it->spellId==spellId?&*it:nullptr;
     }
+    struct ItemDurability { uint32_t itemId=0, maxDurability=0, costPerPoint=0; };
+    std::vector<ItemDurability> itemDurability; // Sorted by itemId.
+    const ItemDurability* durability(uint32_t itemId) const {
+        const auto it=std::lower_bound(itemDurability.begin(),itemDurability.end(),itemId,[](const auto& d,uint32_t id){return d.itemId<id;});
+        return it!=itemDurability.end()&&it->itemId==itemId?&*it:nullptr;
+    }
     /// Hunter pet basic attacks: family -> 0 Bite, 1 Claw, 2 Smack; each kind's
     /// ranks (spell, learn level, damage) ascending by level.
     std::array<uint8_t,256> petFamilyAttack{};

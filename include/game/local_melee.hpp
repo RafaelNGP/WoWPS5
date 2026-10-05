@@ -41,6 +41,7 @@ bool localNpcIsDemonOrUndead(uint32_t entry);
 bool localNpcExperienceTargetEligible(uint32_t entry,uint8_t actorLevel,uint8_t targetLevel);
 struct LocalWeaponAmounts {float low=1,high=2,magicLow=0,magicHigh=0,seconds=2,apSeconds=2;bool active=true;};
 const LocalMeleeItem* localMeleeItem(uint32_t id);
+const LocalMeleeItem* worn(const LocalRealmPlayer& p,const LocalWorldContent& c,size_t slot);
 uint32_t localNpcMeleeFlags(uint32_t entry);
 uint32_t localMeleeArmor(const LocalRealmPlayer&,const LocalWorldContent&);
 float localMeleeRatingBonus(const LocalRealmPlayer&,const LocalWorldContent&,int rating);

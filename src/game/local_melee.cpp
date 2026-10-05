@@ -67,12 +67,18 @@ constexpr SpellCritItem spellCritItems[]={
 struct Npc {uint32_t id,flags,type,rank;};constexpr Npc npcs[]={
 #include "game/local_melee_npcs_generated.inc"
 };
-const LocalMeleeItem* worn(const LocalRealmPlayer& p,const LocalWorldContent& c,size_t slot){
-    const auto id=p.equipment[slot];if(!id)return nullptr;const auto* item=c.item(id);
-    if(!item||!localEquipmentFits(item->inventoryType,item->slot,slot))return nullptr;
-    uint64_t copies=0;for(const auto& stack:p.inventory)if(stack.itemId==id)copies+=stack.count;
-    if(uint64_t(std::count(p.equipment.begin(),p.equipment.begin()+slot+1,id))>copies)return nullptr;
-    return localMeleeItem(id);
+static bool isEquippedBroken(const LocalRealmPlayer& p, size_t slot, uint32_t id, uint64_t needed) {
+    (void)slot;
+    size_t current = 0;
+    for (const auto& stack : p.inventory) {
+        if (stack.itemId == id) {
+            if (current + stack.count >= needed) {
+                return stack.instance.maxDurability > 0 && stack.instance.curDurability == 0;
+            }
+            current += stack.count;
+        }
+    }
+    return false;
 }
 const LocalSpellDefinition* activeMoltenArmor(const LocalRealmPlayer& p,const LocalWorldContent& c){
     if(!p.guid||p.dead||!p.health||p.classId!=8||p.statAuras.size()>kLocalMaxStatAuras)return nullptr;
@@ -106,6 +112,14 @@ constexpr float parryCap[]={47.003525f,47.003525f,145.560408f,145.560408f,0,47.0
 constexpr float k[]={.956f,.956f,.988f,.988f,.983f,.956f,.988f,.983f,.983f,0,.972f};
 }
 const LocalMeleeItem* localMeleeItem(uint32_t id){auto it=std::lower_bound(std::begin(items),std::end(items),id,[](const auto& a,uint32_t b){return a.id<b;});return it!=std::end(items)&&it->id==id?it:nullptr;}
+const LocalMeleeItem* worn(const LocalRealmPlayer& p,const LocalWorldContent& c,size_t slot){
+    const auto id=p.equipment[slot];if(!id)return nullptr;const auto* item=c.item(id);
+    if(!item||!localEquipmentFits(item->inventoryType,item->slot,slot))return nullptr;
+    uint64_t copies=0;for(const auto& stack:p.inventory)if(stack.itemId==id)copies+=stack.count;
+    const auto needed=uint64_t(std::count(p.equipment.begin(),p.equipment.begin()+slot+1,id));
+    if(needed>copies||isEquippedBroken(p,slot,id,needed))return nullptr;
+    return localMeleeItem(id);
+}
 uint32_t localNpcMeleeFlags(uint32_t id){auto it=std::lower_bound(std::begin(npcs),std::end(npcs),id,[](const auto& a,uint32_t b){return a.id<b;});return it!=std::end(npcs)&&it->id==id?it->flags:0;}
 uint32_t localNpcCreatureType(uint32_t id){auto it=std::lower_bound(std::begin(npcs),std::end(npcs),id,[](const auto& a,uint32_t b){return a.id<b;});return it!=std::end(npcs)&&it->id==id?it->type:0;}
 bool localNpcIsDemonOrUndead(uint32_t id){const auto type=localNpcCreatureType(id);return type==3||type==6;}
@@ -124,7 +138,8 @@ static uint32_t armorFromAttributes(const LocalRealmPlayer& p,const LocalWorldCo
     for(size_t slot=0;slot<p.equipment.size();++slot){const auto id=p.equipment[slot];const auto* item=id?c.item(id):nullptr;
         if(!item||!localEquipmentFits(item->inventoryType,item->slot,slot))continue;
         uint64_t copies=0;for(const auto& stack:p.inventory)if(stack.itemId==id)copies+=stack.count;
-        if(uint64_t(std::count(p.equipment.begin(),p.equipment.begin()+slot+1,id))>copies)continue;
+        const auto needed=uint64_t(std::count(p.equipment.begin(),p.equipment.begin()+slot+1,id));
+        if(needed>copies||isEquippedBroken(p,slot,id,needed))continue;
         const auto* metadata=localMeleeItem(id);
         const bool base=metadata&&metadata->itemClass==4&&
             ((metadata->subclass>=1&&metadata->subclass<=4)||metadata->subclass==6);
@@ -430,7 +445,8 @@ LocalResourcePools localResourcePools(const LocalRealmPlayer& p,const LocalWorld
     for(size_t slot=0;slot<p.equipment.size();++slot){const auto id=p.equipment[slot];const auto* item=id?c.item(id):nullptr;
         if(!item||!localEquipmentFits(item->inventoryType,item->slot,slot))continue;
         uint64_t owned=0;for(const auto& stack:p.inventory)if(stack.itemId==id)owned+=stack.count;
-        if(uint64_t(std::count(p.equipment.begin(),p.equipment.begin()+slot+1,id))>owned)continue;
+        const auto needed=uint64_t(std::count(p.equipment.begin(),p.equipment.begin()+slot+1,id));
+        if(needed>owned||isEquippedBroken(p,slot,id,needed))continue;
         if(const auto* source=localMeleeItem(id)){
             // Source Stamina is already counted through primary attributes.
             // Do not add the old catalog's Stamina*10 approximation a second time.

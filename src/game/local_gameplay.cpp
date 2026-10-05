@@ -158,7 +158,16 @@ bool addItem(LocalRealmPlayer& p, const LocalWorldContent& c, uint32_t id, uint3
         const auto moved = std::min(count, uint32_t(def->stack - stack.count));
         stack.count += uint16_t(moved); count -= moved;
     }
-    while (count) { const uint16_t moved = uint16_t(std::min(count, uint32_t(def->stack))); p.inventory.push_back({id,moved}); count -= moved; }
+    while (count) {
+        const uint16_t moved = uint16_t(std::min(count, uint32_t(def->stack)));
+        LocalItemStack stack{id, moved};
+        if (const auto* dur = c.durability(id)) {
+            stack.instance.maxDurability = dur->maxDurability;
+            stack.instance.curDurability = dur->maxDurability;
+        }
+        p.inventory.push_back(stack);
+        count -= moved;
+    }
     normalizeLocalInventory(p);return true;
 }
 void removeItem(LocalRealmPlayer& p, uint32_t id, uint32_t count) {
@@ -340,6 +349,64 @@ bool advanceLocalConsumables(LocalRealmPlayer& p,const LocalWorldContent& c,uint
     if(buffsChanged)stats(p,c,false);
     return true;
 }
+LocalItemStack* localFindEquippedStack(LocalRealmPlayer& p, size_t slot) {
+    if (slot >= p.equipment.size()) return nullptr;
+    const auto id = p.equipment[slot];
+    if (!id) return nullptr;
+    const auto copies = std::count(p.equipment.begin(), p.equipment.begin() + slot + 1, id);
+    size_t currentCopy = 0;
+    for (auto& s : p.inventory) {
+        if (s.itemId == id) {
+            if (currentCopy + s.count >= uint32_t(copies)) {
+                return &s;
+            }
+            currentCopy += s.count;
+        }
+    }
+    return nullptr;
+}
+bool localReduceEquippedDurability(LocalRealmPlayer& p, size_t slot, uint32_t amount = 1) {
+    auto* s = localFindEquippedStack(p, slot);
+    if (!s || s->instance.maxDurability == 0 || s->instance.curDurability == 0) return false;
+    const bool wasAboveZero = s->instance.curDurability > 0;
+    s->instance.curDurability = s->instance.curDurability > amount ? s->instance.curDurability - amount : 0;
+    return wasAboveZero && s->instance.curDurability == 0;
+}
+void localApplyDeathDurability(LocalRealmPlayer& p, double fraction = 0.10) {
+    for (size_t slot = 0; slot < p.equipment.size(); ++slot) {
+        const auto id = p.equipment[slot];
+        if (!id) continue;
+        const auto copies = std::count(p.equipment.begin(), p.equipment.begin() + slot + 1, id);
+        size_t current = 0;
+        for (auto& s : p.inventory) {
+            if (s.itemId == id) {
+                if (current + s.count >= uint32_t(copies)) {
+                    if (s.instance.maxDurability > 0 && s.instance.curDurability > 0) {
+                        uint32_t loss = std::max(1u, uint32_t(std::round(double(s.instance.maxDurability) * fraction)));
+                        s.instance.curDurability = s.instance.curDurability > loss ? s.instance.curDurability - loss : 0;
+                    }
+                    break;
+                }
+                current += s.count;
+            }
+        }
+    }
+}
+void localDamageArmorInCombat(LocalRealmPlayer& p, uint32_t roll) {
+    constexpr size_t armorSlots[] = {0, 2, 4, 5, 6, 7, 8, 9, 14, 16};
+    std::vector<size_t> eligible;
+    for (size_t slot : armorSlots) {
+        if (auto* s = localFindEquippedStack(p, slot)) {
+            if (s->instance.maxDurability > 0 && s->instance.curDurability > 0) {
+                eligible.push_back(slot);
+            }
+        }
+    }
+    if (!eligible.empty()) {
+        size_t chosen = eligible[roll % eligible.size()];
+        localReduceEquippedDurability(p, chosen, 1);
+    }
+}
 uint32_t equipmentValue(const LocalRealmPlayer& p,const LocalWorldContent& c, unsigned kind) {
     uint64_t result = 0;
     for (size_t slot = 0; slot < p.equipment.size(); ++slot) {
@@ -348,6 +415,9 @@ uint32_t equipmentValue(const LocalRealmPlayer& p,const LocalWorldContent& c, un
         if (!item || !localEquipmentFits(item->inventoryType, item->slot, slot)) continue;
         const auto copies = std::count(p.equipment.begin(), p.equipment.begin() + slot + 1, id);
         if (uint32_t(copies) > totalItem(p, id)) continue;
+        if (const auto* s = localFindEquippedStack(const_cast<LocalRealmPlayer&>(p), slot)) {
+            if (s->instance.maxDurability > 0 && s->instance.curDurability == 0) continue;
+        }
         result += kind == 0 ? item->maxHealth : kind == 1 ? item->attack : item->armor;
     }
     // Catalog values are untrusted uint32 values; leave headroom for base stats.
@@ -413,7 +483,16 @@ bool equipItem(LocalRealmPlayer& p, const LocalWorldContent& c, uint32_t id, uin
         if (i != slot && candidate.equipment[i] == id) { candidate.equipment[i] = 0; --equipped; }
     if (slot == mainSlot && item->inventoryType == 17) candidate.equipment[offSlot] = 0;
     if (!validEquipment(candidate, c)) return false;
+    for (auto& s : candidate.inventory) {
+        if (s.itemId == id && s.instance.maxDurability == 0) {
+            if (const auto* dur = c.durability(id)) {
+                s.instance.maxDurability = dur->maxDurability;
+                s.instance.curDurability = dur->maxDurability;
+            }
+        }
+    }
     p.equipment = candidate.equipment;
+    p.inventory = std::move(candidate.inventory);
     return true;
 }
 void stats(LocalRealmPlayer& p,const LocalWorldContent& c,bool heal) {
@@ -3436,6 +3515,30 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
             }
             for(unsigned char b:text)c->fingerprint=(c->fingerprint^b)*16777619U;
         }
+        if(j.contains("durability")) {
+            const auto name=label(j,"durability",128);
+            if(name.empty() || name=="." || name==".." || name.find('/')!=std::string::npos || name.find('\\')!=std::string::npos)
+                throw std::runtime_error("Durability companion must be a sibling filename");
+            const auto durPath=std::filesystem::path(path).parent_path()/name;
+            std::ifstream durInput(durPath,std::ios::binary|std::ios::ate);
+            if(!durInput)throw std::runtime_error("Cannot open required durability companion "+durPath.string());
+            const auto durLength=durInput.tellg();
+            if(durLength<=0 || durLength>8*1024*1024)throw std::runtime_error("Durability companion must be 1 byte to 8 MiB");
+            std::string durText(size_t(durLength),'\0');durInput.seekg(0);
+            if(!durInput.read(durText.data(),durLength))throw std::runtime_error("Cannot read durability companion");
+            const auto doc=Json::parse(durText);
+            if(!doc.is_object() || number(doc,"schemaVersion",0,1)!=1)throw std::runtime_error("Unsupported durability schema");
+            for(const auto& v:array(doc,"items",65536,true)) {
+                if(!v.is_array() || v.size()!=3)throw std::runtime_error("Invalid durability item row");
+                const auto entry=v[0].get<uint32_t>();
+                const auto maxDur=v[1].get<uint32_t>();
+                const auto cost=v[2].get<uint32_t>();
+                if(!entry || !maxDur || (!c->itemDurability.empty() && c->itemDurability.back().itemId>=entry))
+                    throw std::runtime_error("Durability items must be sorted and unique");
+                c->itemDurability.push_back({entry, maxDur, cost});
+            }
+            for(unsigned char b:durText)c->fingerprint=(c->fingerprint^b)*16777619U;
+        }
         if(j.contains("creatureTalk")) {
             // Original SmartAI speech companion (compile_creature_talk.py).
             const auto name=label(j,"creatureTalk",128);
@@ -4268,6 +4371,14 @@ void LocalGameplay::initializePlayer(LocalRealmPlayer& p, bool fresh, uint8_t fo
     p.restLastUnix=uint64_t(std::time(nullptr));
     const auto& c = content();
     migrateLocalCategoryCooldowns(p,c);
+    for (auto& stack : p.inventory) {
+        if (stack.instance.maxDurability == 0) {
+            if (const auto* dur = c.durability(stack.itemId)) {
+                stack.instance.maxDurability = dur->maxDurability;
+                stack.instance.curDurability = dur->maxDurability;
+            }
+        }
+    }
     // Gear worn before class proficiencies were enforced goes back to the bags
     // (worn items are inventory copies, so nothing is lost).
     for(size_t slot=0;slot<p.equipment.size();++slot)if(const auto* meta=p.equipment[slot]?localAuctionMetadata(p.equipment[slot]):nullptr)
@@ -4846,6 +4957,12 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         if(!localCanReclaimCorpse(p) && !atHealer)
             return reject("Move within 10 yards of your corpse, or talk to the Spirit Healer");
         if(!atHealer){p.x=p.corpseX;p.y=p.corpseY;p.z=p.corpseZ;p.orientation=p.corpseOrientation;}
+        else {
+            for(auto& s:p.inventory)if(s.instance.maxDurability>0&&s.instance.curDurability>0){
+                uint32_t loss=std::max(1u,uint32_t(std::round(double(s.instance.maxDurability)*0.25)));
+                s.instance.curDurability=s.instance.curDurability>loss?s.instance.curDurability-loss:0;
+            }
+        }
         p.dead=false;p.ghost=false;p.corpseValid=false;p.deadTimer=0;
         p.attackTarget=0;p.portalCooldown=2;++p.positionRevision;finishLocalTeleport(p);
         stats(p,c,true);p.health=std::max(1u,p.maxHealth/2);p.mana=p.maxMana/2;
@@ -5233,12 +5350,45 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
     if (cmd.action == LocalAction::RepairEquipment) {
         if (cmd.target || cmd.id) return reject("Repair takes no argument");
         if (!serviceNpc(p, kLocalNpcFlagRepair, cmd.serviceNpcGuid)) return reject("Stand at a blacksmith or repair merchant");
-        // Honest no-op. Durability is item_template.MaxDurability plus a per-item
-        // wear counter, neither of which exists here: the world catalog does not
-        // carry the column and nothing in this ruleset damages equipment. So
-        // there is nothing to restore, and charging for it would be inventing a
-        // cost for work that was never done.
-        result = "Nothing to repair: this realm does not track equipment durability, so you were not charged";
+        uint32_t totalCost = 0;
+        uint32_t totalRepaired = 0;
+        for (auto& s : p.inventory) {
+            if (s.instance.maxDurability > 0 && s.instance.curDurability < s.instance.maxDurability) {
+                const uint32_t lost = s.instance.maxDurability - s.instance.curDurability;
+                const auto* dur = c.durability(s.itemId);
+                uint32_t costPerPoint = dur ? dur->costPerPoint : 1000;
+                uint32_t itemCost = uint32_t((uint64_t(lost) * costPerPoint) / 1000);
+                if (itemCost == 0 && lost > 0 && costPerPoint > 0) itemCost = 1;
+                totalCost += itemCost;
+                totalRepaired += lost;
+            }
+        }
+        if (totalRepaired == 0) {
+            result = "Nothing to repair: all equipment is at full durability";
+            return true;
+        }
+        uint8_t vendorRank = 0;
+        if (const auto* merchant = serviceNpc(p, kLocalNpcFlagRepair, cmd.serviceNpcGuid)) {
+            if (const auto* vendorDef = c.npc(merchant->entry)) {
+                if (const auto* vendorFaction = definition(impl_->factions, vendorDef->faction); vendorFaction && vendorFaction->faction)
+                    vendorRank = localReputationRank(p, vendorFaction->faction);
+            }
+        }
+        const uint16_t discountBasis = localReputationDiscountBasisPoints(vendorRank);
+        if (discountBasis && totalCost > 0) {
+            totalCost = uint32_t((uint64_t(totalCost) * (10000u - discountBasis)) / 10000u);
+        }
+        if (p.money < totalCost) return reject("You cannot afford equipment repairs");
+        p.money -= totalCost;
+        for (auto& s : p.inventory) {
+            if (s.instance.maxDurability > 0 && s.instance.curDurability < s.instance.maxDurability) {
+                s.instance.curDurability = s.instance.maxDurability;
+            }
+        }
+        stats(p, c, false);
+        questStatus(p, c);
+        result = totalCost ? "Repaired equipment for " + std::to_string(totalCost) + " copper"
+                           : "Repaired equipment";
         return true;
     }
     const bool training = cmd.action==LocalAction::TrainRiding || cmd.action==LocalAction::LearnSpell || cmd.action==LocalAction::LearnRecipe ||
@@ -5289,7 +5439,7 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         return true;
     }
     const auto inCombat = [&] {
-        return localCombatActive(p,impl_->npcs);
+        return p.attackTarget || localCombatActive(p,impl_->npcs);
     };
     if(cmd.action==LocalAction::BackpackMove || cmd.action==LocalAction::BankWithdrawSlot){
         const bool bank=cmd.action==LocalAction::BankWithdrawSlot;
@@ -7318,6 +7468,8 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                         clearCast(*p, LocalCastStatus::Interrupted);
                         clearLocalTravelMotion(*p);
                         localCaptureCorpse(*p);
+                        localApplyDeathDurability(*p, 0.10);
+                        stats(*p, content(), false);
                     } else p->health -= damage;
                     changed = true;
                     LOG_INFO("[LOCAL_FALL] guid=", p->guid, " dropped=", p->fallStartZ - p->z,
@@ -7492,6 +7644,9 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                     g.emitCombatEvent(finish,players);
                     p->attackTimer=localMeleeSpeed(*p,content());p->offHandTimer=localMeleeSpeed(*p,content(),true);
                     if(!++p->castRevision)++p->castRevision;p->lastCastSpellId=d->id;p->lastCastTarget=n->guid;
+                    if(g.meleeRoll()<1000){
+                        if(localReduceEquippedDurability(*p,17,1))stats(*p,content(),false);
+                    }
                     LOG_INFO("[LOCAL_RANGED] source=",p->guid," target=",n->guid," spell=",d->id," ammo=",weapon.ammoId,
                         " period=",weapon.periodMs," outcome=",unsigned(outcome)," school=",weapon.schoolMask);
                     changed=true;
@@ -7537,6 +7692,9 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                     // interval unless a critical hit refreshed Flurry.
                     timer=localMeleeSpeed(*p,content(),hand!=0);
                     if(outcome==LocalMeleeOutcome::Parry&&n->attackTimer>.4f&&!(localNpcMeleeFlags(n->entry)&8))n->attackTimer=std::max(.4f,n->attackTimer-.8f);
+                    if(g.meleeRoll()<1000){
+                        if(localReduceEquippedDurability(*p,hand?16:15,1))stats(*p,content(),false);
+                    }
                     changed=true;
                 }
             }
@@ -8140,10 +8298,16 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                 target->health=0;localStopRangedAuto(*target);leaveLocalForm(*target);clearLocalCombo(*target);target->dead=true;target->mountSpellId=0;target->deadTimer=0;target->attackTarget=0;clearCast(*target,LocalCastStatus::Interrupted);
                 clearLocalTravelMotion(*target);
                 localCaptureCorpse(*target);
+                localApplyDeathDurability(*target, 0.10);
+                stats(*target, content(), false);
                 g.selectThreatTarget(n,players);
                 if(!n.targetGuid){n.threat={};n.combatEpoch=g.allocateNpcEpoch();n.lootOwner=0;n.health=n.maxHealth;n.x=n.homeX;n.y=n.homeY;n.z=n.homeZ;n.snares.clear();g.releaseNpcControls(n);n.damageAuras.clear();n.stormstrikeAuras.clear();}}
             else {
                 target->health-=damage;
+                if(!localMeleeAvoided(outcome)&&g.meleeRoll()<1000){
+                    localDamageArmorInCombat(*target,g.meleeRoll());
+                    stats(*target,content(),false);
+                }
                 // Direct NPC melee: abort flags also react to fully absorbed hits.
                 // Ordinary pushback requires health damage and is capped at two
                 // 500 ms delays, with remaining time never above the original cast.

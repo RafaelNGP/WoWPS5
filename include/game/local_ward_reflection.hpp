@@ -16,7 +16,19 @@ inline int32_t localWardEquipmentSpellPower(const LocalRealmPlayer& p,const Loca
         const auto id=p.equipment[slot];const auto* item=id?c.item(id):nullptr;
         if(!item||!localEquipmentFits(item->inventoryType,item->slot,slot))continue;
         uint64_t copies=0;for(const auto& stack:p.inventory)if(stack.itemId==id)copies+=stack.count;
-        if(uint64_t(std::count(p.equipment.begin(),p.equipment.begin()+slot+1,id))>copies)continue;
+        const auto needed=uint64_t(std::count(p.equipment.begin(),p.equipment.begin()+slot+1,id));
+        if(needed>copies)continue;
+        size_t current=0;bool broken=false;
+        for(const auto& stack:p.inventory){
+            if(stack.itemId==id){
+                if(current+stack.count>=needed){
+                    if(stack.instance.maxDurability>0&&stack.instance.curDurability==0)broken=true;
+                    break;
+                }
+                current+=stack.count;
+            }
+        }
+        if(broken)continue;
         const auto it=std::lower_bound(std::begin(localWardSpellPowerItems),std::end(localWardSpellPowerItems),id,
             [](const auto& a,uint32_t b){return a.id<b;});
         if(it!=std::end(localWardSpellPowerItems)&&it->id==id)total+=it->amount;
