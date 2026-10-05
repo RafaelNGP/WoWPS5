@@ -1671,7 +1671,7 @@ struct LocalNpcSnare {
 // is deliberately absent: the reference keeps root outside UNIT_STATE_CONTROLLED
 // and a rooted unit still swings, casts and turns, so root is not a control
 // this list models.
-enum class LocalNpcControlKind : uint8_t { Stun=0, Silence=1 };
+enum class LocalNpcControlKind : uint8_t { Stun=0, Silence=1, Root=2 };
 struct LocalNpcControl {
     uint32_t spellId=0, remainingMs=0;
     uint64_t casterGuid=0;

@@ -7284,7 +7284,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // has already set the outcome to Immune above.
     if(d->controlProfile&&n&&!n->dead&&!nullified&&!(strippedEffects&(1u<<d->controlEffectSlot))) {
         LocalNpcControl a{d->id,diminishedDurationMs,p.guid,p.positionRevision,
-            uint8_t(d->controlProfile==2?LocalNpcControlKind::Silence:LocalNpcControlKind::Stun)};
+            uint8_t(d->controlProfile==2?LocalNpcControlKind::Silence:d->controlProfile==3?LocalNpcControlKind::Root:LocalNpcControlKind::Stun)};
         // AuraEffect::CalculateAmount: a proc-flagged fear holds until it has
         // absorbed this share of the creature's maximum health.
         if(d->controlDamageCapPct)a.damageLeft=uint32_t(uint64_t(n->maxHealth)*d->controlDamageCapPct/100);
@@ -8881,7 +8881,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
         // 2.38: a point movement or jump in the active slot replaces the chase
         // until it ends (MotionMaster::MovePoint in combat).
         if(n.npcMotion==1||n.npcMotion==5){changed=g.npcMotionStep(n,elapsedMs,players,true)||changed;}
-        else if(d2>chaseStop*chaseStop&&!stunned&&n.npcCombatMove) {
+        else if(d2>chaseStop*chaseStop&&!stunned&&!localNpcRooted(n)&&n.npcCombatMove) {
             const float dx=target->x-n.x,dy=target->y-n.y,dz=target->z-n.z;
             const float length=std::sqrt(d2),step=std::min(pursuitStep,std::max(0.0f,length-std::max(2.5f,chaseStop-0.5f)));
             if(length>0){n.x+=dx/length*step;n.y+=dy/length*step;n.z+=dz/length*step;changed=changed||step>0;}

@@ -41,6 +41,12 @@ inline bool validLocalNpcSnares(const LocalRealmNpc& n,const LocalWorldContent& 
 // P04. The reference's stun implies root (Unit::SetStunned clears the unit's
 // movement before anything else), so one predicate answers both the pursuit and
 // the swing question. Silence suppresses only the cast tick.
+/// SPELL_AURA_MOD_ROOT: the creature keeps attacking and casting but does not move.
+inline bool localNpcRooted(const LocalRealmNpc& n) {
+    for(const auto& a:n.controls)
+        if(a.remainingMs&&a.kind==uint8_t(LocalNpcControlKind::Root))return true;
+    return false;
+}
 inline bool localNpcStunned(const LocalRealmNpc& n) {
     for(const auto& a:n.controls)
         if(a.remainingMs&&a.kind==uint8_t(LocalNpcControlKind::Stun))return true;
@@ -74,7 +80,7 @@ inline bool validLocalNpcControls(const LocalRealmNpc& n,const LocalWorldContent
     for(size_t i=0;i<n.controls.size();++i) {
         const auto& a=n.controls[i];const auto* d=c.spell(a.spellId);
         if(!d||!d->unsupportedReason.empty()||!d->controlProfile||
-           a.kind!=uint8_t(d->controlProfile==2?LocalNpcControlKind::Silence:LocalNpcControlKind::Stun)||
+           a.kind!=uint8_t(d->controlProfile==2?LocalNpcControlKind::Silence:d->controlProfile==3?LocalNpcControlKind::Root:LocalNpcControlKind::Stun)||
            !a.casterGuid||!a.remainingMs||a.remainingMs>localControlDurationCeiling(*d)||
            localControlDurationCeiling(*d)>600000)return false;
         // One application per caster per spell, exactly as a snare. A second
