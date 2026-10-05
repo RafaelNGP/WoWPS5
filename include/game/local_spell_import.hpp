@@ -1191,6 +1191,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     for(unsigned k=0;k<3;++k) {
         if(!u(71+k))continue;
         if(u(71+k)==6&&u(95+k)==5&&u(86+k)==6&&!u(89+k))confuseControl=true;
+        else if(u(71+k)==6&&u(95+k)==56&&u(86+k)==6&&!u(89+k)&&k==1&&d.spellFamily==3&&u(110+k)&&localMountDisplay(u(110+k))){} // Polymorph's transform
         else if(!(u(71+k)==6&&u(95+k)==33&&u(86+k)==6))confuseOther=true;
     }
     confuseControl=confuseControl&&!confuseOther&&!creatureCaster;
@@ -1491,6 +1492,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         // Clip, Concussive Shot, Curse of Exhaustion): its slow percentage
         // through the creature snare the Frost spells use.
         if(confuseControl&&type==6&&u(95+effect)==33&&u(86+effect)==6&&!u(89+effect)&&!u(116+effect))continue;
+        if(confuseControl&&type==6&&u(95+effect)==56&&effect==1){d.controlTransformEntry=u(110+effect);continue;} // Polymorph's model
         if(fearControl&&effect==1)continue; // Fear's run speed (verified above).
         // Corruption ranks 1-3 and 5: an empty DUMMY beside the shadow DoT, with
         // no target, no amount and no handler at the pin (ranks 4 and 6+ do not
@@ -1765,6 +1767,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 const auto type=u(71+k);
                 if(k==effect||!type||type==80)return true;
                 if(confuseControl&&type==6&&u(95+k)==33&&u(86+k)==6)return true; // Blind's slow
+                if(confuseControl&&type==6&&u(95+k)==56&&k==1)return true; // Polymorph's transform
                 if(fearControl&&k==1)return true; // Fear's run speed
                 if(type==2&&k<effect&&u(86+k)==6&&!u(89+k))return true;
                 if(horrorCoil&&type==9&&k==0)return true; // Death Coil's leech

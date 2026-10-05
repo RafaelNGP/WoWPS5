@@ -1356,6 +1356,9 @@ struct LocalSpellDefinition {
     // (spell_proc HitMask PROC_HIT_IMMUNE) the first immunity ends the aura.
     uint32_t classBuffMechanicImmunity = 0;
     bool classBuffImmunityCharge = false;
+    // SPELL_AURA_TRANSFORM (56) beside a control (Polymorph): the creature
+    // entry whose model the controlled creature takes.
+    uint32_t controlTransformEntry = 0;
     // SPELL_AURA_REDUCE_PUSHBACK (149) on a class buff (Barkskin): percent.
     uint8_t classBuffPushbackPct = 0;
     // An absorb shield's RealPointsPerLevel (Ice Barrier): the amount is the
@@ -1927,6 +1930,10 @@ struct LocalRealmNpc {
     uint64_t assistTargetGuid=0; // CallAssistance: attack this victim when the delay ends
     uint32_t assistDelayMs=0;
     std::vector<LocalNpcArmorDebuff> armorDebuffs; // Authority-only; neither saved nor replicated.
+    // Polymorph (SPELL_AURA_TRANSFORM beside a control): the display the
+    // creature had before it, restored when the control ends, and the
+    // Creature::RegenerateHealth timer a transformed creature keeps. Authority-only.
+    uint32_t baseDisplayId = 0, transformRegenMs = 0;
 };
 
 // A realm command may commit gameplay and still fail its atomic character

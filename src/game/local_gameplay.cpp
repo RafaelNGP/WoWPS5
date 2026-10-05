@@ -7,6 +7,7 @@
 #include "game/local_quest_chain_json.hpp"
 #include "game/local_npc_auras.hpp"
 #include "game/local_spell_ranks.hpp"
+#include "game/local_mount_models.hpp"
 #include "game/local_diminishing.hpp"
 #include "game/local_aura_presentation.hpp"
 #include "game/local_npc_spell_runtime.hpp"
@@ -2895,7 +2896,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.controlDamageCapPct)|uint32_t(d.controlSingleTarget)<<8);hash(uint32_t(d.classBuffHealingTakenPct));hash(d.lifeTapAmount);hash(uint32_t(d.createItemUnique));hash(uint32_t(d.directLeechPct)|uint32_t(d.immolateBonus)<<16);
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
-        hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -8564,6 +8565,23 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
             if(a.remainingMs)return false;
             dropControl(a);return true;
         });
+        // HandleAuraTransform: a held Polymorph shows its creature's model, and
+        // the creature's own display returns when the control is gone.
+        // Creature::RegenerateHealth: a polymorphed creature regains a third of
+        // its health every regeneration interval (2 s), even in combat.
+        {
+            uint32_t transform=0;
+            for(const auto& a:n.controls)if(const auto* d=content().spell(a.spellId);d&&d->controlTransformEntry)transform=localMountDisplay(d->controlTransformEntry);
+            if(transform&&!n.dead) {
+                if(!n.baseDisplayId){n.baseDisplayId=n.displayId;n.transformRegenMs=0;}
+                if(n.displayId!=transform){n.displayId=transform;changed=true;}
+                n.transformRegenMs+=elapsedMs;
+                for(;n.transformRegenMs>=2000;n.transformRegenMs-=2000)if(n.health<n.maxHealth){
+                    n.health=uint32_t(std::min<uint64_t>(n.maxHealth,uint64_t(n.health)+n.maxHealth/3));changed=true;}
+            } else if(n.baseDisplayId) {
+                n.displayId=n.baseDisplayId;n.baseDisplayId=0;n.transformRegenMs=0;changed=true;
+            }
+        }
         changed=changed||hadControls;
         if(n.dead) {
             localResetNpcSpellState(n);
