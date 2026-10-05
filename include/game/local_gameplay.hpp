@@ -1462,6 +1462,10 @@ struct LocalSpellDefinition {
     // (spell_sha_bloodlust / spell_sha_heroism).
     int32_t classBuffMeleeRangedHastePct = 0, classBuffCastSpeedPct = 0;
     std::array<uint32_t,2> skipIfHoldsAuras{};
+    // SPELL_AURA_MOD_RANGED_HASTE (140) on a class buff (Rapid Fire).
+    int32_t classBuffRangedHastePct = 0;
+    // SPELL_EFFECT_THREAT (63) on the target (Distracting Shot): flat threat.
+    uint32_t threatAmount = 0;
     // Death Grip (spell_dk_death_grip on 49576): the creature is pulled in
     // front of the knight (49560's jump, 57604), its cast stops, and it is
     // taunted (49560's MOD_TAUNT and SPELL_EFFECT_ATTACK_ME).

@@ -1467,6 +1467,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 else if((au==69||au==267)&&d.id==48707&&misc==126&&amount>0&&amount<=100)percentage=true; // Anti-Magic Shell
                 else if((au==192||au==65)&&(d.id==2825||d.id==32182)&&amount>0&&amount<=100)percentage=true; // Bloodlust, Heroism
                 else if(au==61&&(d.id==2825||d.id==32182)){} // their MOD_SCALE: the model's size only
+                else if(au==140&&u(86+e)==1&&!misc&&amount>0&&amount<=100)percentage=true; // Rapid Fire
                 else if(au==21&&u(86+e)==1&&!misc&&amount>0&&amount<=100&&u(98+e)>=1000&&u(98+e)<5000)percentage=true; // Viper: mana %
                 else modelled=false;
             }
@@ -1657,6 +1658,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(au==77&&localControlMechanic(misc))d.classBuffMechanicImmunity|=1u<<misc; // Fear Ward
             if(au==149&&tg==1&&misc==127&&amount>0&&amount<=100)d.classBuffPushbackPct=uint8_t(amount); // Barkskin
             if((d.id==2825||d.id==32182)&&amount>0&&amount<=100){if(au==192)d.classBuffMeleeRangedHastePct=amount;else if(au==65)d.classBuffCastSpeedPct=amount;}
+            if(au==140&&tg==1&&!misc&&amount>0&&amount<=100)d.classBuffRangedHastePct=amount; // Rapid Fire
             if(d.id==48707&&misc==126&&amount>0&&amount<=100){ // Anti-Magic Shell: its absorb pool and aura immunity
                 if(au==69){d.magicShellAbsorbPct=uint8_t(amount);d.buffAbsorb=1;d.absorbSchoolMask=126;}
                 else if(au==267){d.magicShellHealthPct=uint8_t(amount);d.classBuffAuraImmunitySchool=126;}
@@ -1910,6 +1912,12 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             else {d.dispelProfile=1;d.dispelAttempts=uint8_t(low);harm=true;}
         } else if(type==68&&target==6&&!secondary) {
             d.interruptCast=true;harm=true;
+        } else if(type==63&&target==6&&!secondary&&!creatureCaster&&low<=100000) {
+            // SPELL_EFFECT_THREAT: flat threat on the target (Distracting Shot);
+            // Wind Shear's carries zero and changes nothing.
+            if(low){d.threatAmount=low;harm=true;}
+        } else if(type==6&&u(95+effect)==11&&target==6&&!secondary&&!creatureCaster&&d.spellFamily==9&&d.durationMs) {
+            d.taunt=true;harm=true; // Distracting Shot's MOD_TAUNT: the taunt the realm already applies
         } else if(type==114&&target==6&&!secondary) {
             d.taunt=true;harm=true;
         } else if(type==96&&target==6&&!secondary) {

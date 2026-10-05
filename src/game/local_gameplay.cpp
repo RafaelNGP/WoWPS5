@@ -3149,7 +3149,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -8046,6 +8046,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         if(victim->npcCastingSpellId)g.npcCancelChannelOrCast(*victim);
         LOG_INFO("[LOCAL_DEATH_GRIP] player=",p.guid," npc=",victim->guid);
     }
+    if(d->threatAmount)if(auto* victim=g.npc(cmd.target);victim&&!victim->dead){g.addThreat(*victim,p.guid,uint64_t(d->threatAmount)*1000);g.selectThreatTarget(*victim,players);}
     if(d->taunt)if(auto* victim=g.npc(cmd.target);victim&&!victim->dead) {
         g.tauntNpc(*victim,p.guid);
         LOG_INFO("[LOCAL_TAUNT] player=",p.guid," spell=",d->id," npc=",victim->guid);
