@@ -342,7 +342,12 @@ bool advanceLocalConsumables(LocalRealmPlayer& p,const LocalWorldContent& c,uint
     const bool moved=[&]{for(const auto& r:p.consumableRegens)if(r.cancelOnMove&&(std::abs(p.x-r.x)>0.25f||std::abs(p.y-r.y)>0.25f))return true;return false;}();
     std::erase_if(p.consumableRegens,[&](const auto& r){
         const bool stop=(r.cancelOnMove&&moved)||(r.cancelOnDamage&&p.health<r.lastHealth);
-        if(stop)LOG_INFO("[LOCAL_CONSUMABLE] player=",p.guid," item=",r.itemId," interrupted by ",moved?"movement":"damage");
+        if(stop) {
+            LOG_INFO("[LOCAL_CONSUMABLE] player=",p.guid," item=",r.itemId," interrupted by ",moved?"movement":"damage");
+            if(r.visualAccumulatedHealth>0) {
+                pushLocalMeleeView(p,r.spellId?r.spellId:433,r.visualAccumulatedHealth,0,p.guid,p.guid,LocalMeleeOutcome::Hit,false,true,0);
+            }
+        }
         return stop;});
     for(auto& r:p.consumableRegens) {
         const auto before=r.elapsedMs;
@@ -356,7 +361,7 @@ bool advanceLocalConsumables(LocalRealmPlayer& p,const LocalWorldContent& c,uint
         r.givenHealth=health;r.givenMana=mana;
         const bool visualTick=(r.elapsedMs/1000>before/1000)||(r.elapsedMs>=r.durationMs&&before<r.durationMs);
         if(visualTick&&r.visualAccumulatedHealth>0) {
-            pushLocalMeleeView(p,r.spellId,r.visualAccumulatedHealth,0,p.guid,p.guid,LocalMeleeOutcome::Hit,false,true,0);
+            pushLocalMeleeView(p,r.spellId?r.spellId:433,r.visualAccumulatedHealth,0,p.guid,p.guid,LocalMeleeOutcome::Hit,false,true,0);
             r.visualAccumulatedHealth=0;
         }
         // Well Fed: the meal's periodic trigger after its first interval of eating.
@@ -6065,7 +6070,8 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
             candidate.health=uint32_t(std::min<uint64_t>(candidate.maxHealth,uint64_t(candidate.health)+use->instantHealth));
             const auto instantHealed = candidate.health - oldHealth;
             if(instantHealed > 0) {
-                pushLocalMeleeView(candidate, use->spellId, instantHealed, 0, candidate.guid, candidate.guid,
+                const uint32_t healSpell = use->spellId ? use->spellId : 439;
+                pushLocalMeleeView(candidate, healSpell, instantHealed, 0, candidate.guid, candidate.guid,
                                    LocalMeleeOutcome::Hit, false, true, 0);
             }
             if(mana)candidate.mana=uint32_t(std::min<uint64_t>(candidate.maxMana,uint64_t(candidate.mana)+use->instantMana));
@@ -6092,7 +6098,7 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         p.health=std::min(p.maxHealth,p.health+def->heal);
         const auto instantHealed = p.health - oldHealth;
         if(instantHealed > 0) {
-            pushLocalMeleeView(p, 0, instantHealed, 0, p.guid, p.guid,
+            pushLocalMeleeView(p, 439, instantHealed, 0, p.guid, p.guid,
                                LocalMeleeOutcome::Hit, false, true, 0);
         }
         p.mana=std::min(p.maxMana,p.mana+restoredMana);removeItem(p,cmd.id,1);stats(p,c,false);questStatus(p,c);result="Used "+def->name;return true;

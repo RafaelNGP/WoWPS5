@@ -2045,7 +2045,10 @@ static bool fillSpellTooltip(lua_State* L, wowee::ui::Widget* w,
         const char* unit = named ? named : "";
         cost = std::to_string(info.manaCost) + (*unit ? std::string(" ") + unit : "");
     }
-    if (info.maxRange > 0.0f) {
+    if (info.minRange > 0.0f && info.maxRange > 0.0f) {
+        range = std::to_string(static_cast<int>(info.minRange)) + " - " +
+                std::to_string(static_cast<int>(info.maxRange)) + " yd range";
+    } else if (info.maxRange > 0.0f) {
         range = std::to_string(static_cast<int>(info.maxRange)) + " yd range";
     }
     if (!cost.empty() || !range.empty()) line(cost, range, 1.0f, 1.0f, 1.0f);
@@ -2247,16 +2250,22 @@ int lua_Tooltip_SetSpellBookItem(lua_State* L) {
     int slot = static_cast<int>(luaL_optnumber(L, 2, 0));
     const char* bookType = luaL_optstring(L, 3, "spell");
     if (!w || !gh || slot < 1) { lua_pushboolean(L, 0); return 1; }
-    if (bookType && std::string(bookType) == "pet") { lua_pushboolean(L, 0); return 1; }
-    const auto& tabs = gh->getSpellBookTabs();
-    int idx = slot;
     uint32_t spellId = 0;
-    for (const auto& tab : tabs) {
-        if (idx <= static_cast<int>(tab.spellIds.size())) {
-            spellId = tab.spellIds[idx - 1];
-            break;
+    if (bookType && std::string(bookType) == "pet") {
+        const auto& pet = gh->getPetSpells();
+        if (slot <= static_cast<int>(pet.size())) {
+            spellId = pet[slot - 1];
         }
-        idx -= static_cast<int>(tab.spellIds.size());
+    } else {
+        const auto& tabs = gh->getSpellBookTabs();
+        int idx = slot;
+        for (const auto& tab : tabs) {
+            if (idx <= static_cast<int>(tab.spellIds.size())) {
+                spellId = tab.spellIds[idx - 1];
+                break;
+            }
+            idx -= static_cast<int>(tab.spellIds.size());
+        }
     }
     if (spellId == 0) { lua_pushboolean(L, 0); return 1; }
     lua_pushboolean(L, fillSpellTooltip(L, w, gh, spellId) ? 1 : 0);
@@ -8856,12 +8865,9 @@ void LuaEngine::registerCoreAPI() {
         // down the branch it takes when there is nothing to show.
         "function __WoweeFrameMT:SetSpell(slot, bookType)\n"
         "    self:ClearLines()\n"
-        "    if bookType == BOOKTYPE_PET then return false end\n"
         "    local _, spellId = GetSpellBookItemInfo(slot, bookType)\n"
         "    if not spellId or spellId == 0 then return false end\n"
-        "    self:SetSpellByID(spellId)\n"
-        "    self:Show()\n"
-        "    return true\n"
+        "    return self:SetSpellByID(spellId)\n"
         "end\n"
         "function __WoweeFrameMT:SetSpellBookItem(slot, bookType)\n"
         "    return self:SetSpell(slot, bookType)\n"
@@ -8904,60 +8910,48 @@ void LuaEngine::registerCoreAPI() {
         "end\n"
         "function __WoweeFrameMT:SetSpellByID(spellId)\n"
         "    self:ClearLines()\n"
-        "    if not spellId or spellId == 0 then return end\n"
-        // Nine values, in the client's order. This used to read the fourth as
-        // a cast time, which is where the cost is - so every spell tooltip
-        // printed its mana cost as a cast time in seconds.
+        "    if not spellId or spellId == 0 then return false end\n"
         "    local name, rank, icon, _cost, _isFunnel, _powerType, castTime, minRange, maxRange = GetSpellInfo(spellId)\n"
-        "    if name then\n"
-        "        self:SetText(name, 1, 1, 1)\n"
-        "        if rank and rank ~= '' then self:AddLine(rank, 0.5, 0.5, 0.5) end\n"
-        // The cost comes from GetSpellInfo, which is where 3.3.5 puts it.
-        //
-        // This called GetSpellPowerCost and read two scalars off it. That
-        // binding exists, but it answers the *retail* shape - a list of
-        // tables, {{type=, cost=, name=}} - so `cost` was a table and
-        // `cost > 0` raised "attempt to compare number with table" on every
-        // spell hovered in the book. Two places holding one fact and
-        // disagreeing about it; the guard `cost and` does not help, because a
-        // table is perfectly truthy.
-        //
-        // GetSpellPowerCost is a Cataclysm API and nothing in this interface
-        // calls it. GetSpellInfo's fourth and sixth values are the cost and
-        // its power type, and they were already being captured here and
-        // thrown away.
-        "        -- Mana cost\n"
-        "        local cost, costType = _cost, _powerType\n"
-        "        if cost and cost > 0 then\n"
-        "            local powerNames = {[0]='Mana',[1]='Rage',[2]='Focus',[3]='Energy',[6]='Runic Power'}\n"
-        "            self:AddLine(cost..' '..(powerNames[costType] or 'Mana'), 1, 1, 1)\n"
-        "        end\n"
-        "        -- Range\n"
-        "        if minRange and minRange > 0 and maxRange and maxRange > 0 then\n"
-        "            self:AddDoubleLine(string.format('%.0f - %.0f yd range', minRange, maxRange), '', 1,1,1, 1,1,1)\n"
-        "        elseif maxRange and maxRange > 0 then\n"
-        "            self:AddDoubleLine(string.format('%.0f yd range', maxRange), '', 1,1,1, 1,1,1)\n"
-        "        end\n"
-        "        -- Cast time\n"
-        "        if castTime and castTime > 0 then\n"
-        "            self:AddDoubleLine(string.format('%.1f sec cast', castTime / 1000), '', 1,1,1, 1,1,1)\n"
-        "        else\n"
-        "            self:AddDoubleLine('Instant', '', 1,1,1, 1,1,1)\n"
-        "        end\n"
-        "        -- Description\n"
-        "        local desc = GetSpellDescription(spellId)\n"
-        "        if desc and desc ~= '' then\n"
-        "            self:AddLine(desc, 1, 0.82, 0)\n"
-        "        end\n"
-        "        -- Cooldown\n"
-        "        local start, dur = GetSpellCooldown(spellId)\n"
-        "        if dur and dur > 0 then\n"
-        "            local rem = start + dur - GetTime()\n"
-        "            if rem > 0.1 then self:AddLine(string.format('%.0f sec cooldown', rem), 1, 0, 0) end\n"
-        "        end\n"
-        "        self.__spellId = spellId\n"
-        "        self:Show()\n"
+        "    if not name then return false end\n"
+        "    self:SetText(name, 1.0, 0.82, 0.0)\n"
+        "    if rank and rank ~= '' then self:AddLine(rank, 0.5, 0.5, 0.5) end\n"
+        "    local costStr, rangeStr = nil, nil\n"
+        "    local cost, costType = _cost, _powerType\n"
+        "    if cost and cost > 0 then\n"
+        "        local powerNames = {[0]='Mana',[1]='Rage',[2]='Focus',[3]='Energy',[6]='Runic Power'}\n"
+        "        costStr = cost..' '..(powerNames[costType] or 'Mana')\n"
         "    end\n"
+        "    if minRange and minRange > 0 and maxRange and maxRange > 0 then\n"
+        "        rangeStr = string.format('%.0f - %.0f yd range', minRange, maxRange)\n"
+        "    elseif maxRange and maxRange > 0 then\n"
+        "        rangeStr = string.format('%.0f yd range', maxRange)\n"
+        "    end\n"
+        "    if costStr and rangeStr then\n"
+        "        self:AddDoubleLine(costStr, rangeStr, 1, 1, 1, 1, 1, 1)\n"
+        "    elseif costStr then\n"
+        "        self:AddLine(costStr, 1, 1, 1)\n"
+        "    elseif rangeStr then\n"
+        "        self:AddDoubleLine('', rangeStr, 1, 1, 1, 1, 1, 1)\n"
+        "    end\n"
+        "    local castStr = (castTime and castTime > 0) and string.format('%.1f sec cast', castTime / 1000) or 'Instant'\n"
+        "    local start, dur = GetSpellCooldown(spellId)\n"
+        "    local cdStr = nil\n"
+        "    if dur and dur > 0 then\n"
+        "        local rem = start + dur - GetTime()\n"
+        "        if rem > 0.1 then cdStr = string.format('%.0f sec cooldown', rem) end\n"
+        "    end\n"
+        "    if cdStr then\n"
+        "        self:AddDoubleLine(castStr, cdStr, 1, 1, 1, 1, 1, 1)\n"
+        "    else\n"
+        "        self:AddLine(castStr, 1, 1, 1)\n"
+        "    end\n"
+        "    local desc = GetSpellDescription(spellId)\n"
+        "    if desc and desc ~= '' then\n"
+        "        self:AddLine(desc, 1, 0.82, 0, 1)\n"
+        "    end\n"
+        "    self.__spellId = spellId\n"
+        "    self:Show()\n"
+        "    return true\n"
         "end\n"
         // Answers whether it filled anything, because the caller asks:
         // ActionButton_SetTooltip is `if (GameTooltip:SetAction(self.action))`,

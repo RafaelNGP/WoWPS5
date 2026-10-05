@@ -658,7 +658,19 @@ static int lua_GetSpellTabInfo(lua_State* L) {
 static int lua_GetSpellBookItemInfo(lua_State* L) {
     auto* gh = getGameHandler(L);
     int slot = static_cast<int>(luaL_checknumber(L, 1));
+    const char* bookType = luaL_optstring(L, 2, "spell");
     if (!gh || slot < 1) {
+        lua_pushstring(L, "SPELL");
+        lua_pushnumber(L, 0);
+        return 2;
+    }
+    if (bookType && std::string(bookType) == "pet") {
+        const auto& pet = gh->getPetSpells();
+        if (slot <= static_cast<int>(pet.size())) {
+            lua_pushstring(L, "SPELL");
+            lua_pushnumber(L, pet[slot - 1]);
+            return 2;
+        }
         lua_pushstring(L, "SPELL");
         lua_pushnumber(L, 0);
         return 2;
@@ -682,15 +694,29 @@ static int lua_GetSpellBookItemInfo(lua_State* L) {
 static int lua_GetSpellBookItemName(lua_State* L) {
     auto* gh = getGameHandler(L);
     int slot = static_cast<int>(luaL_checknumber(L, 1));
+    const char* bookType = luaL_optstring(L, 2, "spell");
     if (!gh || slot < 1) { return luaReturnNil(L); }
+    if (bookType && std::string(bookType) == "pet") {
+        const auto& pet = gh->getPetSpells();
+        if (slot <= static_cast<int>(pet.size())) {
+            uint32_t spellId = pet[slot - 1];
+            const std::string& name = gh->getSpellName(spellId);
+            const std::string& rank = gh->getSpellRank(spellId);
+            lua_pushstring(L, name.empty() ? "Unknown" : name.c_str());
+            lua_pushstring(L, rank.c_str());
+            return 2;
+        }
+        return luaReturnNil(L);
+    }
     const auto& tabs = gh->getSpellBookTabs();
     int idx = slot;
     for (const auto& tab : tabs) {
         if (idx <= static_cast<int>(tab.spellIds.size())) {
             uint32_t spellId = tab.spellIds[idx - 1];
             const std::string& name = gh->getSpellName(spellId);
+            const std::string& rank = gh->getSpellRank(spellId);
             lua_pushstring(L, name.empty() ? "Unknown" : name.c_str());
-            lua_pushstring(L, ""); // subName/rank
+            lua_pushstring(L, rank.c_str());
             return 2;
         }
         idx -= static_cast<int>(tab.spellIds.size());
