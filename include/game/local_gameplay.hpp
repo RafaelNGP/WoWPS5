@@ -1314,6 +1314,10 @@ struct LocalSpellDefinition {
     // of the health the direct hit took (Spell.cpp's health leech handling,
     // EffectValueMultiplier x 100, no overkill).
     uint16_t directLeechPct = 0;
+    // Incinerate (warlock family flags[1] 0x40, icon 2128): a quarter more
+    // direct damage on a target with a warlock Immolate (periodic, flags[0]
+    // 0x4) from anyone (Spell::EffectSchoolDMG).
+    bool immolateBonus = false;
 
     std::string iconPath, unsupportedReason;
 };

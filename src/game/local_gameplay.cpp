@@ -2860,7 +2860,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(d.controlProfile);hash(d.controlEffectSlot);hash(d.armorDebuffPct);hash(d.armorDebuffEffectSlot);
         for(const auto* a:{&d.targetDebuffAttackPower,&d.targetDebuffResistance,&d.targetDebuffDamageTakenPct,&d.targetDebuffCastSpeedPct})hash(uint32_t(*a));
         hash(uint32_t(d.targetDebuffResistanceSchool)|uint32_t(d.targetDebuffDamageTakenSchool)<<8|uint32_t(d.targetDebuffArmorPct)<<16|uint32_t(d.targetDebuffEffectMask)<<24);
-        hash(uint32_t(d.controlDamageCapPct)|uint32_t(d.controlSingleTarget)<<8);hash(uint32_t(d.classBuffHealingTakenPct));hash(d.lifeTapAmount);hash(uint32_t(d.createItemUnique));hash(uint32_t(d.directLeechPct));{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);}
+        hash(uint32_t(d.controlDamageCapPct)|uint32_t(d.controlSingleTarget)<<8);hash(uint32_t(d.classBuffHealingTakenPct));hash(d.lifeTapAmount);hash(uint32_t(d.createItemUnique));hash(uint32_t(d.directLeechPct)|uint32_t(d.immolateBonus)<<16);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -7097,6 +7097,10 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
             const bool critical=g.rollSpellCritical(p,*d,chainNpcs[i]);
             parentTargetCritical=parentTargetCritical||critical;
             const auto healthBefore=chainNpcs[i]->health;
+            if(d->immolateBonus&&std::any_of(g.periodicDamage.begin(),g.periodicDamage.end(),[&](const auto& a){
+                   const auto* pd=c.spell(a.spell);
+                   return a.target==chainNpcs[i]->guid&&a.remaining&&pd&&pd->spellFamily==5&&(pd->spellFamilyFlags[0]&0x4u);}))
+                amount+=amount/4;
             g.damageNpc(*chainNpcs[i],p,critical?localMagicCriticalAmount(amount):amount,players,
                 (!d->clientSpell||(d->schoolMask&1))&&!d->directIgnoresArmor,d->id,false,0,nullptr,
                 critical?LocalMeleeOutcome::Critical:meleeOutcome,false,blockValue);

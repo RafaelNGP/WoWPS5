@@ -446,9 +446,13 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
-            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0},
         };
         size_t passed = 0;
+        // Incinerate carries the Immolate bonus (a quarter more on an Immolated target).
+        if (const auto inc = std::find_if(clientSpells->begin(), clientSpells->end(), [](const auto& d) { return d.id == 47838; });
+            inc == clientSpells->end() || !inc->immolateBonus || !inc->unsupportedReason.empty()) {
+            out << "FAIL class ability Incinerate: no Immolate bonus\n"; return false; }
         // A level 4 warlock's Corruption (rank 1 carries an empty DUMMY beside its DoT).
         const auto lowIt = std::find_if(clientSpells->begin(), clientSpells->end(), [](const auto& d) { return d.id == 172; });
         if (const auto* low = lowIt == clientSpells->end() ? nullptr : &*lowIt; !low || !low->unsupportedReason.empty() || !low->periodicDamage) {

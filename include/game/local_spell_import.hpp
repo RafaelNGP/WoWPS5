@@ -1199,10 +1199,15 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // flags) and no run speed.
     const bool horrorCoil=!creatureCaster&&d.spellFamily==5&&u(71)==9&&u(86)==6&&!u(89)&&u(72)==6&&u(96)==7&&u(87)==6&&!u(90)&&
         !u(117)&&!u(73)&&!u(spell335::ProcFlags)&&!u(spell335::ProcCharges)&&std::isfinite(f(101))&&f(101)>0&&f(101)<=10;
+    // Incinerate: one direct fire hit and nothing else; its ProcCharges column
+    // is meaningless without an aura (charges belong to auras).
+    const bool incinerate=!creatureCaster&&d.spellFamily==5&&(d.spellFamilyFlags[1]&0x40u)&&u(133)==2128&&
+        u(71)==2&&u(86)==6&&!u(89)&&!u(72)&&!u(73)&&!u(spell335::ProcFlags);
+    if(incinerate)d.immolateBonus=true;
     const bool fearControl=!creatureCaster&&u(71)==6&&u(95)==7&&u(86)==6&&!u(89)&&!u(116)&&
         u(72)==6&&u(96)==31&&u(87)==6&&!u(90)&&!u(117)&&!u(73)&&!u(spell335::ProcCharges)&&
         !(u(spell335::AuraInterruptFlags)&kLocalAuraInterruptTakeDamage);
-    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&d.id!=1784) // Stealth: its damage and attack breaks are the form rule
+    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!incinerate&&d.id!=1784) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
     // Spell.dbc column 38 is BaseLevel and column 39 is SpellLevel
     // (DBCStructure.h:1679-1680). previously both this field and d.spellLevel
