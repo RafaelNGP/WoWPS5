@@ -1188,7 +1188,7 @@ void Application::renderLocalRealmOverlay() {
         }
         ImGui::EndChild();
         ImGui::Separator();
-        ImGui::Text("Inventory: %zu / %zu slots",self.inventory.size(),game::LocalGameplay::MaxInventory);
+        ImGui::Text("Inventory: %zu / %zu slots",self.inventory.size(),game::localPlayerStorageCapacity(self));
         ImGui::TextDisabled("Equipped copies remain in inventory.");
         for (size_t inventoryIndex = 0; inventoryIndex < self.inventory.size(); ++inventoryIndex) {
             const auto& stack = self.inventory[inventoryIndex];

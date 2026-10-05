@@ -48,7 +48,8 @@ inline bool prepareLocalMail(const LocalRealmPlayer& sender,const LocalRealmPlay
     auto reject=[&](const char* why){error=why;return false;};
     if(sender.guid==recipient.guid || !recipient.guid || localChatTeam(sender.race)!=localChatTeam(recipient.race))return reject("Choose another saved character of your faction");
     if(!localMailTextValid(subject,64) || !localMailTextValid(body,160) || attachments.size()>12 || money>1000000000 || cod>1000000000 || (cod && (money || attachments.empty())))return reject("Invalid letter, attachment count or money");
-    std::array<bool,LocalGameplay::MaxInventory> seen{};
+    const size_t cap = localPlayerStorageCapacity(sender);
+    std::vector<bool> seen(cap, false);
     for(const auto& item:attachments){
         if(!item.item || item.bag>=seen.size() || seen[item.bag] || !localTradeItemValid(sender,item,content))return reject("An attachment changed, is equipped or cannot be mailed");
         seen[item.bag]=true;

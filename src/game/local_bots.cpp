@@ -86,7 +86,7 @@ bool giveCarried(LocalRealmPlayer& player, const LocalItemDefinition& item, uint
         remaining = static_cast<uint16_t>(remaining - put);
     }
     while (remaining > 0) {
-        if (candidate.size() >= LocalGameplay::MaxInventory) return false;
+        if (candidate.size() >= localPlayerStorageCapacity(player)) return false;
         const uint16_t put = std::min(stackSize, remaining);
         candidate.push_back({item.id, put});
         remaining = static_cast<uint16_t>(remaining - put);
@@ -556,7 +556,7 @@ bool LocalBotDirector::buyout(uint32_t auctionId, LocalRealmPlayer& buyer,
 bool LocalBotDirector::listStacksPriced(LocalRealmPlayer& seller, uint32_t itemId,
         uint16_t count, uint16_t stacks, uint32_t bid, uint32_t buyout, uint32_t durationMinutes,
         const LocalWorldContent& content, std::string& result) {
-    if (!stacks || stacks > LocalGameplay::MaxInventory ||
+    if (!stacks || stacks > localPlayerStorageCapacity(seller) ||
         auctions_.size() + stacks > MaxAuctions || uint64_t(nextAuctionId_) + stacks >= UINT32_MAX) {
         result = "Invalid stack count or insufficient auction space"; return false;
     }

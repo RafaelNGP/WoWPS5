@@ -4741,7 +4741,7 @@ bool LocalGameplay::validatePlayer(const LocalRealmPlayer& p, std::string& error
     if (!p.gameplayInitialized) return true; // B1 is migrated with its original position/identity.
     const auto& c = content();
     const auto invalid = [&](const std::string& reason) { error = "Saved character " + p.name + " is incompatible with world content: " + reason + ". Original save preserved."; return false; };
-    if (p.inventory.size() > MaxInventory || p.quests.size() > MaxQuests || p.knownSpells.size() > MaxSpells ||
+    if (p.inventory.size() > localPlayerStorageCapacity(p) || p.quests.size() > MaxQuests || p.knownSpells.size() > MaxSpells ||
         p.knownRecipes.size() > MaxRecipes || p.cooldowns.size() > MaxCooldowns || !validLocalCategoryCooldowns(p) ||
         !p.phaseMask || !validLocalScriptStates(p.scriptStates) || !validLocalScriptTimers(p.scriptTimers) ||
         !validLocalScriptAreaIds(p.scriptAreaIds) || p.scriptAreaInstanceId>65535 ||

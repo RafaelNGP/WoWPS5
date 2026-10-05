@@ -1922,7 +1922,6 @@ struct LocalRealm::Impl {
                 record.player.knownRecipes.size() > LocalGameplay::MaxRecipes || record.player.knownTaxiNodes.size()>512 ||
                 record.player.professions.size() > LocalGameplay::MaxProfessions ||
                 !validBuyback(record.player.buybackSerial, record.player.buyback) ||
-                !validLocalInventoryLayout(record.player) ||
                 !std::all_of(record.player.inventory.begin(),record.player.inventory.end(),[](const auto& item){return validLocalItemInstance(item);}) ||
                 !std::all_of(record.player.bagContainers.begin(),record.player.bagContainers.end(),[](const auto& item){return validLocalItemInstance(item) && (!item.itemId || localItemContainerSlots(item.itemId) > 0);}) ||
                 !std::all_of(record.player.bankBagContainers.begin(),record.player.bankBagContainers.end(),[](const auto& item){return validLocalItemInstance(item) && (!item.itemId || localItemContainerSlots(item.itemId) > 0);}) ||

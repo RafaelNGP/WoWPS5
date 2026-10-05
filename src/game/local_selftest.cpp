@@ -14,6 +14,7 @@
 #include "game/local_pet.hpp"
 #include "game/local_world_catalog.hpp"
 #include "game/local_inventory_layout.hpp"
+#include "game/local_mail.hpp"
 #include "game/local_quest_marker.hpp"
 #include "game/local_quest_eligibility.hpp"
 #include "game/local_spell_target_rules.hpp"
@@ -1489,6 +1490,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
     {
         LocalGameplay world;
         if (!world.loadContent(worldPath, error)) { out << error << "\n"; return false; }
+        if (clientSpells) SELFTEST_CHECK(world.setStarterSpells(*clientSpells, "selftest", error));
         world.useContent(world.sharedContent());
         std::vector<LocalRealmPlayer*> players;
         std::string res;
@@ -1677,6 +1679,65 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         pushItem(5956, 1);
         SELFTEST_CHECK(world.execute(p, {LocalAction::CraftItem, 1, 3321}, players, res));
         SELFTEST_CHECK(hasItem(2853) >= 1);
+
+        // Remove Blacksmith Hammer, add Gnomish Army Knife (40772) -> also crafts successfully
+        p.inventory.erase(std::remove_if(p.inventory.begin(), p.inventory.end(), [](const auto& s){ return s.itemId == 5956; }), p.inventory.end());
+        pushItem(2840, 1); // another copper bar
+        SELFTEST_CHECK(!world.execute(p, {LocalAction::CraftItem, 1, 3321}, players, res));
+        pushItem(40772, 1);
+        SELFTEST_CHECK(world.execute(p, {LocalAction::CraftItem, 1, 3321}, players, res));
+        SELFTEST_CHECK(hasItem(2853) >= 2);
+
+        // 6g. Bank bag slots at friendly banker
+        LocalRealmNpc banker;
+        banker.guid = 8888;
+        banker.entry = 3418;
+        banker.banker = true;
+        banker.mapId = p.mapId;
+        banker.x = p.x; banker.y = p.y; banker.z = p.z;
+        world.setRemoteNpcs({banker});
+
+        // Try equipping bank bag without banker -> rejected
+        pushItem(4496, 1);
+        LocalRealmCommand bankEquipCmd{LocalAction::EquipItem, 24, 4496};
+        SELFTEST_CHECK(!world.execute(p, bankEquipCmd, players, res));
+
+        // Equip bank bag with banker -> succeeds
+        bankEquipCmd.serviceNpcGuid = banker.guid;
+        SELFTEST_CHECK(world.execute(p, bankEquipCmd, players, res));
+        SELFTEST_CHECK(p.bankBagContainers[0].itemId == 4496);
+
+        // Try unequipping bank bag without banker -> rejected
+        LocalRealmCommand bankUnequipCmd{LocalAction::UnequipItem, 0, 24};
+        SELFTEST_CHECK(!world.execute(p, bankUnequipCmd, players, res));
+
+        // Unequip bank bag with banker -> succeeds
+        bankUnequipCmd.serviceNpcGuid = banker.guid;
+        SELFTEST_CHECK(world.execute(p, bankUnequipCmd, players, res));
+        SELFTEST_CHECK(p.bankBagContainers[0].itemId == 0);
+
+        // 6h. Validate character with expanded inventory (> 24 items)
+        pushItem(4496, 1);
+        SELFTEST_CHECK(world.execute(p, {LocalAction::EquipItem, 0, 4496}, players, res));
+        SELFTEST_CHECK(localPlayerStorageCapacity(p) == 30);
+        while (p.inventory.size() < 26) {
+            pushItem(2835, 1);
+        }
+        SELFTEST_CHECK(world.validatePlayer(p, res));
+
+        // 6i. Mail attachment from expanded bag slot (slot >= 24)
+        LocalRealmPlayer recipient = p;
+        recipient.guid = 999999;
+        recipient.name = "Recipient";
+        LocalRealmPlayer mailCandidate;
+        LocalMail mailLetter;
+        auto bagStackIt = std::find_if(p.inventory.begin(), p.inventory.end(), [](const auto& s){ return s.bagSlot >= 24; });
+        SELFTEST_CHECK(bagStackIt != p.inventory.end());
+        const uint8_t mailBagSlot = bagStackIt->bagSlot;
+        const uint32_t mailItemId = bagStackIt->itemId;
+        p.money = 10000;
+        SELFTEST_CHECK(prepareLocalMail(p, recipient, "Bag Item", "Here is an item from my bag", 0, 0,
+                                        {{mailItemId, 1, 1, mailBagSlot}}, world.content(), mailCandidate, mailLetter, res));
 
         out << "PASS bags & professions (G6): bag container slots, dynamic inventory expansion, unequip restrictions, mining harvesting, smelting at forge, blacksmithing at anvil\n";
     }

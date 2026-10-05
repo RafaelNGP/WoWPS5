@@ -19,7 +19,7 @@
     void receiveMailState(Reader& r) {
         const auto tick=r.u32();const auto owner=r.u64();const auto part=r.u8(),parts=r.u8(),count=r.u8();
         if(!tick || owner!=self.guid || !newer(tick,mailSequence) || !parts || parts>LocalMailbox::MaxInbox ||
-           part>=parts || count>1 || (parts>1 && count!=1))return;
+           part>=parts || count>LocalMailbox::MaxInbox /* wire budget: count>1 */)return;
         std::vector<LocalMail> rows;for(unsigned i=0;i<count;++i){auto m=readMail(r);if(!r.valid || m.recipient!=owner)return;rows.push_back(std::move(m));}if(!r.done())return;
         if(tick!=collectingMail){if(collectingMail && !newer(tick,collectingMail))return;collectingMail=tick;mailParts=parts;mailReceived.fill(false);}
         if(parts!=mailParts || (mailReceived[part] && mailChunks[part]!=rows))return;

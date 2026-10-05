@@ -105,7 +105,7 @@ int main(){
  for(const auto& row:h.saved){old.u64(row.identity.a);old.u64(row.identity.b);writePlayer(old,row.player);writeProgress(old,row.player,13);writeAppearance(old,row.player);old.u32(0);old.u8(row.player.introSeen);writeBuyback(old,row.player.buybackSerial,row.player.buyback);}
  old.u8(0);old.u64(0);old.u16(0);old.u16(1);old.u64(2);old.u32(117);old.u32(0);old.u16(3);old.u16(0);old.u32(h.botDirector.nextAuctionId());old.u32(checksum(old.bytes.data(),old.bytes.size()));auto legacy=old.bytes;
  assert(atomicWrite(good+"/legacy13.wprs",legacy,false));assert(loaded.parseSave(good+"/legacy13.wprs"));assert(loaded.mailbox.messages.empty() && loaded.botDirector.deliveries().size()==1);
- std::fill(bytes.end()-11,bytes.end()-7,0);Writer badsum;badsum.u32(checksum(bytes.data(),bytes.size()-4));std::copy(badsum.bytes.begin(),badsum.bytes.end(),bytes.end()-4);
+ std::fill(bytes.end()-16,bytes.end()-12,0);Writer badsum;badsum.u32(checksum(bytes.data(),bytes.size()-4));std::copy(badsum.bytes.begin(),badsum.bytes.end(),bytes.end()-4);
  assert(atomicWrite(good+"/bad-mail.wprs",bytes,false));assert(!loaded.parseSave(good+"/bad-mail.wprs"));assert(loaded.botDirector.deliveries().size()==1);
  std::cout<<"PASS save migration: legacy Save13 escrow retained; invalid mail sequence rejected before state mutation\n";
  // Purchases succeed with full bags and enqueue both buyer goods and seller money.
