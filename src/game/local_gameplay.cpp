@@ -3149,7 +3149,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -7609,7 +7609,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         if(d->apBonusPer100k||d->steadyShot) {
             const auto* autoShot=c.spell(75);
             const auto ranged=(d->apBonusRanged||d->steadyShot)&&autoShot?localRangedAmounts(p,c,*autoShot):LocalRangedAmounts{};
-            const float ap=d->apBonusRanged?ranged.attackPower:localMeleeStats(p,c).attackPower;
+            const float ap=d->apBonusRanged?ranged.attackPower+float(n?localNpcRangedAttackerAp(*n):0):localMeleeStats(p,c).attackPower;
             float extra=ap*float(d->apBonusPer100k)/100000.f;
             if(d->steadyShot&&ranged.active)
                 extra+=ranged.weaponLow+float(g.meleeRoll(1000))/1000.f*(ranged.weaponHigh-ranged.weaponLow)+ranged.ammoBonus;
@@ -7726,8 +7726,14 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
             case 22:b.resistance=d->targetDebuffResistance;b.resistanceSchool=d->targetDebuffResistanceSchool;break;
             case 87:b.damageTakenPct=d->targetDebuffDamageTakenPct;b.damageTakenSchool=d->targetDebuffDamageTakenSchool;break;
             case 216:b.castSpeedPct=d->targetDebuffCastSpeedPct;break;
+            case 127:b.rangedAttackerAp=d->targetDebuffRangedAttackerAp;break;
             default:break;
         }
+        // One creature per caster (Hunter's Mark): the same chain from this
+        // caster leaves every other creature as it lands here.
+        if(d->controlSingleTarget&&d->targetDebuffRangedAttackerAp)for(auto& other:g.npcs)if(&other!=n)
+            std::erase_if(other.npcBuffs,[&](const auto& o){const auto* od=c.spell(o.spellId);
+                const bool gone=o.casterGuid==p.guid&&od&&localSameRankChain(c,*od,*d);if(gone)g.npcBuffRemoved(other,o);return gone;});
         if(debuffSlot<n->npcBuffs.size()){g.npcBuffRemoved(*n,n->npcBuffs[debuffSlot]);n->npcBuffs[debuffSlot]=b;}
         else{debuffSlot=n->npcBuffs.size();n->npcBuffs.push_back(b);}
         sweepNoStack(n->npcBuffs,debuffSlot,[&](size_t i){return n->npcBuffs[i].spellId;},
@@ -8742,7 +8748,10 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                     const bool rangedImmune=rangedTarget&&localNpcImmuneToSpell(*rangedTarget,*n,schoolDefinition,false);
                     const auto outcome=rangedImmune?LocalMeleeOutcome::Immune:localRollRanged(*p,*n,weapon,g.meleeRoll(),g.meleeRoll(),wand);
                     const float multiplier=outcome==LocalMeleeOutcome::Critical?(wand?1.5f:2.f):1.f;
-                    const auto damage=uint32_t(std::clamp((weapon.low+(weapon.high-weapon.low)*g.meleeRoll()/9999.f)*multiplier,0.f,1000000.f));
+                    // Hunter's Mark: the marked creature's attacker ranged attack power,
+                    // as the weapon's AP/14 x speed term.
+                    const float mark=wand?0.f:float(localNpcRangedAttackerAp(*n))/14.f*float(weapon.basePeriodMs)/1000.f;
+                    const auto damage=uint32_t(std::clamp((weapon.low+mark+(weapon.high-weapon.low)*g.meleeRoll()/9999.f)*multiplier,0.f,1000000.f));
                     const bool blocked=!wand&&outcome!=LocalMeleeOutcome::Miss&&localRollMeleeSpecialBlock(*p,*n,g.meleeRoll());
                     // Creature::GetShieldBlockValue (Creature.h:158-161) is
                     // level / 2 + strength / 20, and a plain creature's

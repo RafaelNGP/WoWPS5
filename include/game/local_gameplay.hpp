@@ -1452,6 +1452,9 @@ struct LocalSpellDefinition {
     // Steady Shot (Spell::EffectSchoolDMG's hunter branch): the ranged weapon's
     // damage roll and the ammunition's DPS x weapon speed on top.
     bool steadyShot = false;
+    // Hunter's Mark: the ranged attack power its RANGED_ATTACK_POWER_ATTACKER_BONUS
+    // gives attackers of the marked creature, one creature per hunter.
+    int32_t targetDebuffRangedAttackerAp = 0;
     // Death Grip (spell_dk_death_grip on 49576): the creature is pulled in
     // front of the knight (49560's jump, 57604), its cast stops, and it is
     // taunted (49560's MOD_TAUNT and SPELL_EFFECT_ATTACK_ME).
@@ -1828,6 +1831,9 @@ struct LocalNpcBuff {
     bool invisible=false;
     // A player's curse (authority-only): armor MOD_RESISTANCE_PCT taken off.
     uint8_t armorPct=0;
+    // Hunter's Mark (authority-only): SPELL_AURA_RANGED_ATTACK_POWER_ATTACKER_BONUS,
+    // ranged attack power every attacker gains against this creature.
+    int32_t rangedAttackerAp=0;
     bool operator==(const LocalNpcBuff&) const = default;
 };
 /// The sum of one creature-buff field over the creature's live buffs

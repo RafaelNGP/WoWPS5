@@ -41,6 +41,11 @@ inline bool validLocalNpcSnares(const LocalRealmNpc& n,const LocalWorldContent& 
 // P04. The reference's stun implies root (Unit::SetStunned clears the unit's
 // movement before anything else), so one predicate answers both the pursuit and
 // the swing question. Silence suppresses only the cast tick.
+/// SPELL_AURA_RANGED_ATTACK_POWER_ATTACKER_BONUS on a creature (Hunter's Mark).
+inline int32_t localNpcRangedAttackerAp(const LocalRealmNpc& n) {
+    int32_t ap=0;for(const auto& b:n.npcBuffs)if(b.remainingMs||b.indefinite)ap+=b.rangedAttackerAp;
+    return ap;
+}
 /// SPELL_AURA_MOD_ROOT: the creature keeps attacking and casting but does not move.
 inline bool localNpcRooted(const LocalRealmNpc& n) {
     for(const auto& a:n.controls)

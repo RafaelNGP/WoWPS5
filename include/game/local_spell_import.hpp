@@ -1575,6 +1575,16 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             else taken=false;
             if(taken){d.targetDebuffEffectMask|=uint8_t(1u<<effect);harm=true;continue;}
         }
+        // Hunter's Mark: MOD_STALKED (68, the creature seen; nothing to change
+        // here) and RANGED_ATTACK_POWER_ATTACKER_BONUS (127) on one hostile
+        // creature, the hunter's creature aura; one creature per hunter
+        // (SPELL_ATTR5_SINGLE_TARGET_SPELL).
+        if(!creatureCaster&&d.spellFamily==9&&type==6&&u(86+effect)==6&&!u(89+effect)&&!u(116+effect)&&
+           (u(95+effect)==68||u(95+effect)==127)&&u(74+effect)<=1&&f(77+effect)==0&&d.durationMs&&d.durationMs<=600000&&!u(spell335::ProcFlags)) {
+            const int32_t amount=i(80+effect)+int32_t(u(74+effect));
+            if(u(95+effect)==127&&amount>0&&amount<=100000)d.targetDebuffRangedAttackerAp=amount;
+            d.targetDebuffEffectMask|=uint8_t(1u<<effect);d.controlSingleTarget=(u(9)&0x20u)!=0;harm=true;continue;
+        }
         // Demoralizing Shout: area attack-power debuff on enemies around caster
         if(!creatureCaster&&d.spellFamily==4&&(d.spellFamilyFlags[0]&0x20000u)&&
            type==6&&u(95+effect)==99&&u(86+effect)==22&&(u(89+effect)==15||!u(89+effect))&&!u(116+effect)&&
