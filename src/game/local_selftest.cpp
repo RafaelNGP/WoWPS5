@@ -7,6 +7,7 @@
 #include "game/local_auction_catalog.hpp"
 #include "game/local_equipment.hpp"
 #include "game/local_melee.hpp"
+#include "game/local_stat_auras.hpp"
 #include "game/local_feral_talents.hpp"
 #include "game/local_ranged.hpp"
 #include "game/local_pet.hpp"
@@ -418,7 +419,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // Shadow Bolts that spend the cap (each hit spends what it dealt). 28 is
         // a warlock armor: more armor and more healing taken while held, and
         // Demon Skin replaces Demon Armor (SPELL_SPECIFIC_WARLOCK_ARMOR). 29 is
-        // Life Tap: health for the same mana, refused when it would kill.
+        // Life Tap: health for the same mana, refused when it would kill. 30 is
+        // a one-school absorb (Shadow Ward): it takes shadow damage, not fire.
         struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
@@ -442,7 +444,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
-            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30},
         };
         size_t passed = 0;
         // A level 4 warlock's Corruption (rank 1 carries an empty DUMMY beside its DoT).
@@ -488,7 +490,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             }
             const uint32_t reagentBefore = [&] { const auto* sd = content.spell(spellId); uint32_t n = 0;
                 for (const auto& st : p.inventory) if (sd && st.itemId == sd->reagentItems[0]) n += st.count; return n; }();
-            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || (a.kind >= 12 && a.kind <= 14) || a.kind == 16 || a.kind == 20 || a.kind == 28 || a.kind == 29) {
+            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || (a.kind >= 12 && a.kind <= 14) || a.kind == 16 || a.kind == 20 || a.kind == 28 || a.kind == 29 || a.kind == 30) {
                 const auto meleeBefore = localMeleeStats(p, content); const auto healthBefore = p.maxHealth; const auto items = p.inventory.size();
                 const auto armorBefore = localMeleeArmor(p, content);
                 const auto* autoShot = content.spell(75);
@@ -522,6 +524,13 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     ok = ok && !second && p.health == tapped;
                     if (!ok) result = "tapped " + std::to_string(tapped) + " mana " + std::to_string(p.mana) + " second " + std::to_string(second) + " (" + result + " / " + refused + ")";
                     p.health = p.maxHealth;
+                }
+                if (a.kind == 30 && ok) {
+                    const auto* sd = content.spell(spellId);
+                    const auto fire = localAbsorbDamage(p, content, 100, 4);
+                    const auto shadow = localAbsorbDamage(p, content, 100, 32);
+                    ok = sd && sd->absorbSchoolMask == 32 && fire == 100 && shadow == 0;
+                    if (!ok) result = "fire left " + std::to_string(fire) + " shadow left " + std::to_string(shadow) + " (" + result + ")";
                 }
                 if (a.kind == 28 && ok) {
                     const auto held = [&](const char* name) { for (const auto& s : p.statAuras) if (const auto* sd = content.spell(s.spellId); sd && sd->name == name && s.remainingMs) return sd; return (const LocalSpellDefinition*)nullptr; };
@@ -790,7 +799,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, fears, armor reductions, curses, warlock armors, Life Tap, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, fears, armor reductions, curses, warlock armors, Life Tap, school wards, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.

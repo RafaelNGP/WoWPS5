@@ -1582,7 +1582,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         } else if(reactive && effect==1 && type==6 && u(96)==85 && low>0) {
             d.manaPer5=low;buff=true;buffTarget=1;
         } else if(type==6 && (u(95+effect)==34 || (u(95+effect)==22 && u(110+effect)==1) ||
-             (u(95+effect)==69 && (u(110+effect)==1 || u(110+effect)==127))) &&
+             (u(95+effect)==69 && u(110+effect) && u(110+effect)<=127)) &&
            (target==1 || target==21 || target==25) && !secondary && d.durationMs && scale==0 && dice<=1 && low>0 &&
            !u(spell335::ProcFlags) && !u(spell335::ProcCharges) && !u(116+effect) && !(u(4)&64u)) {
             if(buffTarget && buffTarget!=target)unavailable("Mixed buff targets are not implemented");
