@@ -1219,7 +1219,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     const bool fearControl=!creatureCaster&&u(71)==6&&u(95)==7&&u(86)==6&&!u(89)&&!u(116)&&
         u(72)==6&&u(96)==31&&u(87)==6&&!u(90)&&!u(117)&&!u(73)&&!u(spell335::ProcCharges)&&
         !(u(spell335::AuraInterruptFlags)&kLocalAuraInterruptTakeDamage);
-    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!rootControl&&!incinerate&&d.id!=1784&&
+    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!rootControl&&!incinerate&&d.id!=1784&&d.id!=21084&&d.id!=20154&&
        !(d.id==6346&&u(spell335::ProcCharges)==1)&&!(d.id==22812&&!u(spell335::ProcChance))) // Fear Ward's immunity charge, Barkskin's inert proc (classBuff) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
     // Spell.dbc column 38 is BaseLevel and column 39 is SpellLevel
@@ -1291,7 +1291,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     else if(!creatureCaster&&u(20)==10&&d.spellFamily==4&&!u(21)&&!u(22)&&!u(23)&&!u(24)&&!u(25)&&!u(26)&&!u(27))d.requiresVictoryRush=true;
     // Stealth's CasterAuraStateNot 12 (Faerie Fire) never holds here: no
     // creature in this realm casts it on a player.
-    else if(u(20)||u(21)||(u(22)&&!((d.id==1784||d.id==kLocalProwlSpell)&&u(22)==12))||u(23)||u(24)||u(25)||
+    else if((u(20)&&!(u(20)==5&&d.spellFamily==10&&(d.id==20271||d.id==53408||d.id==53407)))||u(21)||(u(22)&&!((d.id==1784||d.id==kLocalProwlSpell)&&u(22)==12))||u(23)||u(24)||u(25)||
             (u(26)&&!localRealmMarkerAura(u(26)))||(u(27)&&!chargeSpell&&!localRealmMarkerAura(u(27)))) unavailable("Aura requirements are not implemented");
     // The exclusion markers the realm itself applies (Forbearance family).
     if(!creatureCaster&&localRealmMarkerAura(u(26)))d.excludeCasterAuraSpell=u(26);
@@ -1522,6 +1522,23 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         if(!creatureCaster&&d.spellFamily==9&&(d.spellFamilyFlags[1]&0x1u)&&effect==1&&type==3&&!u(87)&&u(71)==2){d.steadyShot=true;continue;}
         // Strangulate: an empty dummy aura (no script at the pin) beside the silence.
         if(!creatureCaster&&d.id==47476&&type==6&&u(95+effect)==4&&!i(80+effect)&&!u(74+effect))continue;
+        // Seal of Righteousness: two dummy auras and an empty spell modifier on
+        // the paladin; the script does the work (spell_pal_seal_of_righteousness).
+        // Effect 2's amount names the judgement it unleashes.
+        if(!creatureCaster&&d.spellFamily==10&&(d.id==21084||d.id==20154)) {
+            if(type!=6||u(86+effect)!=1)unavailable("Unreviewed seal row");
+            else if(u(95+effect)==4&&effect==2&&u(80+effect)+1==20187){ // Judgement of Righteousness: 1 + 0.2 AP (spell_bonus_data)
+                d.sealJudgementSpell=20187;d.sealJudgementBase=1;d.sealJudgementApPer100k=20000;}
+            if(!d.sealOfRighteousness){d.sealOfRighteousness=true;d.classBuff=true;buff=true;buffTarget=1;
+                if(!d.sealJudgementSpell){d.sealJudgementSpell=54158;d.sealJudgementBase=1;d.sealJudgementApPer100k=16000;}} // the generic judgement: 0.16 AP
+            continue;
+        }
+        // A judgement: its script effect is spell_pal_judgement's.
+        if(!creatureCaster&&d.spellFamily==10&&(d.id==20271||d.id==53408||d.id==53407)) {
+            if(type==77&&u(86+effect)==6){d.judgementDebuff=d.id==20271?20185u:d.id==53408?20186u:20184u;harm=true;}
+            else unavailable("Unreviewed judgement row");
+            continue;
+        }
         // Fire Nova: its dummy is the script's; the damage, school and radius are
         // the triggered rank's (one SCHOOL_DAMAGE at the totem's enemy area).
         if(!creatureCaster&&d.spellFamily==11&&localFireNovaTriggered(d.id)&&effect==0&&type==3) {

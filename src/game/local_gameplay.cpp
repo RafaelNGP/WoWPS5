@@ -77,6 +77,11 @@ namespace wowee::game {
 namespace {
 // Unit::SpellHealingBonusTaken: the recipient's own MOD_HEALING_PCT class
 // buffs (Demon Skin, Demon Armor) multiply with the creature views.
+const LocalSpellDefinition* localActiveSeal(const LocalRealmPlayer& p,const LocalWorldContent& c){
+    for(const auto& a:p.statAuras)if(a.remainingMs&&a.mapId==p.mapId&&a.instanceId==p.instanceId)
+        if(const auto* d=c.spell(a.spellId);d&&d->sealOfRighteousness)return d;
+    return nullptr;
+}
 bool localFeigningDeath(const LocalRealmPlayer& p,const LocalWorldContent& c){
     for(const auto& a:p.statAuras)if(a.remainingMs)if(const auto* d=c.spell(a.spellId);d&&d->classBuffFeignDeath)return true;
     return false;
@@ -1968,6 +1973,24 @@ struct LocalGameplay::Impl {
             LOG_INFO("[LOCAL_CONTROL] broken npc=",n.guid," by spell=",exceptSpell,
                      " remaining=",n.controls.size());
     }
+    // A paladin's melee hit on `n` (a swing, a melee special or a judgement):
+    // spell_pal_seal_of_righteousness adds 0.022 x AP x weapon speed of holy
+    // damage (25742); a judgement debuff on the creature heals (Light, 2% of
+    // health) or refills (Wisdom, 2% of base mana) the attacker, 15 per minute.
+    void paladinMeleeProcs(LocalRealmNpc& n,LocalRealmPlayer& attacker,const std::vector<LocalRealmPlayer*>& players,bool judgement) {
+        if(n.dead)return;
+        const float speed=std::max(0.1f,localWeaponAmounts(attacker,*content,false).seconds);
+        if(const auto* seal=localActiveSeal(attacker,*content)) {
+            const auto bp=uint32_t(std::clamp(localMeleeStats(attacker,*content).attackPower*0.022f*speed,0.f,1000000.f));
+            if(bp)damageNpc(n,attacker,bp,players,false,25742,false,seal->id,nullptr,LocalMeleeOutcome::Hit);
+        }
+        if(n.dead||judgement)return;
+        for(const auto& b:n.npcBuffs)if((b.remainingMs||b.indefinite)&&(b.judgementKind==1||b.judgementKind==2)) {
+            if(meleeRoll()>=uint32_t(15.f*speed/60.f*10000.f))continue; // ProcsPerMinute 15 (spell_proc)
+            if(b.judgementKind==1)attacker.health=uint32_t(std::min<uint64_t>(attacker.maxHealth,uint64_t(attacker.health)+attacker.maxHealth*2/100));
+            else if(attacker.resourceType==LocalResourceType::Mana)attacker.mana=std::min(attacker.maxMana,attacker.mana+localClassBaseMana(attacker)*2/100);
+        }
+    }
     // A death knight disease (Frost Fever, Blood Plague) from `p` on `n`: a fresh
     // DoT whose tick is the knight's attack-power share now, and Frost Fever's
     // attack-speed slow as the knight's creature aura.
@@ -2136,6 +2159,9 @@ struct LocalGameplay::Impl {
         // Unit::DealMeleeDamage: the creature's damage shields answer a swing
         // that dealt damage, after the swing is resolved.
         if(whiteSwing&&damage&&!n.dead)npcDamageShields(n,attacker,players);
+        // A melee hit that landed: the paladin's seal and judgement procs.
+        if(damage&&!n.dead&&!procAura&&!periodic&&!rangedAuto&&!localOutcomeNullifiesDamage(outcome)&&(whiteSwing||(definition&&definition->sourceDamageClass==2)))
+            paladinMeleeProcs(n,attacker,players,false);
     }
     void damageNpcByVehicle(LocalRealmNpc& victim,LocalRealmNpc& hull,LocalRealmPlayer& owner,uint32_t raw,uint32_t spell,uint8_t schoolMask,
                             const std::vector<LocalRealmPlayer*>& players) {
@@ -3086,6 +3112,15 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         a.durationMs=d.diseaseDurationMs;a.periodicIntervalMs=d.diseaseIntervalMs;a.diseaseApPer100k=z->apPer100k;a.diseaseHastePct=d.diseaseHastePct;
         synthesized.push_back(std::move(a));
     }
+    // A judgement's debuff on the creature (Judgement of Light / Wisdom /
+    // Justice): 20 s (SpellDuration 18), held as the paladin's creature aura.
+    for(const auto& d:sorted)if(d.judgementDebuff&&!std::any_of(sorted.begin(),sorted.end(),[&](const auto& o){return o.id==d.judgementDebuff;})&&
+        !std::any_of(synthesized.begin(),synthesized.end(),[&](const auto& o){return o.id==d.judgementDebuff;})) {
+        LocalSpellDefinition a;a.id=d.judgementDebuff;a.clientSpell=true;a.allowableClasses=d.allowableClasses;a.triggeredOnly=true;a.maxAuraStacks=1;
+        a.name=d.judgementDebuff==20185?"Judgement of Light":d.judgementDebuff==20186?"Judgement of Wisdom":"Judgement of Justice";
+        a.spellFamily=10;a.durationMs=20000;
+        synthesized.push_back(std::move(a));
+    }
     for(auto& a:synthesized)sorted.push_back(std::move(a));
     std::sort(sorted.begin(),sorted.end(),[](const auto& a,const auto& b){return a.id<b.id;});
     hash(0x42313153);hash(uint32_t(sorted.size()));
@@ -3157,7 +3192,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -6942,6 +6977,8 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(d->teleport&&(p.flight.active||p.transportEntry))return reject("You can't do that right now");
     // spell_warl_life_tap::CheckCast: more health than the tap (else it fizzles).
     if(d->excludeCasterAuraSpell&&localHoldsStatAura(p,d->excludeCasterAuraSpell))return reject("You can't do that yet");
+    // A judgement needs an active seal (CasterAuraState AURA_STATE_JUDGEMENT).
+    if(d->judgementDebuff&&!localActiveSeal(p,c))return reject("You must have an active seal");
     // spell_sha_fire_nova::CheckFireTotem: the shaman's fire totem, in range.
     const LocalRealmPet* novaTotem=nullptr;
     if(d->novaRadius>0) {
@@ -7067,7 +7104,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // the reference reads (Unit::GetCreatureType, Unit.cpp:11485).
     const auto* rangeTarget=n?c.npc(n->entry):nullptr;
     const float targetReach=n?localCreatureCombatReach(rangeTarget):kLocalDefaultCombatReach;
-    if((d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask||d->stormstrikeProfile==1||d->disarm||d->pestilenceRadius>0)&&!d->areaRadius) {
+    if((d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask||d->stormstrikeProfile==1||d->disarm||d->pestilenceRadius>0||d->judgementDebuff)&&!d->areaRadius) {
         if(!n||n->dead||!canAttack(p,*n))return reject("Choose a living enemy");
         // TargetAuraState HEALTHLESS_20_PERCENT (Execute, Kill Shot).
         if(d->targetMaxHealthPct&&uint64_t(n->health)*100>uint64_t(n->maxHealth)*d->targetMaxHealthPct)
@@ -7419,7 +7456,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // defect rather than an unimplemented feature. A positive spell never rolls:
     // the reference returns SPELL_MISS_NONE for one on a non-hostile target.
     const bool magicHitRoll=!meleeRoll&&n&&d->clientSpell&&d->sourceDamageClass==1&&
-        (d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask||d->disarm||d->pestilenceRadius>0)&&!d->heal&&!d->periodicHeal;
+        (d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask||d->disarm||d->pestilenceRadius>0||d->judgementDebuff)&&!d->heal&&!d->periodicHeal;
     // P04 creature template immunity. WorldObject::SpellHitResult asks
     // Creature::IsImmunedToSpell FIRST (Object.cpp:3746-3751), before the melee
     // or magic roll and before Spell::DoSpellHitOnUnit ever reads a diminishing
@@ -7428,7 +7465,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // (canAttack above), which is the `casterFriendly` clause's constant. The
     // cost is paid below exactly as for a miss: there is no SPELL_FAILED_IMMUNE.
     const auto* targetDefinition=n?c.npc(n->entry):nullptr;
-    const bool hostileCast=n&&!n->dead&&(d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask||meleeSpecial||d->dispelProfile||d->disarm||d->pestilenceRadius>0);
+    const bool hostileCast=n&&!n->dead&&(d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask||meleeSpecial||d->dispelProfile||d->disarm||d->pestilenceRadius>0||d->judgementDebuff);
     const bool templateImmune=hostileCast&&targetDefinition&&localNpcImmuneToSpell(*targetDefinition,*n,*d,false);
     // Spell.cpp:2413-2416: the effect slots the template strips from a cast
     // that still lands. Bit k is column 71+k; the snare rides slot 0 on both
@@ -7992,6 +8029,24 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         p.attackTarget=n->guid;
     }
     if(d->summonPetEntry&&!g.summonPet(p,*d,players))return reject("The summon could not be created");
+    // spell_pal_judgement: the seal's judgement hits the target (base plus its
+    // attack-power share, a spell critical), the seal's own proc answers it,
+    // and the judgement's debuff replaces this paladin's other judgement there.
+    if(d->judgementDebuff&&n&&!n->dead&&!nullified)if(const auto* seal=localActiveSeal(p,c)) {
+        const auto amount=uint32_t(std::clamp(float(seal->sealJudgementBase)+localMeleeStats(p,c).attackPower*float(seal->sealJudgementApPer100k)/100000.f,0.f,1000000.f));
+        const bool critical=g.rollSpellCritical(p,*d,n);
+        g.damageNpc(*n,p,critical?localMagicCriticalAmount(amount):amount,players,false,seal->sealJudgementSpell,false,0,d,
+            critical?LocalMeleeOutcome::Critical:LocalMeleeOutcome::Hit);
+        if(!n->dead)g.paladinMeleeProcs(*n,p,players,true);
+        if(!n->dead) {
+            std::erase_if(n->npcBuffs,[&](const auto& o){const bool gone=o.casterGuid==p.guid&&o.judgementKind;if(gone)g.npcBuffRemoved(*n,o);return gone;});
+            if(n->npcBuffs.size()<kLocalMaxNpcBuffs) {
+                LocalNpcBuff b;b.spellId=d->judgementDebuff;b.casterGuid=p.guid;b.durationMs=b.remainingMs=20000;
+                b.judgementKind=d->judgementDebuff==20185?1:d->judgementDebuff==20186?2:3;n->npcBuffs.push_back(b);
+            }
+        }
+        LOG_INFO("[LOCAL_JUDGEMENT] player=",p.guid," npc=",n->guid," seal=",seal->id," damage=",amount," debuff=",d->judgementDebuff);
+    }
     // Fire Nova: the triggered rank from the totem, every enemy within the radius.
     if(d->novaRadius>0&&novaTotem) {
         const float tx=novaTotem->x,ty=novaTotem->y,tz=novaTotem->z;
@@ -9322,6 +9377,8 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
             };
             const auto fleeForAssist=[&](bool withEmote) {
                 if(!victim || n.fleeMode || localNpcStunned(n) || localNpcPursuitDistance(n,1000)<0.1f)return;
+                // Judgement of Justice: the creature cannot flee.
+                if(std::any_of(n.npcBuffs.begin(),n.npcBuffs.end(),[](const auto& b){return b.judgementKind==3&&b.remainingMs;}))return;
                 LocalRealmNpc* best=nullptr;float bestDistance=kLocalFleeAssistanceRadius*kLocalFleeAssistanceRadius;
                 for(auto& m:g.npcs)if(assistant(m,*victim)) {
                     const float d=distance2(n.x,n.y,n.z,m.x,m.y,m.z);

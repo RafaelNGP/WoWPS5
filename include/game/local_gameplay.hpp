@@ -1484,6 +1484,16 @@ struct LocalSpellDefinition {
     uint32_t novaLow = 0, novaHigh = 0;
     uint8_t novaSchool = 0;
     float novaRadius = 0;
+    // A paladin seal (Seal of Righteousness, spell_pal_seal_of_righteousness):
+    // each melee hit of the holder adds holy damage of 0.022 x attack power x
+    // weapon speed (25742); the judgement it unleashes (its effect 2's spell,
+    // 20187; else 54158) is a base plus an attack-power share.
+    bool sealOfRighteousness = false;
+    uint32_t sealJudgementSpell = 0, sealJudgementBase = 0, sealJudgementApPer100k = 0;
+    // A judgement (spell_pal_judgement: Light 20271, Wisdom 53408, Justice
+    // 53407): needs an active seal (AURA_STATE_JUDGEMENT), unleashes it on the
+    // target and lays this debuff there (20185, 20186, 20184).
+    uint32_t judgementDebuff = 0;
     // Death Grip (spell_dk_death_grip on 49576): the creature is pulled in
     // front of the knight (49560's jump, 57604), its cast stops, and it is
     // taunted (49560's MOD_TAUNT and SPELL_EFFECT_ATTACK_ME).
@@ -1863,6 +1873,10 @@ struct LocalNpcBuff {
     // Hunter's Mark (authority-only): SPELL_AURA_RANGED_ATTACK_POWER_ATTACKER_BONUS,
     // ranged attack power every attacker gains against this creature.
     int32_t rangedAttackerAp=0;
+    // A paladin's judgement debuff (authority-only): 1 Light (attackers' melee
+    // heals them 2% of their health, 15 per minute), 2 Wisdom (2% of their
+    // base mana), 3 Justice (the creature cannot flee).
+    uint8_t judgementKind=0;
     bool operator==(const LocalNpcBuff&) const = default;
 };
 /// The sum of one creature-buff field over the creature's live buffs
