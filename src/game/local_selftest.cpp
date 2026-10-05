@@ -415,7 +415,9 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // warlock on a target). 27 is Fear: held with a damage cap of 10% of
         // the creature's health, moved off the first creature when the same
         // warlock fears a second (one target at a time), and broken by the
-        // Shadow Bolts that spend the cap (each hit spends what it dealt).
+        // Shadow Bolts that spend the cap (each hit spends what it dealt). 28 is
+        // a warlock armor: more armor and more healing taken while held, and
+        // Demon Skin replaces Demon Armor (SPELL_SPECIFIC_WARLOCK_ARMOR).
         struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
@@ -439,7 +441,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
-            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28},
         };
         size_t passed = 0;
         for (const auto& a : abilities) {
@@ -481,8 +483,9 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             }
             const uint32_t reagentBefore = [&] { const auto* sd = content.spell(spellId); uint32_t n = 0;
                 for (const auto& st : p.inventory) if (sd && st.itemId == sd->reagentItems[0]) n += st.count; return n; }();
-            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || (a.kind >= 12 && a.kind <= 14) || a.kind == 16 || a.kind == 20) {
+            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || (a.kind >= 12 && a.kind <= 14) || a.kind == 16 || a.kind == 20 || a.kind == 28) {
                 const auto meleeBefore = localMeleeStats(p, content); const auto healthBefore = p.maxHealth; const auto items = p.inventory.size();
+                const auto armorBefore = localMeleeArmor(p, content);
                 const auto* autoShot = content.spell(75);
                 const auto rangedBefore = autoShot ? localRangedAmounts(p, content, *autoShot) : LocalRangedAmounts{};
                 p.ridingSkill = 150; p.mana = p.maxMana; p.globalCooldownMs = 0;
@@ -497,6 +500,18 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 if (a.kind == 4) ok = ok && p.mountSpellId == spellId;
                 if (a.kind == 9) ok = ok && localFormRunPercent(p, content) > 120.f;
                 if (a.kind == 10) ok = ok && meleeAfter.dodge > meleeBefore.dodge + 40.f;
+                if (a.kind == 28 && ok) {
+                    const auto held = [&](const char* name) { for (const auto& s : p.statAuras) if (const auto* sd = content.spell(s.spellId); sd && sd->name == name && s.remainingMs) return sd; return (const LocalSpellDefinition*)nullptr; };
+                    const auto* armor = held(a.name);
+                    const auto armorAfter = localMeleeArmor(p, content);
+                    ok = armor && armor->classBuffHealingTakenPct > 0 && armorAfter >= armorBefore + uint32_t(armor->classBuffArmor);
+                    uint32_t skin = 0; for (auto id : p.knownSpells) if (const auto* sd = content.spell(id); sd && sd->name == "Demon Skin" && sd->unsupportedReason.empty()) skin = id;
+                    ok = ok && skin; // the warlock knows both armors at level 80
+                    if (ok) { p.globalCooldownMs = 0; p.mana = p.maxMana;
+                        ok = arena.execute(p, {LocalAction::CastSpell, p.guid, skin}, players, result) && held("Demon Skin") && !held(a.name); }
+                    if (!ok) result = "armor " + std::to_string(armorBefore) + " -> " + std::to_string(armorAfter) + (armor ? " buff " + std::to_string(armor->classBuffArmor) + " heal% " + std::to_string(armor->classBuffHealingTakenPct) : std::string(" not held")) +
+                                      " skin " + std::to_string(skin) + " (" + result + ")";
+                }
                 if (a.kind == 20 && ok) {
                     for (int t = 0; t < 400; ++t) arena.tick(0.05f, players);
                     const auto held = [&](const char* name) { for (const auto& s : p.statAuras) if (const auto* sd = content.spell(s.spellId); sd && sd->name == name && s.remainingMs) return true; return false; };
@@ -701,8 +716,17 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     uint64_t target = foeGuid;
                     // A second creature within reach of where the warlock stands: walking off
                     // would let the first one leave combat and drop its fear on its own.
-                    for (const auto& m : arena.npcs()) if (target == foeGuid && m.guid != foeGuid && m.hostile && !m.dead && m.health &&
-                                                          std::hypot(m.x - p.x, m.y - p.y) < 18 && localSpellCreatureTypeAllowed(*content.spell(spellId), localNpcCreatureType(m.entry))) {
+                    // None in reach (the start-zone creatures wander): the nearest one is
+                    // brought beside the warlock, home included so it does not walk back.
+                    const auto eligible = [&](const LocalRealmNpc& m) { return m.guid != foeGuid && m.hostile && !m.dead && m.health && m.mapId == p.mapId &&
+                        m.instanceId == p.instanceId && localSpellCreatureTypeAllowed(*content.spell(spellId), localNpcCreatureType(m.entry)); };
+                    const LocalRealmNpc* nearest = nullptr; bool inReach = false;
+                    for (const auto& m : arena.npcs()) if (eligible(m)) {
+                        if (std::hypot(m.x - p.x, m.y - p.y) < 18) inReach = true;
+                        if (!nearest || std::hypot(m.x - p.x, m.y - p.y) < std::hypot(nearest->x - p.x, nearest->y - p.y)) nearest = &m; }
+                    if (!inReach && nearest) { auto& moved = const_cast<LocalRealmNpc&>(*nearest);
+                        moved.x = moved.homeX = p.x + 6; moved.y = moved.homeY = p.y; moved.z = moved.homeZ = p.z; }
+                    for (const auto& m : arena.npcs()) if (target == foeGuid && eligible(m) && std::hypot(m.x - p.x, m.y - p.y) < 18) {
                         auto& sturdy = const_cast<LocalRealmNpc&>(m); sturdy.maxHealth = sturdy.health = 20000;
                         const bool cast = castAt(m.guid, spellId);
                         if (std::getenv("ABILITY_VERBOSE")) out << "  second fear " << foeGuid << " -> " << m.guid << ": first " << (feared(foeGuid) != nullptr) << " second " << (feared(m.guid) != nullptr) << " (" << result << ")\n";
@@ -743,7 +767,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, fears, armor reductions, curses, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, fears, armor reductions, curses, warlock armors, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.

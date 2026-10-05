@@ -1299,6 +1299,9 @@ struct LocalSpellDefinition {
     // creature per caster holds it (Fear, Sap).
     uint8_t controlDamageCapPct = 0;
     bool controlSingleTarget = false;
+    // SPELL_AURA_MOD_HEALING_PCT (118, all schools) on the caster of a class
+    // buff (Demon Skin, Demon Armor): healing taken in percent.
+    int32_t classBuffHealingTakenPct = 0;
 
     std::string iconPath, unsupportedReason;
 };

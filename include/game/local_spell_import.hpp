@@ -1368,7 +1368,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(prowlSpell&&ty==6&&tg==1&&au==33)continue; // its slow
             if(presenceSpell&&ty==6&&tg==1&&(au==10||au==107||au==118))continue; // threat, global cooldown, marker
             if((ty!=6&&ty!=35&&ty!=65)||u(89+e)||u(116+e)||(tg!=1&&tg!=21&&tg!=25&&tg!=20&&tg!=22&&tg!=30&&tg!=31&&tg!=56&&tg!=57&&tg!=0))shape=false;
-            if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99||(tg==1&&(au==31||au==49||au==124)&&i(80+e)>=0)||(trackerSpell&&au==44)||(prowlSpell&&au==16)||(presenceSpell&&(au==79||au==142||au==138)))any=true;
+            if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99||(tg==1&&(au==31||au==49||au==124)&&i(80+e)>=0)||(tg==1&&au==22&&(i(110+e)&1)&&i(80+e)>=0)||(trackerSpell&&au==44)||(prowlSpell&&au==16)||(presenceSpell&&(au==79||au==142||au==138)))any=true;
         }
         classBuffSpell=any&&shape&&((!u(spell335::ProcFlags)&&!u(spell335::ProcCharges))||untilCancelled);
     }
@@ -1474,6 +1474,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 else if(au==138&&tg==1&&amount<=100)d.classBuffMeleeHastePct+=amount;
                 else if(au==142&&tg==1&&misc==1&&amount<=1000)d.classBuffArmorPct+=amount;
                 else if(au==79&&tg==1&&misc==127&&amount<=1000)d.classBuffDamagePct+=amount;
+                else if(au==118&&tg==1&&misc==127&&!presenceSpell&&amount<=1000)d.classBuffHealingTakenPct+=amount; // Demon Skin/Armor
             }
             d.classBuff=true;buff=true;
             buffTarget=(tg==21||tg==25)?tg:(buffTarget?buffTarget:1);

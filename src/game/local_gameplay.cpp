@@ -74,6 +74,15 @@
 namespace wowee::game {
 
 namespace {
+// Unit::SpellHealingBonusTaken: the recipient's own MOD_HEALING_PCT class
+// buffs (Demon Skin, Demon Armor) multiply with the creature views.
+uint32_t localHealingTakenWithBuffs(const LocalWorldContent& c,const LocalRealmPlayer& p,uint32_t amount){
+    int32_t pct=0;
+    for(const auto& a:p.statAuras)if(a.remainingMs&&a.mapId==p.mapId&&a.instanceId==p.instanceId)
+        if(const auto* d=c.spell(a.spellId);d&&d->classBuff)pct+=d->classBuffHealingTakenPct;
+    if(pct)amount=uint32_t(std::max<int64_t>(0,int64_t(amount)*(100+std::max(-100,pct))/100));
+    return localPlayerHealingTaken(p,amount);
+}
 using Json = nlohmann::json;
 constexpr float ActiveRadius = 180.0f, RetainRadius = 240.0f, CellSize = 180.0f;
 constexpr uint64_t NpcPrefix = 0xf130000000000000ULL;
@@ -2851,7 +2860,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(d.controlProfile);hash(d.controlEffectSlot);hash(d.armorDebuffPct);hash(d.armorDebuffEffectSlot);
         for(const auto* a:{&d.targetDebuffAttackPower,&d.targetDebuffResistance,&d.targetDebuffDamageTakenPct,&d.targetDebuffCastSpeedPct})hash(uint32_t(*a));
         hash(uint32_t(d.targetDebuffResistanceSchool)|uint32_t(d.targetDebuffDamageTakenSchool)<<8|uint32_t(d.targetDebuffArmorPct)<<16|uint32_t(d.targetDebuffEffectMask)<<24);
-        hash(uint32_t(d.controlDamageCapPct)|uint32_t(d.controlSingleTarget)<<8);
+        hash(uint32_t(d.controlDamageCapPct)|uint32_t(d.controlSingleTarget)<<8);hash(uint32_t(d.classBuffHealingTakenPct));
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -3514,7 +3523,7 @@ bool LocalGameplay::tickTotem(LocalRealmPet& totem, LocalRealmPlayer& owner, uin
         break;
     case LocalWorldContent::TotemKind::PulseHeal:
         for(auto* p:group)if(p->health<p->maxHealth) {
-            const auto attempted=localPlayerHealingTaken(*p,roll());
+            const auto attempted=localHealingTakenWithBuffs(content(),*p,roll());
             const auto health=uint32_t(std::min(uint64_t(p->maxHealth),uint64_t(p->health)+attempted));
             g.emitCombatEvent({0,totem.guid,p->guid,t->castSpell,totem.mapId,totem.instanceId,attempted,health-p->health,0,
                 LocalCombatEventKind::PeriodicHeal,false,0,LocalMeleeOutcome::Hit},players);
@@ -7199,7 +7208,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
             auto* recipient=chainPlayers[i];const auto before=recipient->health;
             const bool critical=g.rollSpellCritical(p,*d);
             parentTargetCritical=parentTargetCritical||critical;
-            const auto healedAmount=localPlayerHealingTaken(*recipient,critical?localMagicCriticalAmount(amount):amount);
+            const auto healedAmount=localHealingTakenWithBuffs(content(),*recipient,critical?localMagicCriticalAmount(amount):amount);
             recipient->health=uint32_t(std::min(uint64_t(recipient->maxHealth),uint64_t(recipient->health)+healedAmount));
             g.emitCombatEvent({0,p.guid,recipient->guid,d->id,p.mapId,p.instanceId,healedAmount,recipient->health-before,0,
                 LocalCombatEventKind::DirectHeal,false,0,critical?LocalMeleeOutcome::Critical:LocalMeleeOutcome::Hit},players);
@@ -7800,7 +7809,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
             // critical. A zero snapshot can never crit.
             const bool critical=aura.critChanceBasisPoints&&g.meleeRoll()<aura.critChanceBasisPoints;
             // Unit::SpellHealingBonusTaken: a creature's MOD_HEALING_PCT on the target.
-            const auto attempted=localPlayerHealingTaken(*target,critical?localMagicCriticalAmount(localStackedAuraAmount(aura.amount,aura.stacks))
+            const auto attempted=localHealingTakenWithBuffs(content(),*target,critical?localMagicCriticalAmount(localStackedAuraAmount(aura.amount,aura.stacks))
                                         :localStackedAuraAmount(aura.amount,aura.stacks));
             const auto health=uint32_t(std::min(uint64_t(target->maxHealth),uint64_t(target->health)+attempted));
             const auto effective=health-target->health;
