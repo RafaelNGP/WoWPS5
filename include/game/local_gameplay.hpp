@@ -970,6 +970,15 @@ inline uint32_t localSpellApBonus(uint32_t id,bool& periodic) {
     default:return 0;
     }
 }
+// spell_sha_fire_nova: each Fire Nova rank and the triggered rank it casts
+// from the fire totem (SPELL_SHAMAN_FIRE_NOVA_TRIGGERED_R1 8349 and its ranks).
+inline uint32_t localFireNovaTriggered(uint32_t id) {
+    switch(id) {
+    case 1535:return 8349; case 8498:return 8502; case 8499:return 8503; case 11314:return 11306; case 11315:return 11307;
+    case 25546:return 25535; case 25547:return 25537; case 61649:return 61650; case 61657:return 61654;
+    default:return 0;
+    }
+}
 inline const LocalDiseaseSpell* localDiseaseSpell(uint32_t id) {
     // SpellFamilyFlags as the client rows carry them (Blood Boil's bonus reads flags[2] 0x2).
     static constexpr LocalDiseaseSpell diseases[]={{55095,"Frost Fever",6325,{0,0x4000800u,0x2u}},{55078,"Blood Plague",6325,{0,0x2000800u,0x2u}}};
@@ -1470,6 +1479,11 @@ struct LocalSpellDefinition {
     // drops the holder from its threat and none takes it on sight while it
     // lasts; moving or acting ends it (its AuraInterruptFlags).
     bool classBuffFeignDeath = false;
+    // Fire Nova (spell_sha_fire_nova): the same rank of 8349 cast from the
+    // shaman's fire totem, fire damage to every enemy within the radius of it.
+    uint32_t novaLow = 0, novaHigh = 0;
+    uint8_t novaSchool = 0;
+    float novaRadius = 0;
     // Death Grip (spell_dk_death_grip on 49576): the creature is pulled in
     // front of the knight (49560's jump, 57604), its cast stops, and it is
     // taunted (49560's MOD_TAUNT and SPELL_EFFECT_ATTACK_ME).

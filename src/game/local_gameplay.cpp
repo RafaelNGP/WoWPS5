@@ -3157,7 +3157,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -6942,6 +6942,14 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(d->teleport&&(p.flight.active||p.transportEntry))return reject("You can't do that right now");
     // spell_warl_life_tap::CheckCast: more health than the tap (else it fizzles).
     if(d->excludeCasterAuraSpell&&localHoldsStatAura(p,d->excludeCasterAuraSpell))return reject("You can't do that yet");
+    // spell_sha_fire_nova::CheckFireTotem: the shaman's fire totem, in range.
+    const LocalRealmPet* novaTotem=nullptr;
+    if(d->novaRadius>0) {
+        for(const auto& pet:g.pets)if(pet.ownerGuid==p.guid&&pet.kind==LocalPetKind::Totem&&!pet.dead&&pet.mapId==p.mapId&&pet.instanceId==p.instanceId)
+            if(const auto* t=c.totem(pet.summonSpellId);t&&t->element==0)novaTotem=&pet;
+        if(!novaTotem)return reject("Requires a fire totem");
+        if(distance2(p.x,p.y,p.z,novaTotem->x,novaTotem->y,novaTotem->z)>30.f*30.f)return reject("Out of range");
+    }
     // spell_dk_raise_dead: a humanoid corpse that gives experience within the
     // radius (RaiseDeadCheck), or else the reagent of 48289 (Corpse Dust).
     bool raiseFromCorpse=false;
@@ -7984,6 +7992,20 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         p.attackTarget=n->guid;
     }
     if(d->summonPetEntry&&!g.summonPet(p,*d,players))return reject("The summon could not be created");
+    // Fire Nova: the triggered rank from the totem, every enemy within the radius.
+    if(d->novaRadius>0&&novaTotem) {
+        const float tx=novaTotem->x,ty=novaTotem->y,tz=novaTotem->z;
+        size_t hits=0;
+        for(auto& other:g.npcs)if(hits<16&&!other.dead&&other.health&&other.mapId==p.mapId&&other.instanceId==p.instanceId&&canAttack(p,other)&&
+            distance2(tx,ty,tz,other.x,other.y,other.z)<=d->novaRadius*d->novaRadius) {
+            const auto amount=d->novaLow+(d->novaHigh>d->novaLow?g.meleeRoll(d->novaHigh-d->novaLow):0u);
+            const bool critical=g.rollSpellCritical(p,*d,&other);
+            g.damageNpc(other,p,critical?localMagicCriticalAmount(amount):amount,players,false,d->id,false,0,nullptr,
+                critical?LocalMeleeOutcome::Critical:LocalMeleeOutcome::Hit);
+            ++hits;
+        }
+        LOG_INFO("[LOCAL_FIRE_NOVA] player=",p.guid," spell=",d->id," hits=",hits);
+    }
     if(d->runeRefresh){p.runeCooldownMs.fill(0);LOG_INFO("[LOCAL_RUNES] player=",p.guid," spell=",d->id," refreshed");}
     if(d->raiseDeadEntry) {
         if(!g.summonGuardian(p,d->raiseDeadEntry,d->raiseDeadDurationMs,d->id))return reject("The summon could not be created");

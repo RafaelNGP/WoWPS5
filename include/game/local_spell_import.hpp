@@ -1522,6 +1522,18 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         if(!creatureCaster&&d.spellFamily==9&&(d.spellFamilyFlags[1]&0x1u)&&effect==1&&type==3&&!u(87)&&u(71)==2){d.steadyShot=true;continue;}
         // Strangulate: an empty dummy aura (no script at the pin) beside the silence.
         if(!creatureCaster&&d.id==47476&&type==6&&u(95+effect)==4&&!i(80+effect)&&!u(74+effect))continue;
+        // Fire Nova: its dummy is the script's; the damage, school and radius are
+        // the triggered rank's (one SCHOOL_DAMAGE at the totem's enemy area).
+        if(!creatureCaster&&d.spellFamily==11&&localFireNovaTriggered(d.id)&&effect==0&&type==3) {
+            const auto child=ClientSpellTables::lookup(t.spellIndex,localFireNovaTriggered(d.id));
+            const auto cu=[&](uint32_t col){return t.spells->getUInt32(uint32_t(child),col);};
+            const auto ci=[&](uint32_t col){return t.spells->getInt32(uint32_t(child),col);};
+            const auto radius=child>=0?ClientSpellTables::lookup(t.radiusIndex,cu(92)):-1;
+            const float r=t.radii&&radius>=0?t.radii->getFloat(radius,1):0.f;
+            if(child<0||cu(71)!=2||cu(86)!=87||cu(89)!=16||cu(72)||ci(80)<0||ci(74)<1||!std::isfinite(r)||r<=0||r>30||!cu(225))unavailable("Unreviewed Fire Nova row");
+            else {d.novaLow=uint32_t(ci(80)+1);d.novaHigh=uint32_t(ci(80)+ci(74));d.novaSchool=uint8_t(cu(225));d.novaRadius=r;harm=true;}
+            continue;
+        }
         // Empower Rune Weapon: two ACTIVATE_RUNE effects whose 47568 branch
         // refreshes every rune, and a trigger of 53258, which no Spell.dbc at
         // the pin carries (so the reference casts nothing there either).
