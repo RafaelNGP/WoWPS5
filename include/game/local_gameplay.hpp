@@ -1400,6 +1400,9 @@ struct LocalSpellDefinition {
     // front of the knight (49560's jump, 57604), its cast stops, and it is
     // taunted (49560's MOD_TAUNT and SPELL_EFFECT_ATTACK_ME).
     bool deathGrip = false;
+    // Pestilence (spell_dk_pestilence): the knight's diseases on the target
+    // are cast on every other enemy within this radius of it (effect 2's).
+    float pestilenceRadius = 0;
     // SPELL_AURA_REDUCE_PUSHBACK (149) on a class buff (Barkskin): percent.
     uint8_t classBuffPushbackPct = 0;
     // An absorb shield's RealPointsPerLevel (Ice Barrier): the amount is the

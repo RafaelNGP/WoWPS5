@@ -1791,6 +1791,23 @@ struct LocalGameplay::Impl {
             LOG_INFO("[LOCAL_CONTROL] broken npc=",n.guid," by spell=",exceptSpell,
                      " remaining=",n.controls.size());
     }
+    // A death knight disease (Frost Fever, Blood Plague) from `p` on `n`: a fresh
+    // DoT whose tick is the knight's attack-power share now, and Frost Fever's
+    // attack-speed slow as the knight's creature aura.
+    void applyDisease(LocalRealmPlayer& p,LocalRealmNpc& n,const LocalSpellDefinition& z) {
+        if(n.dead||!z.durationMs||!z.periodicIntervalMs)return;
+        const auto tick=uint32_t(std::clamp<int64_t>(int64_t(localMeleeStats(p,*content).attackPower)*z.diseaseApPer100k/100000,1,1000000));
+        PeriodicDamage aura{p.guid,n.guid,z.id,z.durationMs,z.periodicIntervalMs,z.periodicIntervalMs,tick,p.mapId,p.instanceId};
+        aura.targetEpoch=n.combatEpoch;
+        auto it=std::find_if(periodicDamage.begin(),periodicDamage.end(),[&](const auto& a){return a.owner==p.guid&&a.target==n.guid&&a.spell==z.id;});
+        if(it!=periodicDamage.end())*it=aura;else if(periodicDamage.size()<MaxNpcs*8)periodicDamage.push_back(aura);
+        if(z.diseaseHastePct) {
+            LocalNpcBuff b;b.spellId=z.id;b.casterGuid=p.guid;b.durationMs=b.remainingMs=z.durationMs;b.hastePct=z.diseaseHastePct;
+            auto bt=std::find_if(n.npcBuffs.begin(),n.npcBuffs.end(),[&](const auto& o){return o.spellId==z.id&&o.casterGuid==p.guid;});
+            if(bt!=n.npcBuffs.end()){npcBuffRemoved(n,*bt);*bt=b;}else if(n.npcBuffs.size()<kLocalMaxNpcBuffs)n.npcBuffs.push_back(b);
+        }
+        LOG_INFO("[LOCAL_DISEASE] npc=",n.guid," spell=",z.id," tick=",tick," slow=",int(z.diseaseHastePct));
+    }
     // A damage-capped control (Fear) on a TAKEN proc: each hit that dealt
     // damage spends the cap snapshotted at application, and the hit that
     // exceeds what is left removes it (Unit::ProcDamageAndSpellFor's
@@ -2908,7 +2925,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.deathGrip));hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);}hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -6581,7 +6598,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // the reference reads (Unit::GetCreatureType, Unit.cpp:11485).
     const auto* rangeTarget=n?c.npc(n->entry):nullptr;
     const float targetReach=n?localCreatureCombatReach(rangeTarget):kLocalDefaultCombatReach;
-    if((d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask||d->stormstrikeProfile==1||d->disarm)&&!d->areaRadius) {
+    if((d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask||d->stormstrikeProfile==1||d->disarm||d->pestilenceRadius>0)&&!d->areaRadius) {
         if(!n||n->dead||!canAttack(p,*n))return reject("Choose a living enemy");
         // TargetAuraState HEALTHLESS_20_PERCENT (Execute, Kill Shot).
         if(d->targetMaxHealthPct&&uint64_t(n->health)*100>uint64_t(n->maxHealth)*d->targetMaxHealthPct)
@@ -6929,7 +6946,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // defect rather than an unimplemented feature. A positive spell never rolls:
     // the reference returns SPELL_MISS_NONE for one on a non-hostile target.
     const bool magicHitRoll=!meleeRoll&&n&&d->clientSpell&&d->sourceDamageClass==1&&
-        (d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask||d->disarm)&&!d->heal&&!d->periodicHeal;
+        (d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask||d->disarm||d->pestilenceRadius>0)&&!d->heal&&!d->periodicHeal;
     // P04 creature template immunity. WorldObject::SpellHitResult asks
     // Creature::IsImmunedToSpell FIRST (Object.cpp:3746-3751), before the melee
     // or magic roll and before Spell::DoSpellHitOnUnit ever reads a diminishing
@@ -6938,7 +6955,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // (canAttack above), which is the `casterFriendly` clause's constant. The
     // cost is paid below exactly as for a miss: there is no SPELL_FAILED_IMMUNE.
     const auto* targetDefinition=n?c.npc(n->entry):nullptr;
-    const bool hostileCast=n&&!n->dead&&(d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask||meleeSpecial||d->dispelProfile||d->disarm);
+    const bool hostileCast=n&&!n->dead&&(d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask||meleeSpecial||d->dispelProfile||d->disarm||d->pestilenceRadius>0);
     const bool templateImmune=hostileCast&&targetDefinition&&localNpcImmuneToSpell(*targetDefinition,*n,*d,false);
     // Spell.cpp:2413-2416: the effect slots the template strips from a cast
     // that still lands. Bit k is column 71+k; the snare rides slot 0 on both
@@ -7277,19 +7294,13 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // The strike's disease (Icy Touch, Plague Strike): a fresh DoT from this
     // death knight, its tick the attack-power share at application, and
     // Frost Fever's attack-speed slow as the knight's creature aura.
-    if(d->diseaseSpell&&n&&!n->dead&&!nullified)if(const auto* z=c.spell(d->diseaseSpell);z&&z->durationMs&&z->periodicIntervalMs) {
-        const auto tick=uint32_t(std::clamp<int64_t>(int64_t(localMeleeStats(p,c).attackPower)*z->diseaseApPer100k/100000,1,1000000));
-        Impl::PeriodicDamage aura{p.guid,n->guid,z->id,z->durationMs,z->periodicIntervalMs,z->periodicIntervalMs,tick,p.mapId,p.instanceId};
-        aura.targetEpoch=n->combatEpoch;
-        auto it=std::find_if(g.periodicDamage.begin(),g.periodicDamage.end(),[&](const auto& a){return a.owner==p.guid&&a.target==n->guid&&a.spell==z->id;});
-        if(it!=g.periodicDamage.end())*it=aura;else if(g.periodicDamage.size()<MaxNpcs*8)g.periodicDamage.push_back(aura);
-        if(z->diseaseHastePct) {
-            LocalNpcBuff b;b.spellId=z->id;b.casterGuid=p.guid;b.durationMs=b.remainingMs=z->durationMs;b.hastePct=z->diseaseHastePct;
-            auto bt=std::find_if(n->npcBuffs.begin(),n->npcBuffs.end(),[&](const auto& o){return o.spellId==z->id&&o.casterGuid==p.guid;});
-            if(bt!=n->npcBuffs.end()){g.npcBuffRemoved(*n,*bt);*bt=b;}else if(n->npcBuffs.size()<kLocalMaxNpcBuffs)n->npcBuffs.push_back(b);
-        }
-        LOG_INFO("[LOCAL_DISEASE] npc=",n->guid," spell=",z->id," tick=",tick," slow=",int(z->diseaseHastePct));
-    }
+    if(d->diseaseSpell&&n&&!n->dead&&!nullified)if(const auto* z=c.spell(d->diseaseSpell))g.applyDisease(p,*n,*z);
+    // Pestilence: each disease this knight holds on the target is cast on the
+    // other enemies within the radius of it (spell_dk_pestilence).
+    if(d->pestilenceRadius>0&&n&&!n->dead&&!nullified)for(const uint32_t id:{55095u,55078u})if(const auto* z=c.spell(id))
+        if(std::any_of(g.periodicDamage.begin(),g.periodicDamage.end(),[&](const auto& a){return a.owner==p.guid&&a.target==n->guid&&a.spell==id&&a.remaining;}))
+            for(auto& other:g.npcs)if(&other!=n&&!other.dead&&other.health&&other.mapId==n->mapId&&other.instanceId==n->instanceId&&canAttack(p,other)&&
+                distance2(n->x,n->y,n->z,other.x,other.y,other.z)<=d->pestilenceRadius*d->pestilenceRadius){g.applyDisease(p,other,*z);g.addThreat(other,p.guid,1);g.selectThreatTarget(other,players);}
     if(d->disarm&&n&&!n->dead&&!nullified) {
         LocalNpcBuff b;b.spellId=d->id;b.casterGuid=p.guid;b.durationMs=b.remainingMs=talentedDuration;
         b.damagePct=-50;b.damagePctSchool=1;b.parryPct=-100;

@@ -1502,6 +1502,16 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         if(confuseControl&&type==6&&u(95+effect)==33&&u(86+effect)==6&&!u(89+effect)&&!u(116+effect))continue;
         if(confuseControl&&type==6&&u(95+effect)==56&&effect==1){d.controlTransformEntry=u(110+effect);continue;} // Polymorph's model
         if(fearControl&&effect==1)continue; // Fear's run speed (verified above).
+        // Pestilence: two dummies and the script effect around the target; the
+        // script (spell_dk_pestilence) is the spread, its radius effect 2's.
+        if(!creatureCaster&&d.id==50842&&d.spellFamily==15) {
+            if(effect==2&&type==77) {
+                const auto radius=ClientSpellTables::lookup(t.radiusIndex,u(92+effect));
+                const float r=t.radii&&radius>=0?t.radii->getFloat(radius,1):0.f;
+                if(std::isfinite(r)&&r>0&&r<=30){d.pestilenceRadius=r;harm=true;}else unavailable("Pestilence radius record missing");
+            }
+            if(type==3||type==77)continue;
+        }
         // Corruption ranks 1-3 and 5: an empty DUMMY beside the shadow DoT, with
         // no target, no amount and no handler at the pin (ranks 4 and 6+ do not
         // carry it). It does nothing.

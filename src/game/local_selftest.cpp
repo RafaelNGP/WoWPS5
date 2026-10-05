@@ -469,7 +469,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
-            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39}, {1, 8, "Polymorph", 40}, {4, 11, "Entangling Roots", 41}, {1, 6, "Icy Touch", 42}, {1, 6, "Plague Strike", 42}, {1, 6, "Blood Boil", 0}, {1, 6, "Death Coil", 0}, {1, 6, "Death Grip", 43},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39}, {1, 8, "Polymorph", 40}, {4, 11, "Entangling Roots", 41}, {1, 6, "Icy Touch", 42}, {1, 6, "Plague Strike", 42}, {1, 6, "Blood Boil", 0}, {1, 6, "Death Coil", 0}, {1, 6, "Death Grip", 43}, {1, 6, "Pestilence", 44},
         };
         size_t passed = 0;
         // Incinerate carries the Immolate bonus (a quarter more on an Immolated target).
@@ -808,6 +808,19 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 }
                 const uint8_t comboBefore = p.comboPoints;
                 const uint32_t coilHealth = p.health;
+                // Pestilence spreads what is already there: Frost Fever on the target
+                // first, and a second creature brought beside it.
+                uint64_t pestilenceOther = 0;
+                if (a.kind == 44) {
+                    uint32_t touch = 0; for (auto k : p.knownSpells) if (const auto* kd = content.spell(k); kd && kd->name == "Icy Touch" && kd->unsupportedReason.empty()) touch = k;
+                    p.mana = p.maxMana; p.runeCooldownMs.fill(0); p.globalCooldownMs = 0;
+                    arena.execute(p, {LocalAction::CastSpell, foeGuid, touch}, players, result); arena.tick(0.05f, players);
+                    const LocalRealmNpc* target = nullptr; for (const auto& v : arena.npcs()) if (v.guid == foeGuid) target = &v;
+                    for (const auto& m : arena.npcs()) if (target && !pestilenceOther && m.guid != foeGuid && m.hostile && !m.dead && m.health && m.mapId == target->mapId) {
+                        auto& near = const_cast<LocalRealmNpc&>(m); near.x = near.homeX = target->x + 3; near.y = near.homeY = target->y; near.z = near.homeZ = target->z;
+                        near.maxHealth = near.health = 100000; pestilenceOther = m.guid; }
+                    p.mana = p.maxMana; p.runeCooldownMs.fill(0); p.globalCooldownMs = 0;
+                }
                 uint32_t firstCurse = 0;
                 if (a.kind == 26 && std::string(a.name) == "Curse of the Elements") {
                     for (auto id : p.knownSpells) if (const auto* sd = content.spell(id); sd && sd->name == "Curse of Weakness" && sd->unsupportedReason.empty()) firstCurse = id;
@@ -878,6 +891,12 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     const auto* sd = content.spell(spellId);
                     landed = sd && pct == sd->armorDebuffPct && pct && !p.comboPoints && held > (comboBefore - 1) * 6000u && held <= comboBefore * 6000u;
                     if (!landed) result = "armor debuff=" + std::to_string(held) + "ms " + std::to_string(pct) + "% combo " + std::to_string(comboBefore) + "->" + std::to_string(p.comboPoints) + " (" + result + ")";
+                }
+                else if (a.kind == 44) {
+                    bool spread = false;
+                    for (const auto& v : arena.npcs()) if (v.guid == pestilenceOther) for (const auto& b : v.npcBuffs) if (b.spellId == 55095 && b.casterGuid == p.guid) spread = true;
+                    landed = pestilenceOther && spread;
+                    if (!landed) result = "other " + std::to_string(pestilenceOther) + " spread " + std::to_string(spread) + " (" + result + ")";
                 }
                 else if (a.kind == 43) {
                     // Death Grip: the creature now stands within reach in front of the knight, on it.
