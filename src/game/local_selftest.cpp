@@ -142,9 +142,11 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         SELFTEST_CHECK(!game.execute(p, repCmd, players, result) && result.find("afford") != std::string::npos);
 
         p.money = 1000;
+        SELFTEST_CHECK(game.repairCost(p, repairNpc.guid) > 0);
         SELFTEST_CHECK(game.execute(p, repCmd, players, result));
         SELFTEST_CHECK(p.inventory[0].instance.curDurability == 20);
         SELFTEST_CHECK(p.money < 1000);
+        SELFTEST_CHECK(game.repairCost(p, repairNpc.guid) == 0);
 
         out << "PASS durability & repair: " << c.itemDurability.size() << " catalog items, migration, broken stat zeroing, repair command\n";
     }

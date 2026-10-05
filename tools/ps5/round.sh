@@ -17,7 +17,7 @@ unit=wowps-round
 default_suites=(local_class_items_quests local_quest_chain local_quest_rewards local_inventory local_mount
     local_pet_runtime local_armor_snapshot_codec local_melee_special local_progression local_warrior_progression
     local_druid_progression local_shaman_progression local_stormstrike_runtime local_feral_runtime
-    local_bloodthirst_runtime local_npc_spell_runtime local_harmful_view_codec local_party_lan)
+    local_bloodthirst_runtime local_npc_spell_runtime local_harmful_view_codec local_party_lan local_durability_repair)
 
 if [[ ${1:-} == --status ]]; then
     systemctl --user is-active "$unit" >/dev/null 2>&1 && echo "state: running ($unit)" || echo "state: not running"

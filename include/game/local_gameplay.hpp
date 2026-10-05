@@ -2399,6 +2399,7 @@ public:
     /// `player.level`. Writing a level over a finished level-1 character
     /// instead would leave every one of them stale.
     void initializePlayer(LocalRealmPlayer& player, bool fresh, uint8_t forcedLevel = 0);
+    uint32_t repairCost(const LocalRealmPlayer& player, uint64_t serviceNpcGuid = 0, uint32_t itemId = 0) const;
     bool execute(LocalRealmPlayer& player, const LocalRealmCommand& command,
                  const std::vector<LocalRealmPlayer*>& players, std::string& result);
     bool moveVehicle(LocalRealmPlayer& player, uint32_t mapId, float x, float y, float z,
@@ -2483,4 +2484,9 @@ private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
+LocalItemStack* localFindEquippedStack(LocalRealmPlayer& p, size_t slot);
+inline const LocalItemStack* localFindEquippedStack(const LocalRealmPlayer& p, size_t slot) {
+    return localFindEquippedStack(const_cast<LocalRealmPlayer&>(p), slot);
+}
+bool localDamageArmorInCombat(LocalRealmPlayer& p, uint32_t roll);
 } // namespace wowee::game

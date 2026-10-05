@@ -51,7 +51,7 @@ wrap('PickupMerchantItem',function(i)
     return false
 end)
 wrap('CanMerchantRepair',function()local m=merchant();return m and m.open and m.repair or false end)
-wrap('GetRepairAllCost',function()return 0,false end)
+wrap('GetRepairAllCost',function()local m=merchant();local cost=m and m.open and m.repair and m.repairCost or 0;local money=GetMoney and GetMoney() or 0;return cost,cost>0 and money>=cost end)
 wrap('RepairAllItems',function()if CanMerchantRepair() then return command('merchant_repair') end end)
 wrap('InRepairMode',function()return false end)
 wrap('ShowRepairCursor',function()if CanMerchantRepair() then return command('merchant_repair') end end)

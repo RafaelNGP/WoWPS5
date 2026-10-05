@@ -4810,6 +4810,10 @@ bool LocalRealm::repairEquipment(uint64_t npcGuid) {
     LocalRealmCommand cmd{LocalAction::RepairEquipment, 0, 0}; cmd.serviceNpcGuid = npcGuid;
     return command(cmd);
 }
+uint32_t LocalRealm::repairCost(uint64_t npcGuid) const {
+    if (!ready()) return 0;
+    return impl_->gameplay.repairCost(impl_->self, npcGuid);
+}
 bool LocalRealm::learnTalent(uint32_t id,uint32_t rank){return command({LocalAction::LearnTalent,0,id,rank});}
 bool LocalRealm::resetTalents(){return command({LocalAction::ResetTalents});}
 bool LocalRealm::learnSpell(uint32_t spellId,uint64_t npcGuid) {

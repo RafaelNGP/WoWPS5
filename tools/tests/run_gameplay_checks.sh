@@ -14,7 +14,7 @@ set -uo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 logs=$root/../logs
 unit=wowps-hostcheck
-default_suites=(local_class_items_quests local_inventory local_inventory_0184 local_quest_chain
+default_suites=(local_class_items_quests local_inventory local_inventory_0184 local_durability_repair local_quest_chain
     local_quest_rewards local_progression local_progression_0173 local_test_characters
     local_warrior_progression local_warrior_stats local_forms local_runes local_pets
     local_mount merchant_authority local_druid_progression local_shaman_progression)

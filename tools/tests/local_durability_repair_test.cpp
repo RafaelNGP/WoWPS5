@@ -329,6 +329,107 @@ int main() {
         std::cout << "  PASS 5: Repair rules, costs, rejections and reputation discounts verified\n";
     }
 
+    // 6. Single-item repair
+    {
+        std::cout << "[TEST] 6. Single-item repair via cmd.id...\n";
+        auto p = makePlayer(6);
+        p.money = 10000;
+        p.inventory.push_back({25, 1, 0, {}});  // maxDur 20, 800 millicopper/pt (8 copper)
+        p.inventory.push_back({200, 1, 1, {}}); // maxDur 60, 4000 millicopper/pt (40 copper)
+        game.initializePlayer(p, false);
+
+        std::vector<LocalRealmPlayer*> players{&p};
+        std::string res;
+        auto repairVendor = makeRepairVendor(100);
+        game.setRemoteNpcs({repairVendor});
+
+        auto it25 = std::find_if(p.inventory.begin(), p.inventory.end(), [](auto& s){ return s.itemId == 25; });
+        auto it200 = std::find_if(p.inventory.begin(), p.inventory.end(), [](auto& s){ return s.itemId == 200; });
+        it25->instance.curDurability = 10;   // lost 10 -> 8 copper
+        it200->instance.curDurability = 50;  // lost 10 -> 40 copper
+
+        // Query repairCost API for single item
+        assert(game.repairCost(p, repairVendor.guid, 25) == 8);
+        assert(game.repairCost(p, repairVendor.guid, 200) == 40);
+        assert(game.repairCost(p, repairVendor.guid) == 48);
+
+        // Repair ONLY item 25
+        LocalRealmCommand singleCmd{LocalAction::RepairEquipment, 0, 25};
+        singleCmd.serviceNpcGuid = repairVendor.guid;
+        assert(game.execute(p, singleCmd, players, res));
+        assert(res.find("Repaired equipment for 8 copper") != std::string::npos);
+        assert(p.money == 10000 - 8);
+        assert(it25->instance.curDurability == 20);
+        assert(it200->instance.curDurability == 50); // Item 200 untouched!
+
+        // Remaining repairCost is now only 40
+        assert(game.repairCost(p, repairVendor.guid) == 40);
+
+        std::cout << "  PASS 6: Single-item repair verified\n";
+    }
+
+    // 7. Bank item durability migration
+    {
+        std::cout << "[TEST] 7. Bank item durability migration in initializePlayer...\n";
+        auto p = makePlayer(7);
+        p.bank[0] = {25, 1, 0, {}}; // Worn Shortsword with 0 maxDurability
+        p.bank[1] = {200, 1, 1, {}};
+        p.bank[2] = {117, 5, 2, {}}; // Non-durable item
+        game.initializePlayer(p, false);
+
+        assert(p.bank[0].instance.maxDurability == 20);
+        assert(p.bank[0].instance.curDurability == 20);
+        assert(p.bank[1].instance.maxDurability == 60);
+        assert(p.bank[1].instance.curDurability == 60);
+        assert(p.bank[2].instance.maxDurability == 0);
+        std::cout << "  PASS 7: Bank item durability migration verified\n";
+    }
+
+    // 8. Dual-wield off-hand weapon immunity from armor degradation
+    {
+        std::cout << "[TEST] 8. Dual-wield off-hand weapon immunity from armor damage...\n";
+        auto p = makePlayer(8);
+        p.inventory.push_back({25, 1, 0, {}}); // Main-hand weapon
+        p.inventory.push_back({25, 1, 1, {}}); // Off-hand weapon
+        game.initializePlayer(p, false);
+
+        std::vector<LocalRealmPlayer*> players{&p};
+        std::string res;
+        assert(game.execute(p, {LocalAction::EquipItem, 16, 25}, players, res)); // Main hand
+        assert(game.execute(p, {LocalAction::EquipItem, 17, 25}, players, res)); // Off hand
+
+        auto* oh = findEquippedStack(p, 16);
+        assert(oh && oh->instance.curDurability == 20);
+
+        // Attempting to degrade armor when only weapons are worn:
+        // No armor pieces exist, and off-hand weapon must NOT be chosen as armor.
+        for (uint32_t roll = 0; roll < 20; ++roll) {
+            localDamageArmorInCombat(p, roll);
+        }
+        assert(oh->instance.curDurability == 20); // Off-hand weapon untouched!
+        std::cout << "  PASS 8: Off-hand weapon excluded from incoming armor damage\n";
+    }
+
+    // 9. Passive proc weapon requirements reject broken weapons
+    {
+        std::cout << "[TEST] 9. Passive proc weapon requirements reject broken weapons...\n";
+        auto p = makePlayer(9);
+        p.inventory.push_back({25, 1, 0, {}}); // Worn Shortsword (itemClass 2, subclass 7)
+        game.initializePlayer(p, false);
+
+        std::vector<LocalRealmPlayer*> players{&p};
+        std::string res;
+        assert(game.execute(p, {LocalAction::EquipItem, 16, 25}, players, res));
+
+        auto* sword = findEquippedStack(p, 15);
+        assert(sword && sword->instance.curDurability == 20);
+        assert(worn(p, c, 15) != nullptr);
+
+        sword->instance.curDurability = 0;
+        assert(worn(p, c, 15) == nullptr);
+        std::cout << "  PASS 9: Broken weapons return null from worn() for proc validation\n";
+    }
+
     std::cout << "\nALL DURABILITY & REPAIR TESTS PASSED SUCCESSFULLY!\n";
     return 0;
 }

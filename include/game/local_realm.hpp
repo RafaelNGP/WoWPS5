@@ -251,6 +251,7 @@ public:
     bool sellToVendor(uint32_t itemId, uint16_t count, uint64_t npcGuid = 0);
     bool buyFromVendor(uint32_t itemId, uint16_t count, uint64_t npcGuid = 0);
     bool repairEquipment(uint64_t npcGuid = 0);
+    uint32_t repairCost(uint64_t npcGuid = 0) const;
     bool learnSpell(uint32_t spellId, uint64_t npcGuid = 0);
     bool learnTalent(uint32_t id,uint32_t rank);
     bool resetTalents();

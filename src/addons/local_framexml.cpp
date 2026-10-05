@@ -221,6 +221,7 @@ void LocalFrameXml::publish() {
     if (npc && (npc->vendor || npc->repairer)) {
         lua_newtable(L);flag(L,"vendor",npc->vendor);flag(L,"repair",npc->repairer);
         flag(L,"open",phase_==DialoguePhase::Merchant);
+        if (npc->repairer) num(L,"repairCost",realm->repairCost(npc_));
         lua_newtable(L);int merchantIndex=0;
         if (phase_==DialoguePhase::Merchant) for (auto itemId : realm->vendorStock(npc_)) {
             const auto* source=c.item(itemId);if(!source)continue;

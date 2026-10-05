@@ -1170,6 +1170,16 @@ void Application::renderLocalRealmOverlay() {
             ImGui::PushID(static_cast<int>(i));
             ImGui::TextWrapped("%s: %s",game::kLocalEquipmentSlotNames[i],self.equipment[i] ? itemName(content,self.equipment[i]).c_str() : "Empty");
             if (self.equipment[i]) {
+                if (const auto* s = game::localFindEquippedStack(self, i)) {
+                    if (s->instance.maxDurability > 0) {
+                        ImGui::SameLine();
+                        if (s->instance.curDurability == 0) {
+                            ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "[BROKEN]");
+                        } else {
+                            ImGui::TextDisabled("(%u/%u)", s->instance.curDurability, s->instance.maxDurability);
+                        }
+                    }
+                }
                 ImGui::BeginDisabled(self.dead);
                 if (ImGui::SmallButton("Unequip")) localRealm_->unequipItem(static_cast<uint8_t>(i));
                 ImGui::EndDisabled();
@@ -1187,6 +1197,14 @@ void Application::renderLocalRealmOverlay() {
             ImGui::PushID(static_cast<int>(inventoryIndex));
             ImGui::Separator();
             ImGui::TextWrapped("%s  x%u",item->name.c_str(),stack.count);
+            if (stack.instance.maxDurability > 0) {
+                ImGui::SameLine();
+                if (stack.instance.curDurability == 0) {
+                    ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "[BROKEN]");
+                } else {
+                    ImGui::TextDisabled("Durability: %u / %u", stack.instance.curDurability, stack.instance.maxDurability);
+                }
+            }
             if (item->attack || item->armor || item->maxHealth)
                 ImGui::Text("Attack +%u  Armor +%u  Health +%u",item->attack,item->armor,item->maxHealth);
             if (item->heal || item->mana) ImGui::Text("Healing %u  Resource %u",item->heal,item->mana);

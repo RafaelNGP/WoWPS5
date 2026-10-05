@@ -273,10 +273,25 @@ void Application::renderLocalVendorPanel(float scale) {
 
     if (repairer) {
         ImGui::Separator();
+        const uint32_t cost = localRealm_->repairCost(repairer->guid);
+        const bool canAfford = self.money >= cost;
+        const bool needsRepair = cost > 0;
+        ImGui::BeginDisabled(!needsRepair || !canAfford || self.dead);
         if (ImGui::Button("Repair All Equipment", ImVec2(200 * scale, 26 * scale)))
             localRealm_->repairEquipment(repairer->guid);
+        ImGui::EndDisabled();
         ImGui::SameLine();
-        ImGui::TextDisabled("Gear in this world does not wear out, so this costs nothing.");
+        if (!needsRepair) {
+            ImGui::TextDisabled("(All equipment is at full durability)");
+        } else {
+            ImGui::TextUnformatted("Cost:");
+            ImGui::SameLine();
+            ui::renderCoinsFromCopper(cost);
+            if (!canAfford) {
+                ImGui::SameLine();
+                ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "(Cannot afford)");
+            }
+        }
     }
 
     if (vendor && ImGui::BeginTabBar("##vendorTabs")) {

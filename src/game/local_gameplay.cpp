@@ -349,6 +349,8 @@ bool advanceLocalConsumables(LocalRealmPlayer& p,const LocalWorldContent& c,uint
     if(buffsChanged)stats(p,c,false);
     return true;
 }
+} // namespace
+
 LocalItemStack* localFindEquippedStack(LocalRealmPlayer& p, size_t slot) {
     if (slot >= p.equipment.size()) return nullptr;
     const auto id = p.equipment[slot];
@@ -365,14 +367,16 @@ LocalItemStack* localFindEquippedStack(LocalRealmPlayer& p, size_t slot) {
     }
     return nullptr;
 }
-bool localReduceEquippedDurability(LocalRealmPlayer& p, size_t slot, uint32_t amount = 1) {
+
+static bool localReduceEquippedDurability(LocalRealmPlayer& p, size_t slot, uint32_t amount = 1) {
     auto* s = localFindEquippedStack(p, slot);
     if (!s || s->instance.maxDurability == 0 || s->instance.curDurability == 0) return false;
     const bool wasAboveZero = s->instance.curDurability > 0;
     s->instance.curDurability = s->instance.curDurability > amount ? s->instance.curDurability - amount : 0;
     return wasAboveZero && s->instance.curDurability == 0;
 }
-void localApplyDeathDurability(LocalRealmPlayer& p, double fraction = 0.10) {
+
+static void localApplyDeathDurability(LocalRealmPlayer& p, double fraction = 0.10) {
     for (size_t slot = 0; slot < p.equipment.size(); ++slot) {
         const auto id = p.equipment[slot];
         if (!id) continue;
@@ -392,10 +396,15 @@ void localApplyDeathDurability(LocalRealmPlayer& p, double fraction = 0.10) {
         }
     }
 }
-void localDamageArmorInCombat(LocalRealmPlayer& p, uint32_t roll) {
+
+bool localDamageArmorInCombat(LocalRealmPlayer& p, uint32_t roll) {
     constexpr size_t armorSlots[] = {0, 2, 4, 5, 6, 7, 8, 9, 14, 16};
     std::vector<size_t> eligible;
     for (size_t slot : armorSlots) {
+        if (slot == 16) {
+            const auto id = p.equipment[16];
+            if (const auto* m = localMeleeItem(id); m && m->itemClass == 2) continue;
+        }
         if (auto* s = localFindEquippedStack(p, slot)) {
             if (s->instance.maxDurability > 0 && s->instance.curDurability > 0) {
                 eligible.push_back(slot);
@@ -404,9 +413,12 @@ void localDamageArmorInCombat(LocalRealmPlayer& p, uint32_t roll) {
     }
     if (!eligible.empty()) {
         size_t chosen = eligible[roll % eligible.size()];
-        localReduceEquippedDurability(p, chosen, 1);
+        return localReduceEquippedDurability(p, chosen, 1);
     }
+    return false;
 }
+
+namespace {
 uint32_t equipmentValue(const LocalRealmPlayer& p,const LocalWorldContent& c, unsigned kind) {
     uint64_t result = 0;
     for (size_t slot = 0; slot < p.equipment.size(); ++slot) {
@@ -415,7 +427,7 @@ uint32_t equipmentValue(const LocalRealmPlayer& p,const LocalWorldContent& c, un
         if (!item || !localEquipmentFits(item->inventoryType, item->slot, slot)) continue;
         const auto copies = std::count(p.equipment.begin(), p.equipment.begin() + slot + 1, id);
         if (uint32_t(copies) > totalItem(p, id)) continue;
-        if (const auto* s = localFindEquippedStack(const_cast<LocalRealmPlayer&>(p), slot)) {
+        if (const auto* s = localFindEquippedStack(p, slot)) {
             if (s->instance.maxDurability > 0 && s->instance.curDurability == 0) continue;
         }
         result += kind == 0 ? item->maxHealth : kind == 1 ? item->attack : item->armor;
@@ -2297,7 +2309,8 @@ struct LocalGameplay::Impl {
                     if(!d->passive||(branch->effect!=LocalProcEffect::RestorePower&&branch->effect!=LocalProcEffect::AddComboPoints&&branch->effect!=LocalProcEffect::ApplyOwnerAura&&branch->effect!=LocalProcEffect::Ignite&&branch->effect!=LocalProcEffect::RestorePetPower&&!(d->stormstrikeProfile==4&&branch->effect==LocalProcEffect::RestoreMana))||branch->cooldownMs||branch->charges||
                        owner->classId<1||owner->classId>11||!(d->allowableClasses&(1u<<(owner->classId-1))))continue;
                     if(d->requiredItemClass>=0) {
-                        const auto* weapon=localMeleeItem(owner->equipment[event.attackType==LocalCombatAttackType::Ranged?localEquipmentIndex(LocalEquipmentSlot::Ranged):(event.offHand?16:15)]);
+                        const size_t slot=event.attackType==LocalCombatAttackType::Ranged?localEquipmentIndex(LocalEquipmentSlot::Ranged):(event.offHand?16:15);
+                        const auto* weapon=worn(*owner,*content,slot);
                         if(!weapon||weapon->itemClass!=uint32_t(d->requiredItemClass)||weapon->subclass>=32||
                            (d->requiredItemSubclasses&&!(d->requiredItemSubclasses&(1u<<weapon->subclass)))||
                            (d->requiredInventoryTypes&&(weapon->inventoryType>=32||!(d->requiredInventoryTypes&(1u<<weapon->inventoryType)))))continue;
@@ -2417,7 +2430,8 @@ struct LocalGameplay::Impl {
                     if(!validLocalTalents(*owner)||!localPassiveProcPrerequisites(*owner,*content,*d)||
                        std::find(owner->talents.begin(),owner->talents.end(),std::make_pair(d->talentId,d->talentRank))==owner->talents.end())continue;
                     if(d->requiredItemClass>=0) {
-                        const auto* weapon=localMeleeItem(owner->equipment[event.attackType==LocalCombatAttackType::Ranged?localEquipmentIndex(LocalEquipmentSlot::Ranged):(event.offHand?16:15)]);
+                        const size_t slot=event.attackType==LocalCombatAttackType::Ranged?localEquipmentIndex(LocalEquipmentSlot::Ranged):(event.offHand?16:15);
+                        const auto* weapon=worn(*owner,*content,slot);
                         if(!weapon||weapon->itemClass!=uint32_t(d->requiredItemClass)||weapon->subclass>=32||
                            (d->requiredItemSubclasses&&!(d->requiredItemSubclasses&(1u<<weapon->subclass)))||
                            (d->requiredInventoryTypes&&(weapon->inventoryType>=32||!(d->requiredInventoryTypes&(1u<<weapon->inventoryType)))))continue;
@@ -4379,6 +4393,14 @@ void LocalGameplay::initializePlayer(LocalRealmPlayer& p, bool fresh, uint8_t fo
             }
         }
     }
+    for (auto& stack : p.bank) {
+        if (stack.itemId && stack.instance.maxDurability == 0) {
+            if (const auto* dur = c.durability(stack.itemId)) {
+                stack.instance.maxDurability = dur->maxDurability;
+                stack.instance.curDurability = dur->maxDurability;
+            }
+        }
+    }
     // Gear worn before class proficiencies were enforced goes back to the bags
     // (worn items are inventory copies, so nothing is lost).
     for(size_t slot=0;slot<p.equipment.size();++slot)if(const auto* meta=p.equipment[slot]?localAuctionMetadata(p.equipment[slot]):nullptr)
@@ -4689,6 +4711,35 @@ bool LocalGameplay::execute(LocalRealmPlayer& p,const LocalRealmCommand& cmd,con
     for(size_t i=pendingBefore;i<pending.size();++i)affectedPlayers.insert(pending[i].playerGuid);
     if(!affectedPlayers.empty())settlePendingScriptKills(players,&affectedPlayers);
     return true;
+}
+
+uint32_t LocalGameplay::repairCost(const LocalRealmPlayer& p, uint64_t serviceNpcGuid, uint32_t itemId) const {
+    const auto& c = content();
+    uint32_t totalCost = 0;
+    for (const auto& s : p.inventory) {
+        if (itemId && s.itemId != itemId) continue;
+        if (s.instance.maxDurability > 0 && s.instance.curDurability < s.instance.maxDurability) {
+            const uint32_t lost = s.instance.maxDurability - s.instance.curDurability;
+            const auto* dur = c.durability(s.itemId);
+            uint32_t costPerPoint = dur ? dur->costPerPoint : 1000;
+            uint32_t itemCost = uint32_t((uint64_t(lost) * costPerPoint) / 1000);
+            if (itemCost == 0 && lost > 0 && costPerPoint > 0) itemCost = 1;
+            totalCost += itemCost;
+        }
+    }
+    if (totalCost == 0) return 0;
+    uint8_t vendorRank = 0;
+    if (const auto* merchant = serviceNpc(p, kLocalNpcFlagRepair, serviceNpcGuid)) {
+        if (const auto* vendorDef = c.npc(merchant->entry)) {
+            if (const auto* vendorFaction = definition(impl_->factions, vendorDef->faction); vendorFaction && vendorFaction->faction)
+                vendorRank = localReputationRank(p, vendorFaction->faction);
+        }
+    }
+    const uint16_t discountBasis = localReputationDiscountBasisPoints(vendorRank);
+    if (discountBasis && totalCost > 0) {
+        totalCost = uint32_t((uint64_t(totalCost) * (10000u - discountBasis)) / 10000u);
+    }
+    return totalCost;
 }
 
 bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand& cmd,const std::vector<LocalRealmPlayer*>& players,std::string& result) {
@@ -5348,39 +5399,25 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         return true;
     }
     if (cmd.action == LocalAction::RepairEquipment) {
-        if (cmd.target || cmd.id) return reject("Repair takes no argument");
+        if (cmd.target) return reject("Repair takes no target");
         if (!serviceNpc(p, kLocalNpcFlagRepair, cmd.serviceNpcGuid)) return reject("Stand at a blacksmith or repair merchant");
-        uint32_t totalCost = 0;
+        const uint32_t targetItemId = cmd.id;
+        const uint32_t totalCost = repairCost(p, cmd.serviceNpcGuid, targetItemId);
         uint32_t totalRepaired = 0;
-        for (auto& s : p.inventory) {
+        for (const auto& s : p.inventory) {
+            if (targetItemId && s.itemId != targetItemId) continue;
             if (s.instance.maxDurability > 0 && s.instance.curDurability < s.instance.maxDurability) {
-                const uint32_t lost = s.instance.maxDurability - s.instance.curDurability;
-                const auto* dur = c.durability(s.itemId);
-                uint32_t costPerPoint = dur ? dur->costPerPoint : 1000;
-                uint32_t itemCost = uint32_t((uint64_t(lost) * costPerPoint) / 1000);
-                if (itemCost == 0 && lost > 0 && costPerPoint > 0) itemCost = 1;
-                totalCost += itemCost;
-                totalRepaired += lost;
+                totalRepaired += s.instance.maxDurability - s.instance.curDurability;
             }
         }
         if (totalRepaired == 0) {
             result = "Nothing to repair: all equipment is at full durability";
             return true;
         }
-        uint8_t vendorRank = 0;
-        if (const auto* merchant = serviceNpc(p, kLocalNpcFlagRepair, cmd.serviceNpcGuid)) {
-            if (const auto* vendorDef = c.npc(merchant->entry)) {
-                if (const auto* vendorFaction = definition(impl_->factions, vendorDef->faction); vendorFaction && vendorFaction->faction)
-                    vendorRank = localReputationRank(p, vendorFaction->faction);
-            }
-        }
-        const uint16_t discountBasis = localReputationDiscountBasisPoints(vendorRank);
-        if (discountBasis && totalCost > 0) {
-            totalCost = uint32_t((uint64_t(totalCost) * (10000u - discountBasis)) / 10000u);
-        }
         if (p.money < totalCost) return reject("You cannot afford equipment repairs");
         p.money -= totalCost;
         for (auto& s : p.inventory) {
+            if (targetItemId && s.itemId != targetItemId) continue;
             if (s.instance.maxDurability > 0 && s.instance.curDurability < s.instance.maxDurability) {
                 s.instance.curDurability = s.instance.maxDurability;
             }
@@ -8305,8 +8342,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
             else {
                 target->health-=damage;
                 if(!localMeleeAvoided(outcome)&&g.meleeRoll()<1000){
-                    localDamageArmorInCombat(*target,g.meleeRoll());
-                    stats(*target,content(),false);
+                    if(localDamageArmorInCombat(*target,g.meleeRoll()))stats(*target,content(),false);
                 }
                 // Direct NPC melee: abort flags also react to fully absorbed hits.
                 // Ordinary pushback requires health damage and is capped at two
