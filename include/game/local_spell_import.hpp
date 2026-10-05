@@ -1374,7 +1374,9 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     }
     bool pbaoeShape=!creatureCaster&&!u(104)&&!u(212),pbaoeDamage=false;
     for(uint32_t e=0;e<3;++e)if(u(71+e)) {
-        if(u(86+e)!=22||u(89+e)!=15)pbaoeShape=false;
+        // Around the caster: source caster + enemy area (22/15), or the
+        // destination at the caster + enemy area at it (18/16, Blood Boil).
+        if(!((u(86+e)==22&&u(89+e)==15)||(u(86+e)==18&&u(89+e)==16)))pbaoeShape=false;
         if(u(71+e)==2||u(71+e)==58||u(71+e)==121)pbaoeDamage=true;
     }
     // Arcane Explosion's reviewed profile, and every other point-blank area

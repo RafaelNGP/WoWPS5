@@ -2833,7 +2833,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         !std::any_of(sorted.begin(),sorted.end(),[&](const auto& o){return o.id==z->id;})&&
         !std::any_of(synthesized.begin(),synthesized.end(),[&](const auto& o){return o.id==z->id;})) {
         LocalSpellDefinition a;a.id=z->id;a.name=z->name;a.clientSpell=true;a.allowableClasses=d.allowableClasses;
-        a.triggeredOnly=true;a.maxAuraStacks=1;a.spellFamily=d.spellFamily;a.schoolMask=d.diseaseSchool;a.dispelType=3; // DISPEL_DISEASE
+        a.triggeredOnly=true;a.maxAuraStacks=1;a.spellFamily=d.spellFamily;a.schoolMask=d.diseaseSchool;a.dispelType=3;a.spellFamilyFlags=z->familyFlags; // DISPEL_DISEASE
         a.durationMs=d.diseaseDurationMs;a.periodicIntervalMs=d.diseaseIntervalMs;a.diseaseApPer100k=z->apPer100k;a.diseaseHastePct=d.diseaseHastePct;
         synthesized.push_back(std::move(a));
     }
@@ -7195,11 +7195,20 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
             const bool critical=g.rollSpellCritical(p,*d,chainNpcs[i]);
             parentTargetCritical=parentTargetCritical||critical;
             const auto healthBefore=chainNpcs[i]->health;
+            // Per-target bonuses (Unit::SpellDamageBonusDone / EffectSchoolDMG)
+            // change this target's amount only, never the next one's.
+            uint32_t targetAmount=amount;
             if(d->immolateBonus&&std::any_of(g.periodicDamage.begin(),g.periodicDamage.end(),[&](const auto& a){
                    const auto* pd=c.spell(a.spell);
                    return a.target==chainNpcs[i]->guid&&a.remaining&&pd&&pd->spellFamily==5&&(pd->spellFamilyFlags[0]&0x4u);}))
-                amount+=amount/4;
-            g.damageNpc(*chainNpcs[i],p,critical?localMagicCriticalAmount(amount):amount,players,
+                targetAmount+=targetAmount/4;
+            // Blood Boil on a target with this knight's disease: +95 and the
+            // attack-power coefficient times 1.5835.
+            if(d->spellFamily==15&&(d->spellFamilyFlags[0]&0x40000u)&&d->apBonusPer100k&&std::any_of(g.periodicDamage.begin(),g.periodicDamage.end(),[&](const auto& a){
+                   const auto* pd=c.spell(a.spell);
+                   return a.target==chainNpcs[i]->guid&&a.owner==p.guid&&a.remaining&&pd&&pd->spellFamily==15&&(pd->spellFamilyFlags[2]&0x2u);}))
+                targetAmount=uint32_t(std::min<int64_t>(1000000,int64_t(targetAmount)+95+int64_t(localMeleeStats(p,c).attackPower*float(d->apBonusPer100k)/100000.f*0.5835f)));
+            g.damageNpc(*chainNpcs[i],p,critical?localMagicCriticalAmount(targetAmount):targetAmount,players,
                 (!d->clientSpell||(d->schoolMask&1))&&!d->directIgnoresArmor,d->id,false,0,nullptr,
                 critical?LocalMeleeOutcome::Critical:meleeOutcome,false,blockValue);
             // Health leech: the health the hit took (GetHealthGain, no overkill)

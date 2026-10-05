@@ -904,7 +904,7 @@ static_assert(sizeof(LocalPassiveCastModifier)==20, "Bounded modifier record siz
 inline constexpr uint32_t kLocalIceBlockSpell = 45438;
 // The two death knight diseases, by spell_bonus_data at the pin: no base
 // damage (EffectBasePoints -1) and 0.06325 x attack power per tick.
-struct LocalDiseaseSpell { uint32_t id; const char* name; uint32_t apPer100k; };
+struct LocalDiseaseSpell { uint32_t id; const char* name; uint32_t apPer100k; std::array<uint32_t,3> familyFlags; };
 // spell_bonus_data ap_bonus rows of death knight spells at the pin, by the
 // player spell they apply to (Death and Decay's row is its triggered 52212).
 inline uint32_t localDeathKnightApBonus(uint32_t id,bool& periodic) {
@@ -921,7 +921,8 @@ inline uint32_t localDeathKnightApBonus(uint32_t id,bool& periodic) {
     }
 }
 inline const LocalDiseaseSpell* localDiseaseSpell(uint32_t id) {
-    static constexpr LocalDiseaseSpell diseases[]={{55095,"Frost Fever",6325},{55078,"Blood Plague",6325}};
+    // SpellFamilyFlags as the client rows carry them (Blood Boil's bonus reads flags[2] 0x2).
+    static constexpr LocalDiseaseSpell diseases[]={{55095,"Frost Fever",6325,{0,0x4000800u,0x2u}},{55078,"Blood Plague",6325,{0,0x2000800u,0x2u}}};
     for(const auto& d:diseases)if(d.id==id)return &d;
     return nullptr;
 }
