@@ -1162,7 +1162,12 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     const bool totemSummon=!creatureCaster&&d.spellFamily==11&&u(71)==28&&!u(72)&&!u(73)&&u(110)&&
         (u(113)==63||u(113)==81||u(113)==82||u(113)==83);
     if(totemSummon)d.totemEntry=u(110);
-    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&d.id!=1784) // Stealth: its damage and attack breaks are the form rule
+    // Sap ranks 1-2: a lone stun whose legacy taken-damage proc flags restate
+    // AURA_INTERRUPT_FLAG_TAKE_DAMAGE (rank 3 carries the same break without
+    // them). No proc effect or trigger exists, so the break is the whole rule.
+    const bool damageBrokenControl=!creatureCaster&&d.spellFamily==8&&u(71)==6&&u(95)==12&&u(86)==6&&
+        !u(72)&&!u(73)&&!u(116)&&!u(spell335::ProcCharges)&&(u(spell335::AuraInterruptFlags)&kLocalAuraInterruptTakeDamage);
+    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&d.id!=1784) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
     // Spell.dbc column 38 is BaseLevel and column 39 is SpellLevel
     // (DBCStructure.h:1679-1680). previously both this field and d.spellLevel
@@ -1259,8 +1264,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         // the points, and Aura::CalcMaxDuration adds (max - base) / 5 per point.
         if(!creatureCaster&&!d.comboProfile&&(u(5)&0x500000u)&&(d.spellFamily==8||d.spellFamily==7)) {
             d.comboFinisher=true;
+            // A zero base (Kidney Shot rank 1) is a finisher that lasts only
+            // through its points: 1 s each up to the maximum.
             const auto maxDuration=t.durations->getInt32(durationRow,3);
-            if(duration>0&&maxDuration>duration&&maxDuration<=3600000)d.comboDurationMaxMs=uint32_t(maxDuration);
+            if(duration>=0&&maxDuration>duration&&maxDuration<=3600000)d.comboDurationMaxMs=uint32_t(maxDuration);
         }
         // SpellDuration.dbc -1 is not a lease: the aura lives until it is
         // replaced or cancelled. durationMs stays zero and the source fact is
@@ -1391,6 +1398,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         // A generic finisher's script dummies (its attack-power terms) are set
         // aside; Slice and Dice's melee haste lands on the rogue as a class buff.
         if(!combo&&d.comboFinisher&&type==3)continue;
+        if(!combo&&d.comboFinisher&&type==6&&u(95+effect)==87&&u(86+effect)==6&&!i(80+effect)&&!u(74+effect))continue;
         if(!combo&&d.comboFinisher&&type==6&&u(95+effect)==138&&u(86+effect)==1&&!u(89+effect)&&i(80+effect)>=0&&i(80+effect)<100) {
             d.classBuff=true;d.classBuffMeleeHastePct=i(80+effect)+1;buff=true;buffTarget=1;continue;
         }
@@ -1570,16 +1578,28 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             // would need state this realm does not carry, so it is rejected
             // here rather than silently applied as something weaker.
             const bool silence=u(95+effect)==27;
+            // What may ride beside the control: Cheap Shot's and Gouge's combo
+            // points, Gouge's opening hit (its stun is the third effect), and a
+            // finisher's script dummy on the rogue plus Kidney Shot's
+            // zero-amount damage-taken hook (a talent's slot).
+            const auto riderOk=[&](uint32_t k){
+                const auto type=u(71+k);
+                if(k==effect||!type||type==80)return true;
+                if(type==2&&k<effect&&u(86+k)==6&&!u(89+k))return true;
+                if(d.comboFinisher&&type==3&&u(86+k)==1)return true;
+                return d.comboFinisher&&type==6&&u(95+k)==87&&u(86+k)==6&&!i(80+k)&&!u(74+k);
+            };
+            const auto controlMs=std::max(d.durationMs,d.comboDurationMaxMs);
             if(d.controlProfile)unavailable("Mixed control auras are not implemented");
-            else if(effect)unavailable("A control aura outside the first effect is not implemented");
+            else if(effect&&!(u(71)==2&&!silence))unavailable("A control aura outside the first effect is not implemented");
             else if(target!=6)unavailable("Area or scripted targeting is not implemented");
-            else if(!d.durationMs||d.durationMs>600000)
+            else if(!controlMs||controlMs>600000)
                 unavailable("A control without a real fixed duration is not implemented");
-            else if(u(spell335::ProcFlags)||u(spell335::ProcCharges)||u(116+effect))
+            else if((u(spell335::ProcFlags)&&!damageBrokenControl)||u(spell335::ProcCharges)||u(116+effect))
                 unavailable("Proc, charge or triggered control auras are not implemented");
             else if(u(spell335::ChannelInterruptFlags))
                 unavailable("Channelled control auras are not implemented");
-            else if((u(72)&&u(72)!=80)||(u(73)&&u(73)!=80)) // Cheap Shot's combo points ride along
+            else if(!riderOk(0)||!riderOk(1)||!riderOk(2))
                 unavailable("A control aura beside another effect is not implemented");
             // No mechanic requirement is imposed on either aura. The reference
             // imposes none: MOD_STUN carries five different mechanics across

@@ -56,13 +56,19 @@ inline bool localNpcSilenced(const LocalRealmNpc& n) {
         if(a.remainingMs&&a.kind==uint8_t(LocalNpcControlKind::Silence))return true;
     return false;
 }
+// The longest a control can hold: talents and combo points included once the
+// content is loaded (durationCeilingMs), the bare spell before that.
+inline uint32_t localControlDurationCeiling(const LocalSpellDefinition& d) {
+    return d.durationCeilingMs?d.durationCeilingMs:std::max(d.durationMs,d.comboDurationMaxMs);
+}
 inline bool validLocalNpcControls(const LocalRealmNpc& n,const LocalWorldContent& c) {
     if(n.controls.size()>kLocalMaxNpcControls || ((n.dead||n.transportEntry)&&!n.controls.empty()))return false;
     for(size_t i=0;i<n.controls.size();++i) {
         const auto& a=n.controls[i];const auto* d=c.spell(a.spellId);
         if(!d||!d->unsupportedReason.empty()||!d->controlProfile||
            a.kind!=uint8_t(d->controlProfile==2?LocalNpcControlKind::Silence:LocalNpcControlKind::Stun)||
-           !a.casterGuid||!a.remainingMs||a.remainingMs>d->durationMs||d->durationMs>600000)return false;
+           !a.casterGuid||!a.remainingMs||a.remainingMs>localControlDurationCeiling(*d)||
+           localControlDurationCeiling(*d)>600000)return false;
         // One application per caster per spell, exactly as a snare. A second
         // rank replaces rather than stacks; the cast path resolves that.
         for(size_t j=0;j<i;++j)if(n.controls[j].casterGuid==a.casterGuid&&

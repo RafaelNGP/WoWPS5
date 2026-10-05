@@ -2887,6 +2887,29 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
     c.talentSpellIndex.clear();
     for(const auto& d:c.spells)if(d.talentId)c.talentSpellIndex.push_back({d.talentId,d.talentRank,d.id});
     std::sort(c.talentSpellIndex.begin(),c.talentSpellIndex.end());c.talentIndexReady=true;
+    // localSpellDuration at its ceiling: the strongest rank of every talent of
+    // the family whose SPELLMOD_DURATION lengthens the spell (Improved Gouge,
+    // Brutal Impact), plus a finisher's five-point share. A received creature
+    // control is bounded by it rather than by the untalented duration.
+    std::vector<const LocalSpellDefinition*> lengthening;
+    for(const auto& s:c.spells)if(s.talentId&&s.passive&&s.unsupportedReason.empty()&&s.spellFamily&&
+        std::any_of(s.passiveCastModifiers.begin(),s.passiveCastModifiers.end(),[](const auto& m){return m.active&&m.operation==1&&m.amount>0;}))
+        lengthening.push_back(&s);
+    for(auto& d:c.spells) {
+        const uint32_t comboShare=d.comboDurationMaxMs>d.durationMs?d.comboDurationMaxMs-d.durationMs:0;
+        d.durationCeilingMs=d.durationMs+comboShare;
+        if(!d.durationMs||!d.spellFamily||d.npcOnly)continue;
+        std::map<uint32_t,std::pair<int64_t,int64_t>> strongest; // talent -> flat, percent
+        for(const auto* s:lengthening)if(s->spellFamily==d.spellFamily) {
+            int64_t flat=0,pct=0;
+            for(const auto& m:s->passiveCastModifiers)if(m.active&&m.operation==1&&m.amount>0&&
+                ((m.mask[0]&d.spellFamilyFlags[0])||(m.mask[1]&d.spellFamilyFlags[1])||(m.mask[2]&d.spellFamilyFlags[2])))
+                (m.percentage?pct:flat)+=m.amount;
+            auto& best=strongest[s->talentId];best.first=std::max(best.first,flat);best.second=std::max(best.second,pct);
+        }
+        int64_t flat=0,pct=0;for(const auto& [talent,best]:strongest){flat+=best.first;pct+=best.second;}
+        d.durationCeilingMs=uint32_t(std::min<int64_t>(600000,(int64_t(d.durationMs)+std::min<int64_t>(flat,600000))*(100+std::min<int64_t>(pct,1000))/100))+comboShare;
+    }
     c.clientStarterSpells=true;c.classResources=true;c.spellDiagnostic=diagnostic;
     error.clear();return true;
 }
@@ -7071,7 +7094,9 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
                 localDiminishingApply(*n,replacedGroup,false,g.authorityClockMs);
             localDiminishingApply(*n,diminishGroup,true,g.authorityClockMs);
         }
-        if(!n->targetGuid)n->targetGuid=p.guid;
+        // SPELL_ATTR1_NO_THREAT (Sap) leaves the creature out of combat: with no
+        // threat to back the target it would evade at once and drop the control.
+        if(!n->targetGuid&&!d->sourceNoThreat)n->targetGuid=p.guid;
         // A stun stops the creature where it stands; the reference clears its
         // movement before the aura is even visible.
         if(a.kind==uint8_t(LocalNpcControlKind::Stun))localResetNpcSpellState(*n);

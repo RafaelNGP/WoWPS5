@@ -1278,6 +1278,10 @@ struct LocalSpellDefinition {
     uint32_t targetCreatureType = 0;
     bool sourceOnlyPeacefulTargets = false;
     uint32_t mountCreatureId = 0, mountDisplayId = 0, mountSpeedPercent = 0;
+    // Derived by setStarterSpells (from hashed fields, so not hashed itself):
+    // the longest the spell's timed effect can run with every talent that
+    // lengthens it at its highest rank and five combo points. Zero until then.
+    uint32_t durationCeilingMs = 0;
 
     std::string iconPath, unsupportedReason;
 };

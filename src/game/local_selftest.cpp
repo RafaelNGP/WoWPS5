@@ -14,6 +14,7 @@
 #include "game/local_inventory_layout.hpp"
 #include "game/local_quest_marker.hpp"
 #include "game/local_quest_eligibility.hpp"
+#include "game/local_spell_target_rules.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -402,7 +403,10 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // a cat opener: refused outside Prowl, then struck from Prowl, 20 a
         // presence held until another presence replaces it, 21 an offensive
         // dispel at a creature with no buff (SPELL_FAILED_NOTHING_TO_DISPEL), 22
-        // a slowing totem beside the enemy.
+        // a slowing totem beside the enemy, 23 a stun finisher whose length is
+        // its combo points (two Sinister Strikes first, level 30), 24 a control
+        // that a later hit breaks (Gouge, Sap; level 20). 23 and 24 fight a
+        // creature given extra health so the builder does not kill it.
         struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
@@ -423,13 +427,14 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Rupture", 17}, {1, 4, "Slice and Dice", 18}, {4, 11, "Ravage", 19},
             {1, 6, "Death Strike", 0}, {1, 6, "Obliterate", 0}, {1, 6, "Death and Decay", 0}, {1, 6, "Chains of Ice", 1},
             {1, 6, "Blood Presence", 20}, {11, 7, "Purge", 21}, {11, 7, "Earthbind Totem", 22}, {1, 1, "Cleave", 0}, {4, 3, "Multi-Shot", 0},
+            {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
         };
         size_t passed = 0;
         for (const auto& a : abilities) {
             LocalGameplay arena; SELFTEST_CHECK(arena.loadContent(worldPath, error));
             SELFTEST_CHECK(arena.setStarterSpells(*clientSpells, "selftest", error));
             LocalRealmPlayer p; p.guid = 500 + passed; p.race = a.race; p.classId = a.cls; p.name = "Tester";
-            arena.initializePlayer(p, true, a.kind == 17 || a.kind == 18 ? 20 : 80);
+            arena.initializePlayer(p, true, a.kind == 17 || a.kind == 18 || a.kind == 24 ? 20 : a.kind == 23 ? 30 : 80);
             // Ebon Hold's creatures are scripted, not fair game: test a death
             // knight in Northshire like everyone else's first enemies.
             if (a.cls == 6) for (const auto& start : c.catalog->starts()) if (start.race == 1 && start.classId == 1) {
@@ -541,7 +546,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             // A living enemy beside the character, faced.
             std::vector<uint64_t> foes;
             for (int i = 0; i < 200 && foes.empty(); ++i) { arena.tick(0.05f, players);
-                for (const auto& n : arena.npcs()) if (n.hostile && !n.dead && n.health && std::hypot(n.x - p.x, n.y - p.y) < 120) foes.push_back(n.guid); }
+                for (const auto& n : arena.npcs()) if (n.hostile && !n.dead && n.health && std::hypot(n.x - p.x, n.y - p.y) < 120 &&
+                    localSpellCreatureTypeAllowed(*content.spell(spellId), localNpcCreatureType(n.entry))) foes.push_back(n.guid); }
             if (foes.empty()) { out << "FAIL class ability " << a.name << ": no enemy near the start\n"; return false; }
             uint64_t foeGuid = foes.front(); size_t foeIndex = 0;
             bool landed = false; std::string last;
@@ -556,6 +562,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 p.x = n->x - gap; p.y = n->y; p.z = n->z; p.orientation = 0; ++p.positionRevision;
                 p.mana = a.kind == 6 ? 0 : p.maxMana; p.runeCooldownMs.fill(0); p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear();
                 p.health = p.maxHealth;
+                if (a.kind == 23 || a.kind == 24) { auto& sturdy = const_cast<LocalRealmNpc&>(*n); sturdy.maxHealth = sturdy.health = 100000; }
                 const uint32_t before = n->health;
                 if (a.kind == 15) p.attackTarget = foeGuid;
                 if (a.kind == 19) {
@@ -567,14 +574,17 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     if (!localStealthed(p)) { last = "Prowl did not stealth the cat (" + result + ")"; break; }
                     p.globalCooldownMs = 0; p.mana = p.maxMana;
                 }
-                if (a.kind == 17 || a.kind == 18) {
-                    uint32_t builder = 0;
-                    for (auto id : p.knownSpells) if (const auto* sd = content.spell(id); sd && sd->name == "Sinister Strike" && sd->unsupportedReason.empty()) builder = id;
-                    arena.execute(p, {LocalAction::CastSpell, foeGuid, builder}, players, result);
-                    arena.tick(0.05f, players);
-                    p.mana = p.maxMana; p.globalCooldownMs = 0;
+                uint32_t builder = 0;
+                for (auto id : p.knownSpells) if (const auto* sd = content.spell(id); sd && sd->name == "Sinister Strike" && sd->unsupportedReason.empty()) builder = id;
+                if (a.kind == 17 || a.kind == 18 || a.kind == 23) {
+                    for (int strike = 0; strike < (a.kind == 23 ? 2 : 1); ++strike) {
+                        arena.execute(p, {LocalAction::CastSpell, foeGuid, builder}, players, result);
+                        arena.tick(0.05f, players);
+                        p.mana = p.maxMana; p.globalCooldownMs = 0;
+                    }
                     if (!p.comboPoints) { last = "no combo points from Sinister Strike (" + result + ")"; continue; }
                 }
+                const uint8_t comboBefore = p.comboPoints;
                 if (!arena.execute(p, {LocalAction::CastSpell, a.kind == 15 || a.kind == 18 || a.kind == 22 ? p.guid : foeGuid, spellId}, players, result)) {
                     last = result;
                     if (a.kind == 21 && result.find("Nothing to dispel") != std::string::npos) { landed = true; break; }
@@ -616,6 +626,20 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     landed = !p.comboPoints && held > 6000;
                     if (!landed) result = "combo=" + std::to_string(p.comboPoints) + " aura=" + std::to_string(held) + "ms";
                 }
+                else if (a.kind == 23 || a.kind == 24) {
+                    const auto held = [&] { uint32_t ms = 0; for (const auto& v : arena.npcs()) if (v.guid == foeGuid) for (const auto& s : v.controls) if (s.spellId == spellId) ms = s.remainingMs; return ms; };
+                    const auto stunned = held(); const auto* sd = content.spell(spellId);
+                    // Kidney Shot rank 1 has no base length: 1 s per point spent.
+                    landed = stunned && sd && (a.kind == 24 || (!p.comboPoints && stunned > (comboBefore - 1) * 1000u && stunned <= comboBefore * 1000u));
+                    if (landed && a.kind == 24) {
+                        for (int strike = 0; strike < 6 && held(); ++strike) {
+                            p.mana = p.maxMana; p.globalCooldownMs = 0;
+                            arena.execute(p, {LocalAction::CastSpell, foeGuid, builder}, players, result); arena.tick(0.05f, players);
+                        }
+                        landed = !held();
+                        if (!landed) result = "the control outlasted six Sinister Strikes (" + result + ")";
+                    } else if (!landed) result = "control=" + std::to_string(stunned) + "ms combo " + std::to_string(comboBefore) + "->" + std::to_string(p.comboPoints) + " (" + result + ")";
+                }
                 else if (a.kind == 11) {
                     // A level 80 Ambush can kill a start-zone creature outright: then no points remain.
                     const bool killed = !after || after->dead;
@@ -634,7 +658,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.
