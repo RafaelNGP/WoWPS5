@@ -1388,6 +1388,9 @@ struct LocalSpellDefinition {
     // SPELL_AURA_MOD_RESISTANCE_PCT (101) on the armor of one hostile creature
     // (Expose Armor): the percentage taken off, and the effect slot it rides.
     uint8_t armorDebuffPct = 0, armorDebuffEffectSlot = 0;
+    // Sunder Armor: armorDebuffPct is one application's share, stacking up to
+    // this many on the creature (StackAmount of 58567); each cast adds one.
+    uint8_t armorDebuffStackMax = 0;
     // A curse's stat auras on one hostile creature (Curse of Weakness, of the
     // Elements, of Tongues), landed as one LocalNpcBuff of the caster's:
     // attack power and resistance (negative), damage taken (positive, on

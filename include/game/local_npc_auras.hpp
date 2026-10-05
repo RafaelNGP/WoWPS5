@@ -70,7 +70,11 @@ inline bool localNpcSilenced(const LocalRealmNpc& n) {
 // Expose Armor on a creature: each SPELL_AURA_MOD_RESISTANCE_PCT on armor
 // scales the total (UNIT_MOD_ARMOR, TOTAL_PCT), after the flat buffs.
 inline uint32_t localNpcArmorAfterDebuffs(uint32_t armor,const LocalRealmNpc& n) {
-    for(const auto& a:n.armorDebuffs)if(a.remainingMs&&a.percent)armor=uint32_t(uint64_t(armor)*(100u-std::min<uint32_t>(99,a.percent))/100u);
+    // spell_group 1015 "Major Armor Debuffs" (Sunder Armor, Expose Armor),
+    // SPELL_GROUP_STACK_RULE_EXCLUSIVE_HIGHEST: only the strongest counts.
+    uint32_t major=0;
+    for(const auto& a:n.armorDebuffs)if(a.remainingMs)major=std::max<uint32_t>(major,a.percent);
+    if(major)armor=uint32_t(uint64_t(armor)*(100u-std::min<uint32_t>(99,major))/100u);
     // Curse of Weakness: the same armor term from a warlock's creature aura.
     for(const auto& b:n.npcBuffs)if((b.remainingMs||b.indefinite)&&b.armorPct)armor=uint32_t(uint64_t(armor)*(100u-std::min<uint32_t>(99,b.armorPct))/100u);
     return armor;

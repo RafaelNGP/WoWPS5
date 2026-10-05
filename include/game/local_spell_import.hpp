@@ -1688,6 +1688,24 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             }
             if(effect==1&&type==64)continue;
         }
+        // Sunder Armor: SPELL_EFFECT_TRIGGER_SPELL of 58567 on the target, an
+        // armor MOD_RESISTANCE_PCT stacking to its StackAmount beside an empty
+        // SPELL_EFFECT_THREAT; its threat is the cast's spell_threat row
+        // (localSpellInitialThreat).
+        if(!creatureCaster&&d.spellFamily==4&&type==64&&effect==0&&u(86)==6&&!u(89)&&!u(72)&&!u(73)&&u(116)&&!d.durationMs) {
+            const auto child=ClientSpellTables::lookup(t.spellIndex,u(116));
+            const auto cu=[&](uint32_t col){return child>=0?t.spells->getUInt32(uint32_t(child),col):0u;};
+            const auto ci=[&](uint32_t col){return child>=0?t.spells->getInt32(uint32_t(child),col):0;};
+            const auto durationRow=child>=0?ClientSpellTables::lookup(t.durationIndex,cu(40)):-1;
+            const int32_t duration=durationRow>=0?t.durations->getInt32(uint32_t(durationRow),1):0;
+            const int32_t amount=ci(80)+(cu(74)?1:0);
+            if(child>=0&&cu(71)==6&&cu(95)==101&&cu(110)==1&&cu(86)==6&&!cu(89)&&amount<0&&amount>-100&&cu(72)==63&&cu(87)==6&&!ci(81)&&!cu(73)&&
+               cu(spell335::StackAmount)>1&&cu(spell335::StackAmount)<=10&&-amount*int32_t(cu(spell335::StackAmount))<100&&duration>0&&duration<=600000&&
+               !cu(spell335::ProcFlags)&&d.id==7386) {
+                d.armorDebuffPct=uint8_t(-amount);d.armorDebuffStackMax=uint8_t(cu(spell335::StackAmount));d.durationMs=uint32_t(duration);
+                harm=true;continue;
+            }
+        }
         // SPELL_AURA_MOD_RESISTANCE_PCT on the armor of one hostile target
         // (Expose Armor): a fixed percentage for the aura's duration, which a
         // finisher draws from its combo points.
