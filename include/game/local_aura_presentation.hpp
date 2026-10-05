@@ -87,7 +87,7 @@ LocalOwnerAuraView localOwnerAuraAt(const LocalRealmPlayer& p,const Content& c,s
     // An aspect has no timer: duration 0 reads "until cancelled", like an area aura.
     if(d&&d->classBuff&&d->indefiniteDuration)return {a.spellId,0,0,a.casterGuid?a.casterGuid:p.guid,1,uint8_t(kLocalOwnerAuraFlags|kLocalOwnerAuraEffectMask)};
     return {a.spellId,a.remainingMs,d?d->durationMs:a.remainingMs,a.casterGuid?a.casterGuid:p.guid,
-        uint8_t(d&&d->proc.charges?a.procCharges:a.stacks),
+        uint8_t(d&&localAuraChargeCap(*d)?a.procCharges:a.stacks),
         uint8_t(kLocalOwnerAuraFlags|kLocalOwnerAuraEffectMask)};
 }
 inline bool validLocalHarmfulAuraViews(const LocalRealmPlayer& p){

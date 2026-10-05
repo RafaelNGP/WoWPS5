@@ -1219,7 +1219,36 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     const bool fearControl=!creatureCaster&&u(71)==6&&u(95)==7&&u(86)==6&&!u(89)&&!u(116)&&
         u(72)==6&&u(96)==31&&u(87)==6&&!u(90)&&!u(117)&&!u(73)&&!u(spell335::ProcCharges)&&
         !(u(spell335::AuraInterruptFlags)&kLocalAuraInterruptTakeDamage);
-    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!rootControl&&!incinerate&&d.id!=1784&&d.id!=21084&&d.id!=20154&&
+    // Inner Fire: armor whose charges each melee or ranged hit taken spends
+    // (spell_proc -588: SpellTypeMask damage, nothing triggered).
+    const bool innerFire=!creatureCaster&&d.spellFamily==6&&u(71)==6&&u(95)==22&&u(86)==1&&(i(110)&1)&&!u(116)&&
+        u(spell335::ProcCharges)&&u(spell335::ProcCharges)<=100&&u(spell335::ProcChance)==100&&!(u(spell335::ProcFlags)&~0x2a8u);
+    // Frost Armor: armor and a PROC_TRIGGER_SPELL putting Chilled on a creature
+    // that lands a melee hit on the mage (ProcFlags 0x28, spell_proc -168):
+    // Chilled is MOD_DECREASE_SPEED (33) and MELEE_SLOW (138) on that creature,
+    // beside an empty healing modifier.
+    uint32_t chillEffect=3;
+    if(!creatureCaster&&d.spellFamily==3&&u(spell335::ProcFlags)==0x28u&&!u(spell335::ProcCharges)&&u(spell335::ProcChance)==100)
+        for(uint32_t e=0;e<3;++e)if(u(71+e)==6&&u(95+e)==42&&u(86+e)==1&&!u(89+e)&&u(116+e)) {
+            const auto child=ClientSpellTables::lookup(t.spellIndex,u(116+e));
+            if(child<0)break;
+            const auto cu=[&](uint32_t col){return t.spells->getUInt32(uint32_t(child),col);};
+            const auto ci=[&](uint32_t col){return t.spells->getInt32(uint32_t(child),col);};
+            const auto durationRow=ClientSpellTables::lookup(t.durationIndex,cu(40));
+            const int32_t duration=durationRow>=0?t.durations->getInt32(uint32_t(durationRow),1):0;
+            int32_t haste=0,speed=0;bool other=duration<=0||duration>60000;
+            for(uint32_t k=0;k<3;++k)if(cu(71+k)) {
+                const int32_t amount=ci(80+k)+(cu(74+k)?1:0);
+                if(cu(71+k)!=6||cu(86+k)!=6||cu(89+k))other=true;
+                else if(cu(95+k)==33&&amount<0&&amount>-100)speed=amount;
+                else if(cu(95+k)==138&&amount<0&&amount>-100)haste=amount;
+                else if(!(cu(95+k)==118&&!amount))other=true;
+            }
+            if(!other&&haste&&speed){chillEffect=e;d.chillSpell=u(116+e);d.chillDurationMs=uint32_t(duration);d.chillHastePct=int8_t(haste);d.chillSpeedPct=int8_t(speed);}
+            break;
+        }
+    const bool chillArmor=chillEffect<3;
+    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!rootControl&&!incinerate&&!innerFire&&!chillArmor&&d.id!=1784&&d.id!=21084&&d.id!=20154&&
        !(d.id==6346&&u(spell335::ProcCharges)==1)&&!(d.id==22812&&!u(spell335::ProcChance))) // Fear Ward's immunity charge, Barkskin's inert proc (classBuff) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
     // Spell.dbc column 38 is BaseLevel and column 39 is SpellLevel
@@ -1442,7 +1471,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(untilCancelled&&ty==6&&tg==1&&(au==42||au==87||au==168)&&i(80+e)==-1)continue; // talent proc hook, empty modifier
             if(prowlSpell&&ty==6&&tg==1&&au==33)continue; // its slow
             if(presenceSpell&&ty==6&&tg==1&&(au==10||au==107||au==118))continue; // threat, global cooldown, marker
-            if((ty!=6&&ty!=35&&ty!=65)||u(89+e)||(u(116+e)&&!(inertProc&&au==42))||(tg!=1&&tg!=21&&tg!=25&&tg!=20&&tg!=22&&tg!=30&&tg!=31&&tg!=56&&tg!=57&&tg!=0))shape=false;
+            if((ty!=6&&ty!=35&&ty!=65)||u(89+e)||(u(116+e)&&!(inertProc&&au==42)&&!(chillArmor&&e==chillEffect))||(tg!=1&&tg!=21&&tg!=25&&tg!=20&&tg!=22&&tg!=30&&tg!=31&&tg!=56&&tg!=57&&tg!=0))shape=false;
             if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99||(tg==1&&(au==31||au==49||au==124)&&i(80+e)>=0)||(tg==1&&au==22&&(i(110+e)&1)&&i(80+e)>=0)||(trackerSpell&&au==44)||(prowlSpell&&au==16)||(presenceSpell&&(au==79||au==142||au==138))||
                (!creatureCaster&&d.spellFamily==4&&(((d.spellFamilyFlags[0]&0x1000u)&&tg==1&&(au==51||au==150))||((d.spellFamilyFlags[1]&0x80u)&&au==230))))any=true;
         }
@@ -1477,7 +1506,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             }
             any=percentage&&modelled;
         }
-        classBuffSpell=any&&shape&&((!u(spell335::ProcFlags)&&!u(spell335::ProcCharges))||untilCancelled||inertProc||immunityCharge);
+        classBuffSpell=any&&shape&&((!u(spell335::ProcFlags)&&!u(spell335::ProcCharges))||untilCancelled||inertProc||immunityCharge||innerFire||chillArmor);
         if(classBuffSpell&&immunityCharge)d.classBuffImmunityCharge=true;
     }
     // A ground area: SPELL_EFFECT_PERSISTENT_AREA_AURA (27) at the destination
@@ -1694,6 +1723,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(au==140&&tg==1&&!misc&&amount>0&&amount<=100)d.classBuffRangedHastePct=amount; // Rapid Fire
             if(au==66&&tg==1&&d.spellFamily==9)d.classBuffFeignDeath=true; // Feign Death
             if(au==137&&misc==-1&&amount>0&&amount<=100)d.classBuffStatPct=amount; // Blessing of Kings
+            if(innerFire&&au==22)d.classBuffHitCharges=uint8_t(u(spell335::ProcCharges)); // Inner Fire
             if(au==85&&!misc&&amount>0&&amount<=100000&&!d.manaPer5)d.manaPer5=uint32_t(amount); // Blessing of Wisdom
             if(d.id==48707&&misc==126&&amount>0&&amount<=100){ // Anti-Magic Shell: its absorb pool and aura immunity
                 if(au==69){d.magicShellAbsorbPct=uint8_t(amount);d.buffAbsorb=1;d.absorbSchoolMask=126;}

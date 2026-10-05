@@ -2008,6 +2008,24 @@ struct LocalGameplay::Impl {
         }
         LOG_INFO("[LOCAL_DISEASE] npc=",n.guid," spell=",z.id," tick=",tick," slow=",int(z.diseaseHastePct));
     }
+    // A creature's melee hit landing on `p` (spell_proc -168 / -588 HitMask:
+    // normal, critical or absorbed): Frost Armor chills the creature, and
+    // each Inner Fire held loses a charge, the last ending it.
+    void npcMeleeLandedOnPlayer(LocalRealmNpc& n,LocalRealmPlayer& p) {
+        for(auto& a:p.statAuras) {
+            if(!a.remainingMs||a.mapId!=p.mapId||a.instanceId!=p.instanceId)continue;
+            const auto* d=content->spell(a.spellId);
+            if(!d||!d->classBuff)continue;
+            if(d->classBuffHitCharges&&a.procCharges&&!--a.procCharges)a.remainingMs=0;
+            if(d->chillSpell&&!n.dead) {
+                LocalNpcBuff b;b.spellId=d->chillSpell;b.casterGuid=p.guid;b.durationMs=b.remainingMs=d->chillDurationMs;
+                b.hastePct=d->chillHastePct;b.speedPct=d->chillSpeedPct;
+                auto bt=std::find_if(n.npcBuffs.begin(),n.npcBuffs.end(),[&](const auto& o){return o.spellId==b.spellId&&o.casterGuid==p.guid;});
+                if(bt!=n.npcBuffs.end()){npcBuffRemoved(n,*bt);*bt=b;}else if(n.npcBuffs.size()<kLocalMaxNpcBuffs)n.npcBuffs.push_back(b);
+                LOG_INFO("[LOCAL_CHILL] npc=",n.guid," spell=",b.spellId," by=",p.guid," haste=",int(b.hastePct)," speed=",int(b.speedPct));
+            }
+        }
+    }
     // A damage-capped control (Fear) on a TAKEN proc: each hit that dealt
     // damage spends the cap snapshotted at application, and the hit that
     // exceeds what is left removes it (Unit::ProcDamageAndSpellFor's
@@ -3192,7 +3210,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(uint32_t(d.classBuffStatPct));hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(uint32_t(d.classBuffStatPct));hash(uint32_t(d.classBuffHitCharges)|uint32_t(uint8_t(d.chillHastePct))<<8|uint32_t(uint8_t(d.chillSpeedPct))<<16);hash(d.chillSpell);hash(d.chillDurationMs);hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -5144,9 +5162,9 @@ void LocalGameplay::initializePlayer(LocalRealmPlayer& p, bool fresh, uint8_t fo
                 aura.stacks=std::min(aura.stacks,d->maxAuraStacks);
                 aura.absorbRemaining=std::min(aura.absorbRemaining,d->wardProfile||d->buffAbsorbPerLevel!=0.f||d->magicShellHealthPct?1000000u:localStackedAuraAmount(d->buffAbsorb,aura.stacks));
                 if(d->buffAbsorb&&!aura.absorbRemaining)aura.remainingMs=0;
-                aura.procCharges=std::min(aura.procCharges,d->proc.charges);
+                aura.procCharges=std::min(aura.procCharges,localAuraChargeCap(*d));
                 aura.procCooldownMs=std::min(aura.procCooldownMs,d->proc.cooldownMs);
-                if(d->proc.charges&&!aura.procCharges)aura.remainingMs=0;
+                if(localAuraChargeCap(*d)&&!aura.procCharges)aura.remainingMs=0;
                 if(d->periodicHealMaxHealthPct)aura.manaRegenRemainder%=d->periodicIntervalMs;
                 else if(!d->manaPer5)aura.manaRegenRemainder=0;
                 aura.buffArmorSnapshot=d->buffArmor?std::min(aura.buffArmorSnapshot,uint32_t(std::min(uint64_t(1000000),uint64_t(d->buffArmor)*11))):0;
@@ -7982,7 +8000,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
             d->wardProfile?localWardAbsorbAmount(p,c,*d):d->buffAbsorbPerLevel!=0.f?
             localStackedAuraAmount(scaledSpellAmount(p,*d,d->buffAbsorb,d->buffAbsorb,d->buffAbsorbPerLevel),a.stacks):localStackedAuraAmount(d->buffAbsorb,a.stacks);
         a.reflectChanceBasisPointsSnapshot=d->wardProfile?localWardReflectChanceBasisPoints(p,c,*d):0;
-        a.procCharges=d->proc.charges;
+        a.procCharges=localAuraChargeCap(*d);
         if(d->proc.effect!=LocalProcEffect::None){a.procAmountSnapshot=localProcAmountAtApplication(p,c,*d);a.hasProcAmountSnapshot=true;}
         if(buffSlot<healed->statAuras.size()&&d->proc.charges){
             const auto& prior=healed->statAuras[buffSlot];
@@ -8473,9 +8491,9 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                 a.stacks=std::min(a.stacks,d->maxAuraStacks);if(!(d->classBuff&&d->indefiniteDuration))a.remainingMs-=activeMs;
                 a.absorbRemaining=std::min(a.absorbRemaining,d->wardProfile||d->buffAbsorbPerLevel!=0.f||d->magicShellHealthPct?1000000u:localStackedAuraAmount(d->buffAbsorb,a.stacks));
                 if(d->buffAbsorb&&!a.absorbRemaining){a.remainingMs=0;continue;}
-                a.procCharges=std::min(a.procCharges,d->proc.charges);
+                a.procCharges=std::min(a.procCharges,localAuraChargeCap(*d));
                 a.procCooldownMs-=std::min(elapsedMs,a.procCooldownMs);
-                if(d->proc.charges&&!a.procCharges){a.remainingMs=0;continue;}
+                if(localAuraChargeCap(*d)&&!a.procCharges){a.remainingMs=0;continue;}
                 const bool hiddenMana=p->classId==11&&p->formSpellId&&p->resourceType!=LocalResourceType::Mana;
                 if(d->classBuff&&d->classBuffManaPct&&d->classBuffManaIntervalMs&&p->resourceType==LocalResourceType::Mana) {
                     // HandleObsModPowerAuraTick: amount% of maximum mana each
@@ -9607,6 +9625,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
             // Unit::DealMeleeDamage:2126-2128 - the shield runs only when the
             // swing actually dealt damage, and after the swing is resolved.
             if(damage&&!target->dead)g.dealAreaAuraShieldDamage(*target,n,players);
+            if(!localMeleeAvoided(outcome)&&!target->dead)g.npcMeleeLandedOnPlayer(n,*target);
             changed=true;
             };
             whiteSwing();

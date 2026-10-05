@@ -471,7 +471,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
-            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39}, {1, 8, "Polymorph", 40}, {4, 11, "Entangling Roots", 41}, {1, 6, "Icy Touch", 42}, {1, 6, "Plague Strike", 42}, {1, 6, "Blood Boil", 0}, {1, 6, "Death Coil", 0}, {1, 6, "Death Grip", 43}, {1, 6, "Pestilence", 44}, {1, 6, "Anti-Magic Shell", 45}, {1, 6, "Raise Dead", 46}, {1, 6, "Empower Rune Weapon", 47}, {1, 6, "Strangulate", 1}, {3, 3, "Steady Shot", 0}, {3, 3, "Hunter's Mark", 48}, {2, 7, "Bloodlust", 49}, {3, 3, "Rapid Fire", 50}, {2, 7, "Windfury Totem", 51}, {3, 3, "Feign Death", 52}, {2, 7, "Fire Nova", 53}, {1, 2, "Judgement of Light", 54}, {3, 3, "Distracting Shot", 1}, {2, 7, "Wind Shear", 1}, {1, 2, "Blessing of Kings", 55}, {1, 2, "Blessing of Wisdom", 55},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39}, {1, 8, "Polymorph", 40}, {4, 11, "Entangling Roots", 41}, {1, 6, "Icy Touch", 42}, {1, 6, "Plague Strike", 42}, {1, 6, "Blood Boil", 0}, {1, 6, "Death Coil", 0}, {1, 6, "Death Grip", 43}, {1, 6, "Pestilence", 44}, {1, 6, "Anti-Magic Shell", 45}, {1, 6, "Raise Dead", 46}, {1, 6, "Empower Rune Weapon", 47}, {1, 6, "Strangulate", 1}, {3, 3, "Steady Shot", 0}, {3, 3, "Hunter's Mark", 48}, {2, 7, "Bloodlust", 49}, {3, 3, "Rapid Fire", 50}, {2, 7, "Windfury Totem", 51}, {3, 3, "Feign Death", 52}, {2, 7, "Fire Nova", 53}, {1, 2, "Judgement of Light", 54}, {3, 3, "Distracting Shot", 1}, {2, 7, "Wind Shear", 1}, {1, 2, "Blessing of Kings", 55}, {1, 2, "Blessing of Wisdom", 55}, {1, 8, "Frost Armor", 56}, {1, 5, "Inner Fire", 56},
         };
         size_t passed = 0;
         // Incinerate carries the Immolate bonus (a quarter more on an Immolated target).
@@ -531,7 +531,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             }
             const uint32_t reagentBefore = [&] { const auto* sd = content.spell(spellId); uint32_t n = 0;
                 for (const auto& st : p.inventory) if (sd && st.itemId == sd->reagentItems[0]) n += st.count; return n; }();
-            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || (a.kind >= 12 && a.kind <= 14) || a.kind == 16 || a.kind == 20 || (a.kind >= 28 && a.kind <= 30) || (a.kind >= 32 && a.kind <= 39) || a.kind == 45 || a.kind == 46 || a.kind == 47 || a.kind == 49 || a.kind == 50 || a.kind == 51 || a.kind == 55) {
+            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || (a.kind >= 12 && a.kind <= 14) || a.kind == 16 || a.kind == 20 || (a.kind >= 28 && a.kind <= 30) || (a.kind >= 32 && a.kind <= 39) || a.kind == 45 || a.kind == 46 || a.kind == 47 || a.kind == 49 || a.kind == 50 || a.kind == 51 || a.kind == 55 || a.kind == 56) {
                 const auto meleeBefore = localMeleeStats(p, content); const auto healthBefore = p.maxHealth; const auto items = p.inventory.size();
                 const auto armorBefore = localMeleeArmor(p, content);
                 const auto* autoShot = content.spell(75);
@@ -625,6 +625,32 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     ok = ok && awLater && !holds(25771);
                     if (!ok) result = "swings " + std::to_string(swings) + " shielded low " + std::to_string(shieldedLow) + " exposed low " + std::to_string(exposedLow) + "/" + std::to_string(p.maxHealth) + " immunity " + std::to_string(sd ? sd->classBuffSchoolImmunity : 0) + " markers " + std::to_string(holds(25771)) + std::to_string(holds(61987)) + std::to_string(holds(61988)) +
                                       " second " + std::to_string(second) + " dp " + std::to_string(dp) + " aw " + std::to_string(aw) + " later " + std::to_string(awLater) + " (" + again + " / " + protection + " / " + wrath + ")";
+                }
+                if (a.kind == 56) {
+                    // Frost Armor chills a creature hitting the mage in melee; each hit
+                    // taken spends one of Inner Fire's charges. Both raise armor.
+                    const auto* sd = content.spell(spellId);
+                    const auto held = [&]() -> const LocalStatAura* { for (const auto& s : p.statAuras) if (s.spellId == spellId && s.remainingMs) return &s; return nullptr; };
+                    const uint8_t chargesBefore = held() ? held()->procCharges : 0;
+                    uint8_t chargesAfter = chargesBefore; bool chilled = false;
+                    const auto armorAfter = localMeleeArmor(p, content);
+                    LocalRealmNpc* foe = nullptr; float best = 1e9f;
+                    for (const auto& m : arena.npcs()) if (m.hostile && !m.dead && m.health && m.mapId == p.mapId && m.instanceId == p.instanceId)
+                        if (const float dist = std::hypot(m.x - p.x, m.y - p.y); dist < best) { best = dist; foe = const_cast<LocalRealmNpc*>(&m); }
+                    if (foe && sd) {
+                        foe->x = foe->homeX = p.x + 1.5f; foe->y = foe->homeY = p.y; foe->z = foe->homeZ = p.z; foe->maxHealth = foe->health = 1000000;
+                        foe->level = p.level; foe->targetGuid = p.guid; p.attackTarget = foe->guid; p.orientation = std::atan2(foe->y - p.y, foe->x - p.x);
+                        for (int t = 0; t < 400 && !chilled && chargesAfter == chargesBefore; ++t) {
+                            arena.tick(0.05f, players); foe->health = foe->maxHealth; p.health = p.maxHealth;
+                            for (const auto& b : foe->npcBuffs) if (b.spellId == sd->chillSpell && b.casterGuid == p.guid && b.remainingMs && b.hastePct < 0 && b.speedPct < 0) chilled = true;
+                            chargesAfter = held() ? held()->procCharges : 0;
+                        }
+                        p.attackTarget = 0;
+                    }
+                    ok = ok && sd && foe && armorAfter > armorBefore &&
+                         (sd->chillSpell ? chilled : sd->classBuffHitCharges && chargesBefore == sd->classBuffHitCharges && chargesAfter + 1 == chargesBefore);
+                    if (!ok) result = "armor " + std::to_string(armorBefore) + "->" + std::to_string(armorAfter) + " chill " + std::to_string(sd ? sd->chillSpell : 0) + " chilled " + std::to_string(chilled) +
+                                      " charges " + std::to_string(chargesBefore) + "->" + std::to_string(chargesAfter) + " foe " + std::to_string(foe != nullptr) + " (" + result + ")";
                 }
                 if (a.kind == 55) {
                     // Blessing of Kings: every stat 10% higher; Blessing of Wisdom: mana every 5 s.

@@ -1496,6 +1496,14 @@ struct LocalSpellDefinition {
     uint32_t judgementDebuff = 0;
     // SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE (137) on every stat (Blessing of Kings).
     int32_t classBuffStatPct = 0;
+    // Inner Fire: its charges (Spell.dbc ProcCharges); each melee or ranged
+    // hit the holder takes spends one (spell_proc -588), the last ends it.
+    uint8_t classBuffHitCharges = 0;
+    // Frost Armor: Chilled, the PROC_TRIGGER_SPELL its holder puts on a
+    // creature that lands a melee hit on it (spell_proc -168): the creature's
+    // attack speed (aura 138) and movement (aura 33) slowed for its duration.
+    uint32_t chillSpell = 0, chillDurationMs = 0;
+    int8_t chillHastePct = 0, chillSpeedPct = 0;
     // Death Grip (spell_dk_death_grip on 49576): the creature is pulled in
     // front of the knight (49560's jump, 57604), its cast stops, and it is
     // taunted (49560's MOD_TAUNT and SPELL_EFFECT_ATTACK_ME).
@@ -1534,6 +1542,8 @@ struct LocalSpellDefinition {
 
     std::string iconPath, unsupportedReason;
 };
+// The charges an aura starts with: its proc's, or a class buff's hit charges.
+inline uint8_t localAuraChargeCap(const LocalSpellDefinition& d) { return d.proc.charges ? d.proc.charges : d.classBuffHitCharges; }
 struct LocalQuestObjective {
     enum class Type : uint8_t { Kill = 0, Collect = 1, Talk = 2, Script = 3, GameObject = 4 };
     Type type = Type::Kill;
