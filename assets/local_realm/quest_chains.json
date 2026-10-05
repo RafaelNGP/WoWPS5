@@ -47,6 +47,14 @@
       "alternatives": [
         []
       ],
+      "id": 8,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
       "id": 9,
       "maxLevel": 0,
       "unsupportedReason": ""
@@ -168,6 +176,14 @@
     },
     {
       "alternatives": [
+        []
+      ],
+      "id": 36,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         [
           {
             "questId": 35,
@@ -207,6 +223,19 @@
       "alternatives": [
         [
           {
+            "questId": 21,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 54,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 57,
             "statusMask": 1
           }
@@ -233,6 +262,19 @@
       "alternatives": [
         [
           {
+            "questId": 60,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 61,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 132,
             "statusMask": 1
           }
@@ -252,6 +294,23 @@
         ]
       ],
       "id": 66,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 86,
+            "statusMask": 8
+          },
+          {
+            "questId": 87,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 84,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -344,9 +403,74 @@
     },
     {
       "alternatives": [
+        [
+          {
+            "questId": 111,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 106,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         []
       ],
       "id": 109,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 119,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 118,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 118,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 119,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 121,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 120,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 120,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 121,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -370,6 +494,130 @@
       "alternatives": [
         [
           {
+            "questId": 130,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 129,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 65,
+            "statusMask": 8
+          },
+          {
+            "questId": 135,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 132,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 132,
+            "statusMask": 8
+          },
+          {
+            "questId": 141,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 135,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 135,
+            "statusMask": 8
+          },
+          {
+            "questId": 142,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 141,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 121,
+            "statusMask": 8
+          },
+          {
+            "questId": 144,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 143,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 143,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 144,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 144,
+            "statusMask": 8
+          },
+          {
+            "questId": 146,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 145,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 145,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 146,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 149,
             "statusMask": 1
           },
@@ -380,6 +628,23 @@
         ]
       ],
       "id": 148,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 148,
+            "statusMask": 8
+          },
+          {
+            "questId": 154,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 149,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -403,12 +668,59 @@
       "alternatives": [
         [
           {
+            "questId": 149,
+            "statusMask": 8
+          },
+          {
+            "questId": 157,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 154,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 154,
+            "statusMask": 8
+          },
+          {
+            "questId": 158,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 157,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 5,
             "statusMask": 1
           }
         ]
       ],
       "id": 163,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 95,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 164,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -695,6 +1007,14 @@
       "alternatives": [
         []
       ],
+      "id": 198,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
       "id": 208,
       "maxLevel": 0,
       "orderedPrevious": [
@@ -766,6 +1086,19 @@
       "alternatives": [
         [
           {
+            "questId": 627,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 210,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 200,
             "statusMask": 1
           }
@@ -780,6 +1113,92 @@
         []
       ],
       "id": 226,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 238,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 232,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 179,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 233,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 233,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 234,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 232,
+            "statusMask": 8
+          },
+          {
+            "questId": 243,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 238,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 93,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 240,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 238,
+            "statusMask": 8
+          },
+          {
+            "questId": 379,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 243,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -889,12 +1308,55 @@
       "alternatives": [
         [
           {
+            "questId": 301,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 298,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 298,
+            "statusMask": 8
+          },
+          {
+            "questId": 302,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 301,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 306,
             "statusMask": 1
           }
         ]
       ],
       "id": 305,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 305,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 306,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -933,6 +1395,30 @@
         ]
       ],
       "id": 318,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 332,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 333,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 334,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -980,6 +1466,19 @@
         ]
       ],
       "id": 345,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 1097,
+            "statusMask": 9
+          }
+        ]
+      ],
+      "id": 353,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -1222,6 +1721,19 @@
     },
     {
       "alternatives": [
+        [
+          {
+            "questId": 382,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 383,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         []
       ],
       "id": 385,
@@ -1241,6 +1753,14 @@
         []
       ],
       "id": 388,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 400,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -1341,12 +1861,33 @@
       "alternatives": [
         [
           {
+            "questId": 429,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 430,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 297,
             "statusMask": 1
           }
         ]
       ],
       "id": 436,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 445,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -1451,6 +1992,14 @@
     },
     {
       "alternatives": [
+        []
+      ],
+      "id": 469,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         [
           {
             "questId": 484,
@@ -1528,6 +2077,27 @@
     },
     {
       "alternatives": [
+        [
+          {
+            "questId": 369,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 492,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 493,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         []
       ],
       "id": 494,
@@ -1564,6 +2134,19 @@
       "alternatives": [
         [
           {
+            "questId": 496,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 499,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 504,
             "statusMask": 1
           }
@@ -1583,6 +2166,19 @@
         ]
       ],
       "id": 501,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 501,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 502,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -1655,6 +2251,19 @@
         ]
       ],
       "id": 520,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 520,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 521,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -1743,6 +2352,23 @@
         ]
       ],
       "id": 559,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 559,
+            "statusMask": 8
+          },
+          {
+            "questId": 561,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 560,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -2014,6 +2640,23 @@
       "alternatives": [
         [
           {
+            "questId": 672,
+            "statusMask": 8
+          },
+          {
+            "questId": 675,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 674,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 677,
             "statusMask": 1
           }
@@ -2256,6 +2899,33 @@
     },
     {
       "alternatives": [
+        [
+          {
+            "questId": 735,
+            "statusMask": 8
+          },
+          {
+            "questId": 736,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 735,
+            "statusMask": 9
+          },
+          {
+            "questId": 736,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 737,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         []
       ],
       "id": 747,
@@ -2313,6 +2983,23 @@
         []
       ],
       "id": 766,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 734,
+            "statusMask": 8
+          },
+          {
+            "questId": 778,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 777,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -2519,6 +3206,32 @@
         []
       ],
       "id": 826,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 842,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 840,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 840,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 842,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -2756,6 +3469,23 @@
       "alternatives": [
         [
           {
+            "questId": 966,
+            "statusMask": 8
+          },
+          {
+            "questId": 970,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 967,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 3783,
             "statusMask": 8
           },
@@ -2779,6 +3509,14 @@
         ]
       ],
       "id": 991,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 997,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -2839,6 +3577,19 @@
         []
       ],
       "id": 1051,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 261,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 1052,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -2960,6 +3711,40 @@
     },
     {
       "alternatives": [
+        []
+      ],
+      "id": 1091,
+      "maxLevel": 0,
+      "orderedPrevious": [
+        {
+          "require": [
+            {
+              "questId": 1080,
+              "statusMask": 8
+            }
+          ],
+          "when": {
+            "questId": 1079,
+            "statusMask": 8
+          }
+        },
+        {
+          "require": [
+            {
+              "questId": 1079,
+              "statusMask": 8
+            }
+          ],
+          "when": {
+            "questId": 1080,
+            "statusMask": 8
+          }
+        }
+      ],
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         [
           {
             "questId": 353,
@@ -2983,6 +3768,45 @@
       "alternatives": [
         [
           {
+            "questId": 1108,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 1106,
+      "maxLevel": 0,
+      "orderedPrevious": [
+        {
+          "require": [
+            {
+              "questId": 1105,
+              "statusMask": 8
+            }
+          ],
+          "when": {
+            "questId": 1104,
+            "statusMask": 8
+          }
+        },
+        {
+          "require": [
+            {
+              "questId": 1104,
+              "statusMask": 8
+            }
+          ],
+          "when": {
+            "questId": 1105,
+            "statusMask": 8
+          }
+        }
+      ],
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 1113,
             "statusMask": 1
           }
@@ -2996,12 +3820,70 @@
       "alternatives": [
         [
           {
+            "questId": 1112,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 1111,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 1111,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 1112,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 1109,
             "statusMask": 8
           }
         ]
       ],
       "id": 1113,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 1112,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 1114,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 1120,
+            "statusMask": 8
+          }
+        ],
+        [
+          {
+            "questId": 1121,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 1122,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -3070,6 +3952,41 @@
       "alternatives": [
         [
           {
+            "questId": 1123,
+            "statusMask": 8
+          },
+          {
+            "questId": 1125,
+            "statusMask": 1
+          },
+          {
+            "questId": 6762,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 1123,
+            "statusMask": 9
+          },
+          {
+            "questId": 1125,
+            "statusMask": 1
+          },
+          {
+            "questId": 6762,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 1124,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 1131,
             "statusMask": 1
           }
@@ -3097,6 +4014,36 @@
         []
       ],
       "id": 1138,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 1146,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 1145,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 1145,
+            "statusMask": 8
+          },
+          {
+            "questId": 1147,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 1146,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -3143,6 +4090,14 @@
         ]
       ],
       "id": 1178,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 1179,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -3205,6 +4160,57 @@
       "alternatives": [
         [
           {
+            "questId": 1242,
+            "statusMask": 1
+          },
+          {
+            "questId": 1274,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 1241,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 1241,
+            "statusMask": 8
+          },
+          {
+            "questId": 1243,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 1242,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 1242,
+            "statusMask": 8
+          },
+          {
+            "questId": 1244,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 1243,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 1204,
             "statusMask": 1
           }
@@ -3237,6 +4243,19 @@
         ]
       ],
       "id": 1301,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 1339,
+            "statusMask": 9
+          }
+        ]
+      ],
+      "id": 1338,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -3382,6 +4401,19 @@
       "alternatives": [
         [
           {
+            "questId": 1477,
+            "statusMask": 9
+          }
+        ]
+      ],
+      "id": 1395,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 1421,
             "statusMask": 1
           },
@@ -3413,6 +4445,19 @@
         []
       ],
       "id": 1419,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 1418,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 1420,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -3609,6 +4654,14 @@
     },
     {
       "alternatives": [
+        []
+      ],
+      "id": 1492,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         [
           {
             "questId": 1501,
@@ -3617,6 +4670,35 @@
         ]
       ],
       "id": 1506,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 1522,
+            "statusMask": 9
+          },
+          {
+            "questId": 1523,
+            "statusMask": 9
+          },
+          {
+            "questId": 1525,
+            "statusMask": 1
+          },
+          {
+            "questId": 2983,
+            "statusMask": 9
+          },
+          {
+            "questId": 2984,
+            "statusMask": 9
+          }
+        ]
+      ],
+      "id": 1524,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -3714,6 +4796,14 @@
         ]
       ],
       "id": 1648,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 1656,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -3871,6 +4961,23 @@
       "alternatives": [
         [
           {
+            "questId": 1778,
+            "statusMask": 8
+          },
+          {
+            "questId": 1783,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 1779,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 1644,
             "statusMask": 8
           },
@@ -3881,6 +4988,23 @@
         ]
       ],
       "id": 1780,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 1780,
+            "statusMask": 8
+          },
+          {
+            "questId": 1786,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 1781,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -4135,6 +5259,43 @@
     },
     {
       "alternatives": [
+        []
+      ],
+      "id": 2159,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 2160,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 2161,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 2206,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 2205,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         [
           {
             "questId": 2238,
@@ -4143,6 +5304,19 @@
         ]
       ],
       "id": 2218,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 2242,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 2241,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -4274,6 +5448,19 @@
       "alternatives": [
         [
           {
+            "questId": 788,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 2383,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 2240,
             "statusMask": 1
           }
@@ -4322,6 +5509,23 @@
         ]
       ],
       "id": 2605,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 2605,
+            "statusMask": 8
+          },
+          {
+            "questId": 2641,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 2606,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -4563,6 +5767,547 @@
       "alternatives": [
         []
       ],
+      "id": 3022,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 788,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3065,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 788,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3082,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 788,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3083,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 788,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3084,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 788,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3085,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 788,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3086,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 788,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3087,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 788,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3088,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 788,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3089,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 788,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3090,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 747,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3091,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 747,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3092,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 747,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3093,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 747,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3094,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 364,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3095,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 364,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3096,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 364,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3097,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 364,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3098,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 364,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3099,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 7,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3100,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 7,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3101,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 7,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3102,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 7,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3103,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 7,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3104,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 7,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3105,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 179,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3106,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 179,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3107,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 179,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3108,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 179,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3109,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 179,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3110,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 179,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3112,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 179,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3113,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 179,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3114,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 179,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3115,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 456,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3116,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 456,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3117,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 456,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3118,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 456,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3119,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 456,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3120,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 3122,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 3121,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 3121,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3122,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
       "id": 3129,
       "maxLevel": 0,
       "orderedPrevious": [
@@ -4598,6 +6343,27 @@
         []
       ],
       "id": 3362,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 3364,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 3364,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 3365,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -4713,6 +6479,19 @@
       "alternatives": [
         [
           {
+            "questId": 3505,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 3504,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 3521,
             "statusMask": 1
           },
@@ -4723,6 +6502,19 @@
         ]
       ],
       "id": 3519,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 3525,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 3523,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -4808,6 +6600,29 @@
         ]
       ],
       "id": 3765,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [],
+      "id": 3781,
+      "maxLevel": 0,
+      "unsupportedReason": "repeatable or seasonal prerequisite 3785"
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 3761,
+            "statusMask": 8
+          },
+          {
+            "questId": 3786,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 3782,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -5028,6 +6843,23 @@
     },
     {
       "alternatives": [
+        [
+          {
+            "questId": 4061,
+            "statusMask": 8
+          },
+          {
+            "questId": 4063,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 4062,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         []
       ],
       "id": 4101,
@@ -5112,6 +6944,23 @@
         ]
       ],
       "id": 4141,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 4141,
+            "statusMask": 8
+          },
+          {
+            "questId": 4143,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 4142,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -5238,6 +7087,14 @@
       "alternatives": [
         []
       ],
+      "id": 4492,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
       "id": 4495,
       "maxLevel": 0,
       "unsupportedReason": ""
@@ -5276,6 +7133,32 @@
         ]
       ],
       "id": 4521,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 4841,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 4542,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 1011,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 4581,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -5524,6 +7407,67 @@
       "alternatives": [
         [
           {
+            "questId": 4985,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 4986,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 4985,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 4987,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 5048,
+            "statusMask": 8
+          },
+          {
+            "questId": 5049,
+            "statusMask": 9
+          },
+          {
+            "questId": 5051,
+            "statusMask": 1
+          }
+        ],
+        [
+          {
+            "questId": 5048,
+            "statusMask": 9
+          },
+          {
+            "questId": 5049,
+            "statusMask": 8
+          },
+          {
+            "questId": 5051,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 5050,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 5055,
             "statusMask": 1
           }
@@ -5657,6 +7601,19 @@
       "alternatives": [
         [
           {
+            "questId": 5161,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 5160,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 5213,
             "statusMask": 1
           }
@@ -5764,6 +7721,14 @@
       "alternatives": [
         []
       ],
+      "id": 5361,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
       "id": 5525,
       "maxLevel": 0,
       "unsupportedReason": ""
@@ -5812,9 +7777,46 @@
     },
     {
       "alternatives": [
+        [
+          {
+            "questId": 5722,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 5724,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 5762,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 5763,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         []
       ],
       "id": 5863,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 5881,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -5836,6 +7838,30 @@
         []
       ],
       "id": 5961,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 6028,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 6029,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 6030,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -5927,6 +7953,19 @@
       "alternatives": [
         [
           {
+            "questId": 6281,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 6181,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 6183,
             "statusMask": 1
           }
@@ -5974,12 +8013,346 @@
       "alternatives": [
         [
           {
+            "questId": 6281,
+            "statusMask": 8
+          },
+          {
+            "questId": 6285,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 6261,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6181,
+            "statusMask": 8
+          },
+          {
+            "questId": 6261,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 6281,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6261,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 6285,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6323,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 6321,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6323,
+            "statusMask": 8
+          },
+          {
+            "questId": 6324,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 6322,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6321,
+            "statusMask": 8
+          },
+          {
+            "questId": 6322,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 6323,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6322,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 6324,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6342,
+            "statusMask": 1
+          },
+          {
+            "questId": 6344,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 6341,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6341,
+            "statusMask": 8
+          },
+          {
+            "questId": 6343,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 6342,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6342,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 6343,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 6341,
             "statusMask": 1
           }
         ]
       ],
       "id": 6344,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6362,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 6361,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6361,
+            "statusMask": 8
+          },
+          {
+            "questId": 6363,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 6362,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6362,
+            "statusMask": 8
+          },
+          {
+            "questId": 6364,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 6363,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6363,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 6364,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6384,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 6365,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6365,
+            "statusMask": 8
+          },
+          {
+            "questId": 6385,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 6384,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6384,
+            "statusMask": 8
+          },
+          {
+            "questId": 6386,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 6385,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6385,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 6386,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6391,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 6387,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6391,
+            "statusMask": 8
+          },
+          {
+            "questId": 6392,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 6388,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6387,
+            "statusMask": 8
+          },
+          {
+            "questId": 6388,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 6391,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 6388,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 6392,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -6339,6 +8712,19 @@
       "alternatives": [
         [
           {
+            "questId": 7563,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 7564,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 7582,
             "statusMask": 1
           }
@@ -6392,6 +8778,40 @@
       ],
       "id": 7727,
       "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 7732,
+      "maxLevel": 0,
+      "orderedPrevious": [
+        {
+          "require": [
+            {
+              "questId": 7731,
+              "statusMask": 8
+            }
+          ],
+          "when": {
+            "questId": 7730,
+            "statusMask": 8
+          }
+        },
+        {
+          "require": [
+            {
+              "questId": 7730,
+              "statusMask": 8
+            }
+          ],
+          "when": {
+            "questId": 7731,
+            "statusMask": 8
+          }
+        }
+      ],
       "unsupportedReason": ""
     },
     {
@@ -6631,6 +9051,62 @@
     },
     {
       "alternatives": [
+        [
+          {
+            "questId": 8279,
+            "statusMask": 1
+          },
+          {
+            "questId": 8284,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 8285,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 8315,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 8314,
+      "maxLevel": 0,
+      "orderedPrevious": [
+        {
+          "require": [
+            {
+              "questId": 8310,
+              "statusMask": 8
+            }
+          ],
+          "when": {
+            "questId": 8309,
+            "statusMask": 8
+          }
+        },
+        {
+          "require": [
+            {
+              "questId": 8309,
+              "statusMask": 8
+            }
+          ],
+          "when": {
+            "questId": 8310,
+            "statusMask": 8
+          }
+        }
+      ],
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         []
       ],
       "id": 8318,
@@ -6797,6 +9273,19 @@
     },
     {
       "alternatives": [
+        [
+          {
+            "questId": 9705,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 8350,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         []
       ],
       "id": 8365,
@@ -6856,6 +9345,23 @@
         ]
       ],
       "id": 8415,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 8414,
+            "statusMask": 8
+          },
+          {
+            "questId": 8418,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 8416,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -7042,6 +9548,987 @@
         ]
       ],
       "id": 8894,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 8472,
+            "statusMask": 8
+          },
+          {
+            "questId": 9119,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 8895,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 8905,
+            "statusMask": 8
+          },
+          {
+            "questId": 8921,
+            "statusMask": 1
+          }
+        ],
+        [
+          {
+            "questId": 8906,
+            "statusMask": 8
+          },
+          {
+            "questId": 8921,
+            "statusMask": 1
+          }
+        ],
+        [
+          {
+            "questId": 8907,
+            "statusMask": 8
+          },
+          {
+            "questId": 8921,
+            "statusMask": 1
+          }
+        ],
+        [
+          {
+            "questId": 8908,
+            "statusMask": 8
+          },
+          {
+            "questId": 8921,
+            "statusMask": 1
+          }
+        ],
+        [
+          {
+            "questId": 8909,
+            "statusMask": 8
+          },
+          {
+            "questId": 8921,
+            "statusMask": 1
+          }
+        ],
+        [
+          {
+            "questId": 8910,
+            "statusMask": 8
+          },
+          {
+            "questId": 8921,
+            "statusMask": 1
+          }
+        ],
+        [
+          {
+            "questId": 8911,
+            "statusMask": 8
+          },
+          {
+            "questId": 8921,
+            "statusMask": 1
+          }
+        ],
+        [
+          {
+            "questId": 8912,
+            "statusMask": 8
+          },
+          {
+            "questId": 8921,
+            "statusMask": 1
+          }
+        ],
+        [
+          {
+            "questId": 8921,
+            "statusMask": 1
+          },
+          {
+            "questId": 10492,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 8922,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 8913,
+            "statusMask": 8
+          },
+          {
+            "questId": 8921,
+            "statusMask": 1
+          }
+        ],
+        [
+          {
+            "questId": 8914,
+            "statusMask": 8
+          },
+          {
+            "questId": 8921,
+            "statusMask": 1
+          }
+        ],
+        [
+          {
+            "questId": 8915,
+            "statusMask": 8
+          },
+          {
+            "questId": 8921,
+            "statusMask": 1
+          }
+        ],
+        [
+          {
+            "questId": 8916,
+            "statusMask": 8
+          },
+          {
+            "questId": 8921,
+            "statusMask": 1
+          }
+        ],
+        [
+          {
+            "questId": 8917,
+            "statusMask": 8
+          },
+          {
+            "questId": 8921,
+            "statusMask": 1
+          }
+        ],
+        [
+          {
+            "questId": 8918,
+            "statusMask": 8
+          },
+          {
+            "questId": 8921,
+            "statusMask": 1
+          }
+        ],
+        [
+          {
+            "questId": 8919,
+            "statusMask": 8
+          },
+          {
+            "questId": 8921,
+            "statusMask": 1
+          }
+        ],
+        [
+          {
+            "questId": 8920,
+            "statusMask": 8
+          },
+          {
+            "questId": 8921,
+            "statusMask": 1
+          }
+        ],
+        [
+          {
+            "questId": 8921,
+            "statusMask": 1
+          },
+          {
+            "questId": 10493,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 8923,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 8926,
+            "statusMask": 8
+          },
+          {
+            "questId": 8931,
+            "statusMask": 9
+          },
+          {
+            "questId": 8932,
+            "statusMask": 9
+          },
+          {
+            "questId": 8933,
+            "statusMask": 9
+          },
+          {
+            "questId": 8934,
+            "statusMask": 9
+          },
+          {
+            "questId": 8935,
+            "statusMask": 9
+          },
+          {
+            "questId": 8936,
+            "statusMask": 9
+          },
+          {
+            "questId": 8937,
+            "statusMask": 9
+          },
+          {
+            "questId": 8945,
+            "statusMask": 1
+          },
+          {
+            "questId": 10494,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 8926,
+            "statusMask": 9
+          },
+          {
+            "questId": 8931,
+            "statusMask": 8
+          },
+          {
+            "questId": 8932,
+            "statusMask": 9
+          },
+          {
+            "questId": 8933,
+            "statusMask": 9
+          },
+          {
+            "questId": 8934,
+            "statusMask": 9
+          },
+          {
+            "questId": 8935,
+            "statusMask": 9
+          },
+          {
+            "questId": 8936,
+            "statusMask": 9
+          },
+          {
+            "questId": 8937,
+            "statusMask": 9
+          },
+          {
+            "questId": 8945,
+            "statusMask": 1
+          },
+          {
+            "questId": 10494,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 8926,
+            "statusMask": 9
+          },
+          {
+            "questId": 8931,
+            "statusMask": 9
+          },
+          {
+            "questId": 8932,
+            "statusMask": 8
+          },
+          {
+            "questId": 8933,
+            "statusMask": 9
+          },
+          {
+            "questId": 8934,
+            "statusMask": 9
+          },
+          {
+            "questId": 8935,
+            "statusMask": 9
+          },
+          {
+            "questId": 8936,
+            "statusMask": 9
+          },
+          {
+            "questId": 8937,
+            "statusMask": 9
+          },
+          {
+            "questId": 8945,
+            "statusMask": 1
+          },
+          {
+            "questId": 10494,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 8926,
+            "statusMask": 9
+          },
+          {
+            "questId": 8931,
+            "statusMask": 9
+          },
+          {
+            "questId": 8932,
+            "statusMask": 9
+          },
+          {
+            "questId": 8933,
+            "statusMask": 8
+          },
+          {
+            "questId": 8934,
+            "statusMask": 9
+          },
+          {
+            "questId": 8935,
+            "statusMask": 9
+          },
+          {
+            "questId": 8936,
+            "statusMask": 9
+          },
+          {
+            "questId": 8937,
+            "statusMask": 9
+          },
+          {
+            "questId": 8945,
+            "statusMask": 1
+          },
+          {
+            "questId": 10494,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 8926,
+            "statusMask": 9
+          },
+          {
+            "questId": 8931,
+            "statusMask": 9
+          },
+          {
+            "questId": 8932,
+            "statusMask": 9
+          },
+          {
+            "questId": 8933,
+            "statusMask": 9
+          },
+          {
+            "questId": 8934,
+            "statusMask": 8
+          },
+          {
+            "questId": 8935,
+            "statusMask": 9
+          },
+          {
+            "questId": 8936,
+            "statusMask": 9
+          },
+          {
+            "questId": 8937,
+            "statusMask": 9
+          },
+          {
+            "questId": 8945,
+            "statusMask": 1
+          },
+          {
+            "questId": 10494,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 8926,
+            "statusMask": 9
+          },
+          {
+            "questId": 8931,
+            "statusMask": 9
+          },
+          {
+            "questId": 8932,
+            "statusMask": 9
+          },
+          {
+            "questId": 8933,
+            "statusMask": 9
+          },
+          {
+            "questId": 8934,
+            "statusMask": 9
+          },
+          {
+            "questId": 8935,
+            "statusMask": 8
+          },
+          {
+            "questId": 8936,
+            "statusMask": 9
+          },
+          {
+            "questId": 8937,
+            "statusMask": 9
+          },
+          {
+            "questId": 8945,
+            "statusMask": 1
+          },
+          {
+            "questId": 10494,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 8926,
+            "statusMask": 9
+          },
+          {
+            "questId": 8931,
+            "statusMask": 9
+          },
+          {
+            "questId": 8932,
+            "statusMask": 9
+          },
+          {
+            "questId": 8933,
+            "statusMask": 9
+          },
+          {
+            "questId": 8934,
+            "statusMask": 9
+          },
+          {
+            "questId": 8935,
+            "statusMask": 9
+          },
+          {
+            "questId": 8936,
+            "statusMask": 8
+          },
+          {
+            "questId": 8937,
+            "statusMask": 9
+          },
+          {
+            "questId": 8945,
+            "statusMask": 1
+          },
+          {
+            "questId": 10494,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 8926,
+            "statusMask": 9
+          },
+          {
+            "questId": 8931,
+            "statusMask": 9
+          },
+          {
+            "questId": 8932,
+            "statusMask": 9
+          },
+          {
+            "questId": 8933,
+            "statusMask": 9
+          },
+          {
+            "questId": 8934,
+            "statusMask": 9
+          },
+          {
+            "questId": 8935,
+            "statusMask": 9
+          },
+          {
+            "questId": 8936,
+            "statusMask": 9
+          },
+          {
+            "questId": 8937,
+            "statusMask": 8
+          },
+          {
+            "questId": 8945,
+            "statusMask": 1
+          },
+          {
+            "questId": 10494,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 8926,
+            "statusMask": 9
+          },
+          {
+            "questId": 8931,
+            "statusMask": 9
+          },
+          {
+            "questId": 8932,
+            "statusMask": 9
+          },
+          {
+            "questId": 8933,
+            "statusMask": 9
+          },
+          {
+            "questId": 8934,
+            "statusMask": 9
+          },
+          {
+            "questId": 8935,
+            "statusMask": 9
+          },
+          {
+            "questId": 8936,
+            "statusMask": 9
+          },
+          {
+            "questId": 8937,
+            "statusMask": 9
+          },
+          {
+            "questId": 8945,
+            "statusMask": 1
+          },
+          {
+            "questId": 10494,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 8929,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 8927,
+            "statusMask": 8
+          },
+          {
+            "questId": 8938,
+            "statusMask": 9
+          },
+          {
+            "questId": 8939,
+            "statusMask": 9
+          },
+          {
+            "questId": 8940,
+            "statusMask": 9
+          },
+          {
+            "questId": 8941,
+            "statusMask": 9
+          },
+          {
+            "questId": 8942,
+            "statusMask": 9
+          },
+          {
+            "questId": 8943,
+            "statusMask": 9
+          },
+          {
+            "questId": 8944,
+            "statusMask": 9
+          },
+          {
+            "questId": 8945,
+            "statusMask": 1
+          },
+          {
+            "questId": 10495,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 8927,
+            "statusMask": 9
+          },
+          {
+            "questId": 8938,
+            "statusMask": 8
+          },
+          {
+            "questId": 8939,
+            "statusMask": 9
+          },
+          {
+            "questId": 8940,
+            "statusMask": 9
+          },
+          {
+            "questId": 8941,
+            "statusMask": 9
+          },
+          {
+            "questId": 8942,
+            "statusMask": 9
+          },
+          {
+            "questId": 8943,
+            "statusMask": 9
+          },
+          {
+            "questId": 8944,
+            "statusMask": 9
+          },
+          {
+            "questId": 8945,
+            "statusMask": 1
+          },
+          {
+            "questId": 10495,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 8927,
+            "statusMask": 9
+          },
+          {
+            "questId": 8938,
+            "statusMask": 9
+          },
+          {
+            "questId": 8939,
+            "statusMask": 8
+          },
+          {
+            "questId": 8940,
+            "statusMask": 9
+          },
+          {
+            "questId": 8941,
+            "statusMask": 9
+          },
+          {
+            "questId": 8942,
+            "statusMask": 9
+          },
+          {
+            "questId": 8943,
+            "statusMask": 9
+          },
+          {
+            "questId": 8944,
+            "statusMask": 9
+          },
+          {
+            "questId": 8945,
+            "statusMask": 1
+          },
+          {
+            "questId": 10495,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 8927,
+            "statusMask": 9
+          },
+          {
+            "questId": 8938,
+            "statusMask": 9
+          },
+          {
+            "questId": 8939,
+            "statusMask": 9
+          },
+          {
+            "questId": 8940,
+            "statusMask": 8
+          },
+          {
+            "questId": 8941,
+            "statusMask": 9
+          },
+          {
+            "questId": 8942,
+            "statusMask": 9
+          },
+          {
+            "questId": 8943,
+            "statusMask": 9
+          },
+          {
+            "questId": 8944,
+            "statusMask": 9
+          },
+          {
+            "questId": 8945,
+            "statusMask": 1
+          },
+          {
+            "questId": 10495,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 8927,
+            "statusMask": 9
+          },
+          {
+            "questId": 8938,
+            "statusMask": 9
+          },
+          {
+            "questId": 8939,
+            "statusMask": 9
+          },
+          {
+            "questId": 8940,
+            "statusMask": 9
+          },
+          {
+            "questId": 8941,
+            "statusMask": 8
+          },
+          {
+            "questId": 8942,
+            "statusMask": 9
+          },
+          {
+            "questId": 8943,
+            "statusMask": 9
+          },
+          {
+            "questId": 8944,
+            "statusMask": 9
+          },
+          {
+            "questId": 8945,
+            "statusMask": 1
+          },
+          {
+            "questId": 10495,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 8927,
+            "statusMask": 9
+          },
+          {
+            "questId": 8938,
+            "statusMask": 9
+          },
+          {
+            "questId": 8939,
+            "statusMask": 9
+          },
+          {
+            "questId": 8940,
+            "statusMask": 9
+          },
+          {
+            "questId": 8941,
+            "statusMask": 9
+          },
+          {
+            "questId": 8942,
+            "statusMask": 8
+          },
+          {
+            "questId": 8943,
+            "statusMask": 9
+          },
+          {
+            "questId": 8944,
+            "statusMask": 9
+          },
+          {
+            "questId": 8945,
+            "statusMask": 1
+          },
+          {
+            "questId": 10495,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 8927,
+            "statusMask": 9
+          },
+          {
+            "questId": 8938,
+            "statusMask": 9
+          },
+          {
+            "questId": 8939,
+            "statusMask": 9
+          },
+          {
+            "questId": 8940,
+            "statusMask": 9
+          },
+          {
+            "questId": 8941,
+            "statusMask": 9
+          },
+          {
+            "questId": 8942,
+            "statusMask": 9
+          },
+          {
+            "questId": 8943,
+            "statusMask": 8
+          },
+          {
+            "questId": 8944,
+            "statusMask": 9
+          },
+          {
+            "questId": 8945,
+            "statusMask": 1
+          },
+          {
+            "questId": 10495,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 8927,
+            "statusMask": 9
+          },
+          {
+            "questId": 8938,
+            "statusMask": 9
+          },
+          {
+            "questId": 8939,
+            "statusMask": 9
+          },
+          {
+            "questId": 8940,
+            "statusMask": 9
+          },
+          {
+            "questId": 8941,
+            "statusMask": 9
+          },
+          {
+            "questId": 8942,
+            "statusMask": 9
+          },
+          {
+            "questId": 8943,
+            "statusMask": 9
+          },
+          {
+            "questId": 8944,
+            "statusMask": 8
+          },
+          {
+            "questId": 8945,
+            "statusMask": 1
+          },
+          {
+            "questId": 10495,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 8927,
+            "statusMask": 9
+          },
+          {
+            "questId": 8938,
+            "statusMask": 9
+          },
+          {
+            "questId": 8939,
+            "statusMask": 9
+          },
+          {
+            "questId": 8940,
+            "statusMask": 9
+          },
+          {
+            "questId": 8941,
+            "statusMask": 9
+          },
+          {
+            "questId": 8942,
+            "statusMask": 9
+          },
+          {
+            "questId": 8943,
+            "statusMask": 9
+          },
+          {
+            "questId": 8944,
+            "statusMask": 9
+          },
+          {
+            "questId": 8945,
+            "statusMask": 1
+          },
+          {
+            "questId": 10495,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 8930,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -7867,9 +11354,73 @@
     },
     {
       "alternatives": [
+        [
+          {
+            "questId": 9133,
+            "statusMask": 1
+          },
+          {
+            "questId": 9327,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 9130,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         []
       ],
       "id": 9131,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 9130,
+            "statusMask": 8
+          },
+          {
+            "questId": 9134,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 9133,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 9133,
+            "statusMask": 8
+          },
+          {
+            "questId": 9135,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 9134,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 9134,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 9135,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -7959,6 +11510,19 @@
         ]
       ],
       "id": 9147,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 9147,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 9148,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -8380,6 +11944,33 @@
       "alternatives": [
         [
           {
+            "questId": 9280,
+            "statusMask": 8
+          },
+          {
+            "questId": 9369,
+            "statusMask": 9
+          }
+        ],
+        [
+          {
+            "questId": 9280,
+            "statusMask": 9
+          },
+          {
+            "questId": 9369,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 9409,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 9419,
             "statusMask": 1
           }
@@ -8615,6 +12206,31 @@
     },
     {
       "alternatives": [
+        [
+          {
+            "questId": 9500,
+            "statusMask": 9
+          },
+          {
+            "questId": 9502,
+            "statusMask": 9
+          },
+          {
+            "questId": 9503,
+            "statusMask": 1
+          },
+          {
+            "questId": 10490,
+            "statusMask": 9
+          }
+        ]
+      ],
+      "id": 9501,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         []
       ],
       "id": 9512,
@@ -8626,6 +12242,14 @@
         []
       ],
       "id": 9516,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 9521,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -8730,12 +12354,89 @@
       "alternatives": [
         [
           {
+            "questId": 9600,
+            "statusMask": 1
+          },
+          {
+            "questId": 10366,
+            "statusMask": 9
+          }
+        ]
+      ],
+      "id": 9598,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 10590,
             "statusMask": 1
           }
         ]
       ],
       "id": 9601,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 9604,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 9603,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 9603,
+            "statusMask": 8
+          },
+          {
+            "questId": 9605,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 9604,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 9604,
+            "statusMask": 8
+          },
+          {
+            "questId": 9606,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 9605,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 9605,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 9606,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -8764,12 +12465,51 @@
       "alternatives": [
         [
           {
+            "questId": 9625,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 9623,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 9638,
             "statusMask": 1
           }
         ]
       ],
       "id": 9630,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 9633,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 9632,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 9632,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 9633,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -8920,6 +12660,23 @@
     },
     {
       "alternatives": [
+        [
+          {
+            "questId": 8350,
+            "statusMask": 1
+          },
+          {
+            "questId": 9704,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 9705,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         []
       ],
       "id": 9715,
@@ -9045,6 +12802,14 @@
       "alternatives": [
         []
       ],
+      "id": 9775,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
       "id": 9776,
       "maxLevel": 0,
       "unsupportedReason": ""
@@ -9059,6 +12824,19 @@
         ]
       ],
       "id": 9778,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 9790,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 9781,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -9093,6 +12871,14 @@
         []
       ],
       "id": 9792,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 9794,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -9160,6 +12946,45 @@
     },
     {
       "alternatives": [
+        [
+          {
+            "questId": 9829,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 9826,
+      "maxLevel": 0,
+      "orderedPrevious": [
+        {
+          "require": [
+            {
+              "questId": 9825,
+              "statusMask": 8
+            }
+          ],
+          "when": {
+            "questId": 9824,
+            "statusMask": 8
+          }
+        },
+        {
+          "require": [
+            {
+              "questId": 9824,
+              "statusMask": 8
+            }
+          ],
+          "when": {
+            "questId": 9825,
+            "statusMask": 8
+          }
+        }
+      ],
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         []
       ],
       "id": 9830,
@@ -9223,6 +13048,19 @@
         ]
       ],
       "id": 9842,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 9903,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 9845,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -9401,6 +13239,14 @@
     },
     {
       "alternatives": [
+        []
+      ],
+      "id": 9897,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         [
           {
             "questId": 9770,
@@ -9417,6 +13263,40 @@
         []
       ],
       "id": 9901,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 9902,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 9845,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 9903,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 9845,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 9904,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -9441,6 +13321,14 @@
         []
       ],
       "id": 9914,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 9919,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -9893,6 +13781,40 @@
       "alternatives": [
         [
           {
+            "questId": 9407,
+            "statusMask": 8
+          },
+          {
+            "questId": 10289,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 10120,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 10254,
+            "statusMask": 1
+          },
+          {
+            "questId": 10288,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 10140,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
             "questId": 10142,
             "statusMask": 1
           }
@@ -9987,6 +13909,23 @@
         []
       ],
       "id": 10180,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 10186,
+            "statusMask": 1
+          },
+          {
+            "questId": 10260,
+            "statusMask": 9
+          }
+        ]
+      ],
+      "id": 10183,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -10112,6 +14051,40 @@
         ]
       ],
       "id": 10279,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 10119,
+            "statusMask": 8
+          },
+          {
+            "questId": 10140,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 10288,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 10120,
+            "statusMask": 8
+          },
+          {
+            "questId": 10291,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 10289,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -10245,6 +14218,14 @@
         ]
       ],
       "id": 10332,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 10334,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -10496,6 +14477,23 @@
         ]
       ],
       "id": 10590,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 10590,
+            "statusMask": 8
+          },
+          {
+            "questId": 10593,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 10592,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -10898,6 +14896,32 @@
           }
         ]
       ],
+      "id": 11036,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 10186,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 11040,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 10186,
+            "statusMask": 1
+          }
+        ]
+      ],
       "id": 11042,
       "maxLevel": 0,
       "unsupportedReason": ""
@@ -11009,6 +15033,19 @@
     },
     {
       "alternatives": [
+        [
+          {
+            "questId": 11132,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 11130,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         []
       ],
       "id": 11156,
@@ -11066,6 +15103,23 @@
         ]
       ],
       "id": 11192,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 11192,
+            "statusMask": 8
+          },
+          {
+            "questId": 11194,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 11193,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -11286,6 +15340,25 @@
     },
     {
       "alternatives": [
+        [
+          {
+            "questId": 11314,
+            "statusMask": 8
+          }
+        ],
+        [
+          {
+            "questId": 11315,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 11319,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
         []
       ],
       "id": 11393,
@@ -11321,6 +15394,14 @@
         []
       ],
       "id": 11424,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 11451,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -11444,6 +15525,19 @@
           }
         }
       ],
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 11550,
+            "statusMask": 8
+          }
+        ]
+      ],
+      "id": 11526,
+      "maxLevel": 0,
       "unsupportedReason": ""
     },
     {
@@ -11632,6 +15726,14 @@
       "alternatives": [
         []
       ],
+      "id": 11887,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
       "id": 11906,
       "maxLevel": 0,
       "unsupportedReason": ""
@@ -11771,6 +15873,14 @@
         ]
       ],
       "id": 12045,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 12052,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -11927,6 +16037,36 @@
         ]
       ],
       "id": 12157,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 12182,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 12181,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 12181,
+            "statusMask": 8
+          },
+          {
+            "questId": 12188,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 12182,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -12093,6 +16233,19 @@
         ]
       ],
       "id": 12468,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 12044,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 12469,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -12463,6 +16616,19 @@
         []
       ],
       "id": 12853,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        [
+          {
+            "questId": 12864,
+            "statusMask": 1
+          }
+        ]
+      ],
+      "id": 12863,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -13103,7 +17269,23 @@
       "alternatives": [
         []
       ],
+      "id": 13986,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
       "id": 14355,
+      "maxLevel": 0,
+      "unsupportedReason": ""
+    },
+    {
+      "alternatives": [
+        []
+      ],
+      "id": 14409,
       "maxLevel": 0,
       "unsupportedReason": ""
     },
@@ -13168,7 +17350,7 @@
   "sourceCommit": "4e80596cdaa21fa31830522f6f2d7ed8750bfffd",
   "sourceHashes": {
     "conditions.sql": "1a40806e454211118e0b459e09eb70e0e09807987ead6b321bbd371b93ffeb7d",
-    "input_quests.pack": "b25df5c6a93df6cfb19159dc21612a8ad70a9e6e57958fb361986669069ca464",
+    "input_quests.pack": "85b1cc52ec68484206dafe43bbfde094ecd75b19070a03fd8ecfa8f147811c5a",
     "quest_template.sql": "5dc7e6c92ea6875a5fc68cf5d3e33150e86cda5819a11af0c59217b24c63a37f",
     "quest_template_addon.sql": "ca1081203af9dc5ab9b948d94652a66674d116ce387f629595ec38f89c4af5d2"
   }

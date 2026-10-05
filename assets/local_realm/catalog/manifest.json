@@ -4115,8 +4115,8 @@
       "sha256": "26c7f01c2caa118c6467672409acbc0a88576f33ab1e2c81fb8709be04be7e35"
     },
     "contacts.pack": {
-      "bytes": 22923,
-      "sha256": "0f88d75c0dea8c784cd5db0da56952e3c9bcac4f556ee5dae03011d9e481db38"
+      "bytes": 28484,
+      "sha256": "68d50bf4ec63c3b35d20794729aa7c44e0ba7eff36bd6b2232cbfea9520b2c05"
     },
     "gossip.pack": {
       "bytes": 323272,
@@ -4139,21 +4139,21 @@
       "sha256": "6ffbcedcc51d8d2dd8b4a08d465d3591a7790e7285d997e33e0f8bbf507420fb"
     },
     "npcs.pack": {
-      "bytes": 5355682,
-      "sha256": "06c2c64faa1fc12f1c83f5b4eccce552bba1def101ed5243883975ce811c0818"
+      "bytes": 5355484,
+      "sha256": "91598c44cc7d03236c0d0ad76dde23578f9b1caee10a35c51e70863fdcd13a55"
     },
     "paths.pack": {
       "bytes": 2972720,
       "sha256": "606f64f431b570a308a9d0157174ad59f2e8eafd4e0ea056aa12a8c9f63a4b34"
     },
     "quests.pack": {
-      "bytes": 463544,
-      "sha256": "b25df5c6a93df6cfb19159dc21612a8ad70a9e6e57958fb361986669069ca464"
+      "bytes": 613823,
+      "sha256": "85b1cc52ec68484206dafe43bbfde094ecd75b19070a03fd8ecfa8f147811c5a"
     },
     "spawns.pack": {
       "bytes": 3162488,
       "sha256": "48fcd57a6370a8b5717a2a6d8d5e279a9879ea4e853499fe5b8ed0f1d4cf3c98"
     }
   },
-  "fingerprint": 4146777085
+  "fingerprint": 1214832016
 }

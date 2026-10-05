@@ -2,17 +2,18 @@
   "blockedReasons": {
     "repeatable or seasonal prerequisite 12372": 1,
     "repeatable or seasonal prerequisite 3502": 1,
+    "repeatable or seasonal prerequisite 3785": 1,
     "repeatable or seasonal prerequisite 7846": 1
   },
   "counts": {
-    "blockedGates": 3,
-    "compiledGates": 947,
+    "blockedGates": 4,
+    "compiledGates": 1178,
     "gameplayVerified": 0,
     "gatesWithPlayerConditions": 4,
-    "gatesWithPredicates": 651,
-    "inputCatalogQuests": 950,
-    "orderedPreviousGates": 14,
-    "positiveDependencyReachableFromFreshSave": 892
+    "gatesWithPredicates": 843,
+    "inputCatalogQuests": 1182,
+    "orderedPreviousGates": 19,
+    "positiveDependencyReachableFromFreshSave": 1106
   },
   "limitations": [
     "Admission rules only; no new quests, rewards, objectives, scripts or retail parity.",
@@ -58,6 +59,15 @@
       "questId": 7,
       "status": "compiled",
       "title": "Kobold Camp Cleanup"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 8,
+      "status": "compiled",
+      "title": "A Rogue's Deal"
     },
     {
       "features": [],
@@ -169,6 +179,15 @@
       "title": "Further Concerns"
     },
     {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 36,
+      "status": "compiled",
+      "title": "Westfall Stew"
+    },
+    {
       "features": [
         "RewardNextQuest"
       ],
@@ -208,6 +227,17 @@
     },
     {
       "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 21,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 54,
+      "status": "compiled",
+      "title": "Report to Goldshire"
+    },
+    {
+      "features": [
         "RewardNextQuest"
       ],
       "gameplayVerified": false,
@@ -230,6 +260,18 @@
     },
     {
       "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 60,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 61,
+      "status": "compiled",
+      "title": "Shipment to Stormwind"
+    },
+    {
+      "features": [
         "RewardNextQuest"
       ],
       "gameplayVerified": false,
@@ -249,6 +291,19 @@
       "questId": 66,
       "status": "compiled",
       "title": "The Legend of Stalvan"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 86,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 84,
+      "status": "compiled",
+      "title": "Back to Billy"
     },
     {
       "features": [
@@ -333,6 +388,17 @@
       "title": "The Coastal Menace"
     },
     {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 106,
+      "status": "compiled",
+      "title": "Young Lovers"
+    },
+    {
       "features": [],
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
@@ -340,6 +406,52 @@
       "questId": 109,
       "status": "compiled",
       "title": "Report to Gryan Stoutmantle"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 118,
+      "status": "compiled",
+      "title": "The Price of Shoes"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 118,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 119,
+      "status": "compiled",
+      "title": "Return to Verner"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 120,
+      "status": "compiled",
+      "title": "Messenger to Stormwind"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 120,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 121,
+      "status": "compiled",
+      "title": "Messenger to Stormwind"
     },
     {
       "features": [],
@@ -361,6 +473,104 @@
     },
     {
       "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 129,
+      "status": "compiled",
+      "title": "A Free Lunch"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 65,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 132,
+      "status": "compiled",
+      "title": "The Defias Brotherhood"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 132,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 135,
+      "status": "compiled",
+      "title": "The Defias Brotherhood"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 135,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 141,
+      "status": "compiled",
+      "title": "The Defias Brotherhood"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 121,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 143,
+      "status": "compiled",
+      "title": "Messenger to Westfall"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 143,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 144,
+      "status": "compiled",
+      "title": "Messenger to Westfall"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 144,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 145,
+      "status": "compiled",
+      "title": "Messenger to Darkshire"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 145,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 146,
+      "status": "compiled",
+      "title": "Messenger to Darkshire"
+    },
+    {
+      "features": [
         "PrevQuestID",
         "incomingBreadcrumb",
         "RewardNextQuest"
@@ -371,6 +581,19 @@
       "questId": 148,
       "status": "compiled",
       "title": "Supplies from Darkshire"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 148,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 149,
+      "status": "compiled",
+      "title": "Ghost Hair Thread"
     },
     {
       "features": [],
@@ -392,6 +615,32 @@
     },
     {
       "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 149,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 154,
+      "status": "compiled",
+      "title": "Return the Comb"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 154,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 157,
+      "status": "compiled",
+      "title": "Deliver the Thread"
+    },
+    {
+      "features": [
         "BreadcrumbForQuestId"
       ],
       "gameplayVerified": false,
@@ -400,6 +649,17 @@
       "questId": 163,
       "status": "compiled",
       "title": "Raven Hill"
+    },
+    {
+      "features": [
+        "BreadcrumbForQuestId"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 164,
+      "status": "compiled",
+      "title": "Deliveries to Sven"
     },
     {
       "features": [
@@ -632,6 +892,15 @@
       "title": "Raptor Mastery"
     },
     {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 198,
+      "status": "compiled",
+      "title": "Supplies to Private Thorsen"
+    },
+    {
       "features": [
         "incomingNextQuestID",
         "orderedPrevious"
@@ -666,6 +935,17 @@
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
       "positiveDependencyReachableFromFreshSave": true,
+      "questId": 210,
+      "status": "compiled",
+      "title": "Krazek's Cookery"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
       "questId": 215,
       "status": "compiled",
       "title": "Jungle Secrets"
@@ -678,6 +958,77 @@
       "questId": 226,
       "status": "compiled",
       "title": "Wolves at Our Heels"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 232,
+      "status": "compiled",
+      "title": "Errand for Apothecary Zinge"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 179,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 233,
+      "status": "compiled",
+      "title": "Coldridge Valley Mail Delivery"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 233,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 234,
+      "status": "compiled",
+      "title": "Coldridge Valley Mail Delivery"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 232,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 238,
+      "status": "compiled",
+      "title": "Errand for Apothecary Zinge"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 93,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 240,
+      "status": "compiled",
+      "title": "Return to Jitters"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 238,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 243,
+      "status": "compiled",
+      "title": "Into the Field"
     },
     {
       "features": [
@@ -775,7 +1126,43 @@
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
       "positiveDependencyReachableFromFreshSave": true,
+      "questId": 298,
+      "status": "compiled",
+      "title": "Excavation Progress Report"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 298,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 301,
+      "status": "compiled",
+      "title": "Report to Ironforge"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
       "questId": 305,
+      "status": "compiled",
+      "title": "In Search of The Excavation Team"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 305,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 306,
       "status": "compiled",
       "title": "In Search of The Excavation Team"
     },
@@ -813,6 +1200,33 @@
       "title": "Evershine"
     },
     {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 332,
+      "status": "compiled",
+      "title": "Wine Shop Advert"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 333,
+      "status": "compiled",
+      "title": "Harlan Needs a Resupply"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 334,
+      "status": "compiled",
+      "title": "Package for Thurman"
+    },
+    {
       "features": [
         "RewardNextQuest"
       ],
@@ -848,6 +1262,18 @@
       "questId": 345,
       "status": "compiled",
       "title": "Ink Supplies"
+    },
+    {
+      "features": [
+        "incomingBreadcrumb",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 353,
+      "status": "compiled",
+      "title": "Stormpike's Delivery"
     },
     {
       "features": [],
@@ -1052,6 +1478,17 @@
       "title": "The Red Messenger"
     },
     {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 382,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 383,
+      "status": "compiled",
+      "title": "Vital Intelligence"
+    },
+    {
       "features": [],
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
@@ -1077,6 +1514,15 @@
       "questId": 388,
       "status": "compiled",
       "title": "The Color of Blood"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 400,
+      "status": "compiled",
+      "title": "Tools for Steelgrill"
     },
     {
       "features": [],
@@ -1166,6 +1612,18 @@
     },
     {
       "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 429,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 430,
+      "status": "compiled",
+      "title": "Return to Quinn"
+    },
+    {
+      "features": [
         "BreadcrumbForQuestId",
         "RewardNextQuest"
       ],
@@ -1175,6 +1633,15 @@
       "questId": 436,
       "status": "compiled",
       "title": "Ironband's Excavation"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 445,
+      "status": "compiled",
+      "title": "Delivery to Silverpine Forest"
     },
     {
       "features": [
@@ -1268,6 +1735,15 @@
       "title": "Report to Mountaineer Rockgar"
     },
     {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 469,
+      "status": "compiled",
+      "title": "Daily Delivery"
+    },
+    {
       "features": [
         "PrevQuestID",
         "incomingRewardNextQuest"
@@ -1335,6 +1811,27 @@
       "title": "Young Crocolisk Skins"
     },
     {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 369,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 492,
+      "status": "compiled",
+      "title": "A New Plague"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 493,
+      "status": "compiled",
+      "title": "Journey to Hillsbrad Foothills"
+    },
+    {
       "features": [],
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
@@ -1368,6 +1865,18 @@
     },
     {
       "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 496,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 499,
+      "status": "compiled",
+      "title": "Elixir of Suffering"
+    },
+    {
+      "features": [
         "RewardNextQuest"
       ],
       "gameplayVerified": false,
@@ -1385,6 +1894,18 @@
       "legacyPrerequisite": 0,
       "positiveDependencyReachableFromFreshSave": true,
       "questId": 501,
+      "status": "compiled",
+      "title": "Elixir of Pain"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 501,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 502,
       "status": "compiled",
       "title": "Elixir of Pain"
     },
@@ -1445,6 +1966,18 @@
       "legacyPrerequisite": 519,
       "positiveDependencyReachableFromFreshSave": true,
       "questId": 520,
+      "status": "compiled",
+      "title": "The Crown of Will"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 520,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 521,
       "status": "compiled",
       "title": "The Crown of Will"
     },
@@ -1527,6 +2060,19 @@
       "legacyPrerequisite": 536,
       "positiveDependencyReachableFromFreshSave": true,
       "questId": 559,
+      "status": "compiled",
+      "title": "Farren's Proof"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 559,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 560,
       "status": "compiled",
       "title": "Farren's Proof"
     },
@@ -1764,6 +2310,19 @@
     },
     {
       "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 672,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 674,
+      "status": "compiled",
+      "title": "Raising Spirits"
+    },
+    {
+      "features": [
         "RewardNextQuest"
       ],
       "gameplayVerified": false,
@@ -1950,6 +2509,22 @@
       ]
     },
     {
+      "features": [
+        "incomingNextQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": false,
+      "questId": 737,
+      "status": "compiled",
+      "title": "Forbidden Knowledge",
+      "unavailablePositiveDependencies": [
+        735,
+        736
+      ]
+    },
+    {
       "features": [],
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
@@ -2007,6 +2582,19 @@
       "questId": 766,
       "status": "compiled",
       "title": "Mazzranache"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 734,
+      "positiveDependencyReachableFromFreshSave": false,
+      "questId": 777,
+      "status": "compiled",
+      "title": "This Is Going to Be Hard"
     },
     {
       "features": [
@@ -2174,6 +2762,29 @@
       "questId": 826,
       "status": "compiled",
       "title": "Zalazane"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 840,
+      "status": "compiled",
+      "title": "Conscript of the Horde"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 840,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 842,
+      "status": "compiled",
+      "title": "Crossroads Conscription"
     },
     {
       "features": [
@@ -2391,6 +3002,19 @@
         "incomingRewardNextQuest"
       ],
       "gameplayVerified": false,
+      "legacyPrerequisite": 966,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 967,
+      "status": "compiled",
+      "title": "The Tower of Althalaxx"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
       "legacyPrerequisite": 3783,
       "positiveDependencyReachableFromFreshSave": true,
       "questId": 977,
@@ -2407,6 +3031,15 @@
       "questId": 991,
       "status": "compiled",
       "title": "Raene's Cleansing"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 997,
+      "status": "compiled",
+      "title": "Denalan's Earth"
     },
     {
       "features": [
@@ -2461,6 +3094,18 @@
       "questId": 1051,
       "status": "compiled",
       "title": "Vorrel's Revenge"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 261,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 1052,
+      "status": "compiled",
+      "title": "Down the Scarlet Path"
     },
     {
       "features": [
@@ -2549,6 +3194,22 @@
     },
     {
       "features": [
+        "incomingNextQuestID",
+        "orderedPrevious"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": false,
+      "questId": 1091,
+      "status": "compiled",
+      "title": "Kaela's Update",
+      "unavailablePositiveDependencies": [
+        1079,
+        1080
+      ]
+    },
+    {
+      "features": [
         "BreadcrumbForQuestId",
         "RewardNextQuest"
       ],
@@ -2570,6 +3231,23 @@
     },
     {
       "features": [
+        "incomingNextQuestID",
+        "orderedPrevious",
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": false,
+      "questId": 1106,
+      "status": "compiled",
+      "title": "Martek the Exiled",
+      "unavailablePositiveDependencies": [
+        1104,
+        1105
+      ]
+    },
+    {
+      "features": [
         "RewardNextQuest"
       ],
       "gameplayVerified": false,
@@ -2578,6 +3256,29 @@
       "questId": 1109,
       "status": "compiled",
       "title": "Going, Going, Guano!"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 1111,
+      "status": "compiled",
+      "title": "Wharfmaster Dizzywig"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 1111,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 1112,
+      "status": "compiled",
+      "title": "Parts for Kravel"
     },
     {
       "features": [
@@ -2590,6 +3291,32 @@
       "questId": 1113,
       "status": "compiled",
       "title": "Hearts of Zeal"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 1112,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 1114,
+      "status": "compiled",
+      "title": "Delivery to the Gnomes"
+    },
+    {
+      "features": [
+        "incomingNextQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": false,
+      "questId": 1122,
+      "status": "compiled",
+      "title": "Report Back to Fizzlebub",
+      "unavailablePositiveDependencies": [
+        1120,
+        1121
+      ]
     },
     {
       "features": [
@@ -2608,6 +3335,19 @@
         1004,
         1018
       ]
+    },
+    {
+      "features": [
+        "incomingNextQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": false,
+      "questId": 1124,
+      "status": "compiled",
+      "title": "Wasteland"
     },
     {
       "features": [
@@ -2640,6 +3380,30 @@
       "questId": 1138,
       "status": "compiled",
       "title": "Fruit of the Sea"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 1145,
+      "status": "compiled",
+      "title": "The Swarm Grows"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 1145,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 1146,
+      "status": "compiled",
+      "title": "The Swarm Grows"
     },
     {
       "features": [],
@@ -2682,6 +3446,15 @@
       "questId": 1178,
       "status": "compiled",
       "title": "Goblin Sponsorship"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 1179,
+      "status": "compiled",
+      "title": "The Brassbolts Brothers"
     },
     {
       "features": [
@@ -2731,6 +3504,45 @@
     },
     {
       "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 1274,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 1241,
+      "status": "compiled",
+      "title": "The Missing Diplomat"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 1241,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 1242,
+      "status": "compiled",
+      "title": "The Missing Diplomat"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 1242,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 1243,
+      "status": "compiled",
+      "title": "The Missing Diplomat"
+    },
+    {
+      "features": [
         "BreadcrumbForQuestId",
         "RewardNextQuest"
       ],
@@ -2763,6 +3575,18 @@
       "questId": 1301,
       "status": "compiled",
       "title": "James Hyal"
+    },
+    {
+      "features": [
+        "incomingBreadcrumb",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 1338,
+      "status": "compiled",
+      "title": "Stormpike's Order"
     },
     {
       "features": [
@@ -2888,6 +3712,18 @@
     {
       "features": [
         "incomingBreadcrumb",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 1395,
+      "status": "compiled",
+      "title": "Supplies for Nethergarde"
+    },
+    {
+      "features": [
+        "incomingBreadcrumb",
         "RewardNextQuest",
         "incomingRewardNextQuest"
       ],
@@ -2918,6 +3754,19 @@
       "questId": 1419,
       "status": "compiled",
       "title": "Coyote Thieves"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingBreadcrumb",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 1418,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 1420,
+      "status": "compiled",
+      "title": "Report to Helgrum"
     },
     {
       "features": [
@@ -3087,6 +3936,15 @@
       "title": "Deviate Hides"
     },
     {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 1492,
+      "status": "compiled",
+      "title": "Wharfmaster Dizzywig"
+    },
+    {
       "features": [
         "BreadcrumbForQuestId",
         "RewardNextQuest"
@@ -3097,6 +3955,18 @@
       "questId": 1506,
       "status": "compiled",
       "title": "Gan'rul's Summons"
+    },
+    {
+      "features": [
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 1524,
+      "status": "compiled",
+      "title": "Call of Fire"
     },
     {
       "features": [
@@ -3169,6 +4039,15 @@
       "questId": 1648,
       "status": "compiled",
       "title": "The Tome of Divinity"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 1656,
+      "status": "compiled",
+      "title": "A Task Unfinished"
     },
     {
       "features": [
@@ -3307,9 +4186,35 @@
         "incomingRewardNextQuest"
       ],
       "gameplayVerified": false,
+      "legacyPrerequisite": 1778,
+      "positiveDependencyReachableFromFreshSave": false,
+      "questId": 1779,
+      "status": "compiled",
+      "title": "The Tome of Divinity"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
       "legacyPrerequisite": 1644,
       "positiveDependencyReachableFromFreshSave": false,
       "questId": 1780,
+      "status": "compiled",
+      "title": "The Tome of Divinity"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 1780,
+      "positiveDependencyReachableFromFreshSave": false,
+      "questId": 1781,
       "status": "compiled",
       "title": "The Tome of Divinity"
     },
@@ -3533,6 +4438,44 @@
       "title": "Rest and Relaxation"
     },
     {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 2159,
+      "status": "compiled",
+      "title": "Dolanaar Delivery"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 2160,
+      "status": "compiled",
+      "title": "Supplies to Tannok"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 2161,
+      "status": "compiled",
+      "title": "A Peon's Burden"
+    },
+    {
+      "features": [
+        "BreadcrumbForQuestId"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 2205,
+      "status": "compiled",
+      "title": "Seek out SI: 7"
+    },
+    {
       "features": [
         "BreadcrumbForQuestId",
         "RewardNextQuest"
@@ -3543,6 +4486,17 @@
       "questId": 2218,
       "status": "compiled",
       "title": "Road to Salvation"
+    },
+    {
+      "features": [
+        "BreadcrumbForQuestId"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 2241,
+      "status": "compiled",
+      "title": "The Apple Falls"
     },
     {
       "features": [
@@ -3644,6 +4598,17 @@
     },
     {
       "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 788,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 2383,
+      "status": "compiled",
+      "title": "Simple Parchment"
+    },
+    {
+      "features": [
         "RewardNextQuest"
       ],
       "gameplayVerified": false,
@@ -3692,6 +4657,19 @@
       "questId": 2605,
       "status": "compiled",
       "title": "The Thirsty Goblin"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 2605,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 2606,
+      "status": "compiled",
+      "title": "In Good Taste"
     },
     {
       "features": [
@@ -3908,6 +4886,467 @@
       "title": "Seeking Strahad"
     },
     {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3022,
+      "status": "compiled",
+      "title": "Handle With Care"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 788,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3065,
+      "status": "compiled",
+      "title": "Simple Tablet"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 788,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3082,
+      "status": "compiled",
+      "title": "Etched Tablet"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 788,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3083,
+      "status": "compiled",
+      "title": "Encrypted Tablet"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 788,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3084,
+      "status": "compiled",
+      "title": "Rune-Inscribed Tablet"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 788,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3085,
+      "status": "compiled",
+      "title": "Hallowed Tablet"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 788,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3086,
+      "status": "compiled",
+      "title": "Glyphic Tablet"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 788,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3087,
+      "status": "compiled",
+      "title": "Etched Parchment"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 788,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3088,
+      "status": "compiled",
+      "title": "Encrypted Parchment"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 788,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3089,
+      "status": "compiled",
+      "title": "Rune-Inscribed Parchment"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 788,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3090,
+      "status": "compiled",
+      "title": "Tainted Parchment"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 747,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3091,
+      "status": "compiled",
+      "title": "Simple Note"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 747,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3092,
+      "status": "compiled",
+      "title": "Etched Note"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 747,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3093,
+      "status": "compiled",
+      "title": "Rune-Inscribed Note"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 747,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3094,
+      "status": "compiled",
+      "title": "Verdant Note"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 364,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3095,
+      "status": "compiled",
+      "title": "Simple Scroll"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 364,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3096,
+      "status": "compiled",
+      "title": "Encrypted Scroll"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 364,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3097,
+      "status": "compiled",
+      "title": "Hallowed Scroll"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 364,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3098,
+      "status": "compiled",
+      "title": "Glyphic Scroll"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 364,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3099,
+      "status": "compiled",
+      "title": "Tainted Scroll"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 7,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3100,
+      "status": "compiled",
+      "title": "Simple Letter"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 7,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3101,
+      "status": "compiled",
+      "title": "Consecrated Letter"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 7,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3102,
+      "status": "compiled",
+      "title": "Encrypted Letter"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 7,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3103,
+      "status": "compiled",
+      "title": "Hallowed Letter"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 7,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3104,
+      "status": "compiled",
+      "title": "Glyphic Letter"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 7,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3105,
+      "status": "compiled",
+      "title": "Tainted Letter"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 179,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3106,
+      "status": "compiled",
+      "title": "Simple Rune"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 179,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3107,
+      "status": "compiled",
+      "title": "Consecrated Rune"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 179,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3108,
+      "status": "compiled",
+      "title": "Etched Rune"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 179,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3109,
+      "status": "compiled",
+      "title": "Encrypted Rune"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 179,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3110,
+      "status": "compiled",
+      "title": "Hallowed Rune"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 179,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3112,
+      "status": "compiled",
+      "title": "Simple Memorandum"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 179,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3113,
+      "status": "compiled",
+      "title": "Encrypted Memorandum"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 179,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3114,
+      "status": "compiled",
+      "title": "Glyphic Memorandum"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 179,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3115,
+      "status": "compiled",
+      "title": "Tainted Memorandum"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 456,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3116,
+      "status": "compiled",
+      "title": "Simple Sigil"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 456,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3117,
+      "status": "compiled",
+      "title": "Etched Sigil"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 456,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3118,
+      "status": "compiled",
+      "title": "Encrypted Sigil"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 456,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3119,
+      "status": "compiled",
+      "title": "Hallowed Sigil"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 456,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3120,
+      "status": "compiled",
+      "title": "Verdant Sigil"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3121,
+      "status": "compiled",
+      "title": "A Strange Request"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 3121,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3122,
+      "status": "compiled",
+      "title": "Return to Witch Doctor Uzer'i"
+    },
+    {
       "features": [
         "incomingNextQuestID",
         "orderedPrevious"
@@ -3931,6 +5370,26 @@
       "questId": 3362,
       "status": "compiled",
       "title": "Thistleshrub Valley"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3364,
+      "status": "compiled",
+      "title": "Scalding Mornbrew Delivery"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 3364,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3365,
+      "status": "compiled",
+      "title": "Bring Back the Mug"
     },
     {
       "features": [
@@ -4024,6 +5483,17 @@
     },
     {
       "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3504,
+      "status": "compiled",
+      "title": "Betrayed"
+    },
+    {
+      "features": [
         "PrevQuestID",
         "incomingNextQuestID",
         "RewardNextQuest"
@@ -4034,6 +5504,17 @@
       "questId": 3519,
       "status": "compiled",
       "title": "A Friend in Need"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3523,
+      "status": "compiled",
+      "title": "Scourge of the Downs"
     },
     {
       "features": [
@@ -4094,6 +5575,30 @@
       "questId": 3765,
       "status": "compiled",
       "title": "The Corruption Abroad"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 3764,
+      "positiveDependencyReachableFromFreshSave": false,
+      "questId": 3781,
+      "reason": "repeatable or seasonal prerequisite 3785",
+      "status": "blocked",
+      "title": "Morrowgrain Research"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 3761,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 3782,
+      "status": "compiled",
+      "title": "Morrowgrain Research"
     },
     {
       "features": [
@@ -4280,6 +5785,19 @@
       "title": "The Rise of the Machines"
     },
     {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 4061,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 4062,
+      "status": "compiled",
+      "title": "The Rise of the Machines"
+    },
+    {
       "features": [],
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
@@ -4361,6 +5879,19 @@
       "questId": 4141,
       "status": "compiled",
       "title": "Muigin and Larion"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 4141,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 4142,
+      "status": "compiled",
+      "title": "A Visit to Gregan"
     },
     {
       "features": [
@@ -4476,6 +6007,15 @@
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
       "positiveDependencyReachableFromFreshSave": true,
+      "questId": 4492,
+      "status": "compiled",
+      "title": "Lost!"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
       "questId": 4495,
       "status": "compiled",
       "title": "A Good Friend"
@@ -4517,6 +6057,28 @@
       "questId": 4521,
       "status": "compiled",
       "title": "Wild Guardians"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 4542,
+      "status": "compiled",
+      "title": "Message to Freewind Post"
+    },
+    {
+      "features": [
+        "BreadcrumbForQuestId"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 4581,
+      "status": "compiled",
+      "title": "Kayneth Stillwind"
     },
     {
       "features": [
@@ -4739,6 +6301,45 @@
     },
     {
       "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 4985,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 4986,
+      "status": "compiled",
+      "title": "Glyphed Oaken Branch"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 4985,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 4987,
+      "status": "compiled",
+      "title": "Glyphed Oaken Branch"
+    },
+    {
+      "features": [
+        "incomingNextQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": false,
+      "questId": 5050,
+      "status": "compiled",
+      "title": "Good Luck Charm",
+      "unavailablePositiveDependencies": [
+        5048,
+        5049
+      ]
+    },
+    {
+      "features": [
         "RewardNextQuest"
       ],
       "gameplayVerified": false,
@@ -4852,6 +6453,17 @@
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
       "positiveDependencyReachableFromFreshSave": true,
+      "questId": 5160,
+      "status": "compiled",
+      "title": "The Matron Protectorate"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
       "questId": 5212,
       "status": "compiled",
       "title": "The Flesh Does Not Lie"
@@ -4933,6 +6545,15 @@
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
       "positiveDependencyReachableFromFreshSave": true,
+      "questId": 5361,
+      "status": "compiled",
+      "title": "Family Tree"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
       "questId": 5525,
       "status": "compiled",
       "title": "Free Knot!"
@@ -4978,6 +6599,36 @@
       "title": "Searching for the Lost Satchel"
     },
     {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 5722,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 5724,
+      "status": "compiled",
+      "title": "Returning the Lost Satchel"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 5762,
+      "status": "compiled",
+      "title": "Hemet Nesingwary Jr."
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 5763,
+      "status": "compiled",
+      "title": "Hunting in Stranglethorn"
+    },
+    {
       "features": [],
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
@@ -4985,6 +6636,15 @@
       "questId": 5863,
       "status": "compiled",
       "title": "The Dunemaul Compound"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 5881,
+      "status": "compiled",
+      "title": "Calling in the Reserves"
     },
     {
       "features": [
@@ -5005,6 +6665,33 @@
       "questId": 5961,
       "status": "compiled",
       "title": "The Champion of the Banshee Queen"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6028,
+      "status": "compiled",
+      "title": "The Everlook Report"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6029,
+      "status": "compiled",
+      "title": "The Everlook Report"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6030,
+      "status": "compiled",
+      "title": "Duke Nicholas Zverenhoff"
     },
     {
       "features": [],
@@ -5089,6 +6776,17 @@
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
       "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6181,
+      "status": "compiled",
+      "title": "A Swift Message"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
       "questId": 6182,
       "status": "compiled",
       "title": "The First and the Last"
@@ -5121,6 +6819,131 @@
     },
     {
       "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 6281,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6261,
+      "status": "compiled",
+      "title": "Dungar Longdrink"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 6181,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6281,
+      "status": "compiled",
+      "title": "Continue to Stormwind"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 6261,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6285,
+      "status": "compiled",
+      "title": "Return to Lewis"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6321,
+      "status": "compiled",
+      "title": "Supplying the Sepulcher"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 6323,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6322,
+      "status": "compiled",
+      "title": "Michael Garrett"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 6321,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6323,
+      "status": "compiled",
+      "title": "Ride to the Undercity"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 6322,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6324,
+      "status": "compiled",
+      "title": "Return to Podrig"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 6344,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6341,
+      "status": "compiled",
+      "title": "The Bounty of Teldrassil"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 6341,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6342,
+      "status": "compiled",
+      "title": "Flight to Auberdine"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 6342,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6343,
+      "status": "compiled",
+      "title": "Return to Nessa"
+    },
+    {
+      "features": [
         "RewardNextQuest"
       ],
       "gameplayVerified": false,
@@ -5129,6 +6952,153 @@
       "questId": 6344,
       "status": "compiled",
       "title": "Nessa Shadowsong"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6361,
+      "status": "compiled",
+      "title": "A Bundle of Hides"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 6361,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6362,
+      "status": "compiled",
+      "title": "Ride to Thunder Bluff"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 6362,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6363,
+      "status": "compiled",
+      "title": "Tal the Wind Rider Master"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 6363,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6364,
+      "status": "compiled",
+      "title": "Return to Jahan"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6365,
+      "status": "compiled",
+      "title": "Meats to Orgrimmar"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 6365,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6384,
+      "status": "compiled",
+      "title": "Ride to Orgrimmar"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 6384,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6385,
+      "status": "compiled",
+      "title": "Doras the Wind Rider Master"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 6385,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6386,
+      "status": "compiled",
+      "title": "Return to the Crossroads."
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6387,
+      "status": "compiled",
+      "title": "Honor Students"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 6391,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6388,
+      "status": "compiled",
+      "title": "Gryth Thurden"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 6387,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6391,
+      "status": "compiled",
+      "title": "Ride to Ironforge"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 6388,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 6392,
+      "status": "compiled",
+      "title": "Return to Brock"
     },
     {
       "features": [],
@@ -5424,6 +7394,19 @@
     },
     {
       "features": [
+        "PrevQuestID",
+        "incomingNextQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 7563,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 7564,
+      "status": "compiled",
+      "title": "Wildeyes"
+    },
+    {
+      "features": [
         "RewardNextQuest"
       ],
       "gameplayVerified": false,
@@ -5474,6 +7457,22 @@
       "questId": 7727,
       "status": "compiled",
       "title": "Incendosaurs? Whateverosaur is More Like It"
+    },
+    {
+      "features": [
+        "incomingNextQuestID",
+        "orderedPrevious"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": false,
+      "questId": 7732,
+      "status": "compiled",
+      "title": "Zukk'ash Report",
+      "unavailablePositiveDependencies": [
+        7730,
+        7731
+      ]
     },
     {
       "features": [
@@ -5678,6 +7677,36 @@
       "title": "The Twilight Mystery"
     },
     {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 8284,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 8285,
+      "status": "compiled",
+      "title": "The Deserter"
+    },
+    {
+      "features": [
+        "incomingNextQuestID",
+        "orderedPrevious",
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": false,
+      "questId": 8314,
+      "status": "compiled",
+      "title": "Unraveling the Mystery",
+      "unavailablePositiveDependencies": [
+        8309,
+        8310
+      ]
+    },
+    {
       "features": [],
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
@@ -5818,6 +7847,18 @@
       "title": "Aiding the Outrunners"
     },
     {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 9705,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 8350,
+      "status": "compiled",
+      "title": "Completing the Delivery"
+    },
+    {
       "features": [],
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
@@ -5872,6 +7913,18 @@
       "questId": 8415,
       "status": "compiled",
       "title": "Chillwind Camp"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 8414,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 8416,
+      "status": "compiled",
+      "title": "Inert Scourgestones"
     },
     {
       "features": [
@@ -6045,6 +8098,113 @@
     },
     {
       "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 8472,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 8895,
+      "status": "compiled",
+      "title": "Delivery to the North Sanctum"
+    },
+    {
+      "features": [
+        "incomingNextQuestID",
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": false,
+      "questId": 8922,
+      "status": "compiled",
+      "title": "A Supernatural Device",
+      "unavailablePositiveDependencies": [
+        8905,
+        8906,
+        8907,
+        8908,
+        8909,
+        8910,
+        8911,
+        8912,
+        10492
+      ]
+    },
+    {
+      "features": [
+        "incomingNextQuestID",
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": false,
+      "questId": 8923,
+      "status": "compiled",
+      "title": "A Supernatural Device",
+      "unavailablePositiveDependencies": [
+        8913,
+        8914,
+        8915,
+        8916,
+        8917,
+        8918,
+        8919,
+        8920,
+        10493
+      ]
+    },
+    {
+      "features": [
+        "incomingNextQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": false,
+      "questId": 8929,
+      "status": "compiled",
+      "title": "In Search of Anthion",
+      "unavailablePositiveDependencies": [
+        8926,
+        8931,
+        8932,
+        8933,
+        8934,
+        8935,
+        8936,
+        8937,
+        10494
+      ]
+    },
+    {
+      "features": [
+        "incomingNextQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": false,
+      "questId": 8930,
+      "status": "compiled",
+      "title": "In Search of Anthion",
+      "unavailablePositiveDependencies": [
+        8927,
+        8938,
+        8939,
+        8940,
+        8941,
+        8942,
+        8943,
+        8944,
+        10495
+      ]
+    },
+    {
+      "features": [
         "incomingNextQuestID",
         "RewardNextQuest",
         "incomingRewardNextQuest"
@@ -6142,6 +8302,18 @@
       "title": "The Elemental Equation"
     },
     {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 9327,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9130,
+      "status": "compiled",
+      "title": "Goods from Silvermoon City"
+    },
+    {
       "features": [],
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
@@ -6149,6 +8321,44 @@
       "questId": 9131,
       "status": "compiled",
       "title": "Binding the Dreadnaught"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 9130,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9133,
+      "status": "compiled",
+      "title": "Fly to Silvermoon City"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 9133,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9134,
+      "status": "compiled",
+      "title": "Skymistress Gloaming"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 9134,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9135,
+      "status": "compiled",
+      "title": "Return to Quartermaster Lymel"
     },
     {
       "features": [],
@@ -6227,6 +8437,17 @@
       "questId": 9147,
       "status": "compiled",
       "title": "The Fallen Courier"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 9147,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9148,
+      "status": "compiled",
+      "title": "Delivery to Tranquillien"
     },
     {
       "features": [],
@@ -6606,6 +8827,19 @@
     },
     {
       "features": [
+        "PrevQuestID",
+        "incomingNextQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 9280,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9409,
+      "status": "compiled",
+      "title": "Urgent Delivery!"
+    },
+    {
+      "features": [
         "RewardNextQuest"
       ],
       "gameplayVerified": false,
@@ -6823,6 +9057,18 @@
       "title": "Falcon Watch"
     },
     {
+      "features": [
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9501,
+      "status": "compiled",
+      "title": "Call of Water"
+    },
+    {
       "features": [],
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
@@ -6839,6 +9085,15 @@
       "questId": 9516,
       "status": "compiled",
       "title": "Destroy the Legion"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9521,
+      "status": "compiled",
+      "title": "Report from the Northern Front"
     },
     {
       "features": [
@@ -6919,6 +9174,18 @@
     },
     {
       "features": [
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9598,
+      "status": "compiled",
+      "title": "Redemption"
+    },
+    {
+      "features": [
         "RewardNextQuest"
       ],
       "gameplayVerified": false,
@@ -6927,6 +9194,55 @@
       "questId": 9601,
       "status": "compiled",
       "title": "To The Bulwark"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9603,
+      "status": "compiled",
+      "title": "Beds, Bandages, and Beyond"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 9603,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9604,
+      "status": "compiled",
+      "title": "On the Wings of a Hippogryph"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 9604,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9605,
+      "status": "compiled",
+      "title": "Hippogryph Master Stephanos"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 9605,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9606,
+      "status": "compiled",
+      "title": "Return to Topher Loaal"
     },
     {
       "features": [
@@ -6956,9 +9272,43 @@
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
       "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9623,
+      "status": "compiled",
+      "title": "Coming of Age"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
       "questId": 9630,
       "status": "compiled",
       "title": "Medivh's Journal"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9632,
+      "status": "compiled",
+      "title": "Newfound Allies"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 9632,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9633,
+      "status": "compiled",
+      "title": "The Way to Auberdine"
     },
     {
       "features": [
@@ -7084,6 +9434,19 @@
       "title": "Slain by the Wretched"
     },
     {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 9704,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9705,
+      "status": "compiled",
+      "title": "Package Recovery"
+    },
+    {
       "features": [],
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
@@ -7183,6 +9546,15 @@
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
       "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9775,
+      "status": "compiled",
+      "title": "Report to Shadow Hunter Denjai"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
       "questId": 9776,
       "status": "compiled",
       "title": "The Orebor Harborage"
@@ -7197,6 +9569,17 @@
       "questId": 9778,
       "status": "compiled",
       "title": "Warden Hamoot"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9781,
+      "status": "compiled",
+      "title": "Too Many Mouths to Feed"
     },
     {
       "features": [
@@ -7228,6 +9611,15 @@
       "questId": 9792,
       "status": "compiled",
       "title": "A Message to Telaar"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9794,
+      "status": "compiled",
+      "title": "No Time for Curiosity"
     },
     {
       "features": [],
@@ -7288,6 +9680,23 @@
       "questId": 9819,
       "status": "compiled",
       "title": "The Tortured Earth"
+    },
+    {
+      "features": [
+        "incomingNextQuestID",
+        "orderedPrevious",
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": false,
+      "questId": 9826,
+      "status": "compiled",
+      "title": "Contact from Dalaran",
+      "unavailablePositiveDependencies": [
+        9824,
+        9825
+      ]
     },
     {
       "features": [],
@@ -7352,6 +9761,17 @@
       "questId": 9842,
       "status": "compiled",
       "title": "The Sharpest Blades"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9845,
+      "status": "compiled",
+      "title": "Angling to Beat the Competition"
     },
     {
       "features": [
@@ -7506,6 +9926,15 @@
       "title": "Blacksting's Bane"
     },
     {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9897,
+      "status": "compiled",
+      "title": "I'm Saved!"
+    },
+    {
       "features": [
         "PrevQuestID",
         "incomingNextQuestID",
@@ -7526,6 +9955,38 @@
       "questId": 9901,
       "status": "compiled",
       "title": "Unfinished Business"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9902,
+      "status": "compiled",
+      "title": "The Terror of Marshlight Lake"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 9845,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9903,
+      "status": "compiled",
+      "title": "The Biggest of Them All"
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 9845,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9904,
+      "status": "compiled",
+      "title": "Pursuing Terrorclaw"
     },
     {
       "features": [],
@@ -7553,6 +10014,15 @@
       "questId": 9914,
       "status": "compiled",
       "title": "A Head Full of Ivory"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 9919,
+      "status": "compiled",
+      "title": "Sporeggar"
     },
     {
       "features": [],
@@ -7979,6 +10449,32 @@
     },
     {
       "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 9407,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 10120,
+      "status": "compiled",
+      "title": "Arrival in Outland"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 10288,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 10140,
+      "status": "compiled",
+      "title": "Journey to Honor Hold"
+    },
+    {
+      "features": [
         "RewardNextQuest"
       ],
       "gameplayVerified": false,
@@ -8072,6 +10568,19 @@
     },
     {
       "features": [
+        "BreadcrumbForQuestId",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 10183,
+      "status": "compiled",
+      "title": "Off To Area 52"
+    },
+    {
+      "features": [
         "PrevQuestID",
         "RewardNextQuest"
       ],
@@ -8158,6 +10667,32 @@
       "questId": 10279,
       "status": "compiled",
       "title": "To The Master's Lair"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 10119,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 10288,
+      "status": "compiled",
+      "title": "Arrival in Outland"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 10120,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 10289,
+      "status": "compiled",
+      "title": "Journey to Thrallmar"
     },
     {
       "features": [
@@ -8271,6 +10806,15 @@
       "questId": 10332,
       "status": "compiled",
       "title": "Master Smith Rhonsus"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 10334,
+      "status": "compiled",
+      "title": "Needs More Cowbell"
     },
     {
       "features": [],
@@ -8498,6 +11042,19 @@
       "questId": 10590,
       "status": "compiled",
       "title": "Prove Your Hatred"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 10590,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 10592,
+      "status": "compiled",
+      "title": "Wisdom of the Banshee Queen"
     },
     {
       "features": [
@@ -8836,6 +11393,30 @@
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
       "positiveDependencyReachableFromFreshSave": true,
+      "questId": 11036,
+      "status": "compiled",
+      "title": "Out of This World Produce!"
+    },
+    {
+      "features": [
+        "BreadcrumbForQuestId",
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 11040,
+      "status": "compiled",
+      "title": "Parts for the Rocket-Chief"
+    },
+    {
+      "features": [
+        "BreadcrumbForQuestId",
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
       "questId": 11042,
       "status": "compiled",
       "title": "A Mystifying Vision"
@@ -8941,6 +11522,17 @@
       "title": "Assault on Bash'ir Landing!"
     },
     {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 11130,
+      "status": "compiled",
+      "title": "Oooh, Shinies!"
+    },
+    {
       "features": [],
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
@@ -8999,6 +11591,19 @@
       "questId": 11192,
       "status": "compiled",
       "title": "Thresher Oil"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 11192,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 11193,
+      "status": "compiled",
+      "title": "Dastardly Denizens of the Deep"
     },
     {
       "features": [],
@@ -9181,6 +11786,21 @@
       "title": "Wild Vines"
     },
     {
+      "features": [
+        "PrevQuestID",
+        "incomingNextQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 11315,
+      "positiveDependencyReachableFromFreshSave": false,
+      "questId": 11319,
+      "status": "compiled",
+      "title": "Seeds of the Blacksouled Keepers",
+      "unavailablePositiveDependencies": [
+        11314
+      ]
+    },
+    {
       "features": [],
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
@@ -9224,6 +11844,15 @@
       "questId": 11424,
       "status": "compiled",
       "title": "Shield Hill"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 11451,
+      "status": "compiled",
+      "title": "Alicia's Poem"
     },
     {
       "features": [],
@@ -9313,6 +11942,17 @@
         11494,
         11495
       ]
+    },
+    {
+      "features": [
+        "PrevQuestID"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 11550,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 11526,
+      "status": "compiled",
+      "title": "The Missing Magistrix"
     },
     {
       "features": [],
@@ -9468,6 +12108,15 @@
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
       "positiveDependencyReachableFromFreshSave": true,
+      "questId": 11887,
+      "status": "compiled",
+      "title": "Emergency Supplies"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
       "questId": 11906,
       "status": "compiled",
       "title": "Cleaning Up the Pools"
@@ -9588,6 +12237,15 @@
       "questId": 12045,
       "status": "compiled",
       "title": "Shaved Ice"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 12052,
+      "status": "compiled",
+      "title": "Harp on This!"
     },
     {
       "features": [
@@ -9717,6 +12375,30 @@
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
       "positiveDependencyReachableFromFreshSave": true,
+      "questId": 12181,
+      "status": "compiled",
+      "title": "Give it a Name"
+    },
+    {
+      "features": [
+        "PrevQuestID",
+        "RewardNextQuest",
+        "incomingRewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 12181,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 12182,
+      "status": "compiled",
+      "title": "To Venomspite!"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
       "questId": 12189,
       "status": "compiled",
       "title": "Imbeciles Abound!"
@@ -9831,6 +12513,17 @@
       "questId": 12468,
       "status": "compiled",
       "title": "The Conqueror's Task"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 12469,
+      "status": "compiled",
+      "title": "Return to Sender"
     },
     {
       "features": [
@@ -10093,6 +12786,17 @@
       "questId": 12853,
       "status": "compiled",
       "title": "Luxurious Getaway!"
+    },
+    {
+      "features": [
+        "RewardNextQuest"
+      ],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 12863,
+      "status": "compiled",
+      "title": "Offering Thanks"
     },
     {
       "features": [],
@@ -10491,9 +13195,27 @@
       "gameplayVerified": false,
       "legacyPrerequisite": 0,
       "positiveDependencyReachableFromFreshSave": true,
+      "questId": 13986,
+      "status": "compiled",
+      "title": "An Injured Colleague"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
       "questId": 14355,
       "status": "compiled",
       "title": "Into The Scarlet Monastery"
+    },
+    {
+      "features": [],
+      "gameplayVerified": false,
+      "legacyPrerequisite": 0,
+      "positiveDependencyReachableFromFreshSave": true,
+      "questId": 14409,
+      "status": "compiled",
+      "title": "A Cautious Return"
     },
     {
       "features": [
@@ -10553,7 +13275,7 @@
   "sourceCommit": "4e80596cdaa21fa31830522f6f2d7ed8750bfffd",
   "sourceHashes": {
     "conditions.sql": "1a40806e454211118e0b459e09eb70e0e09807987ead6b321bbd371b93ffeb7d",
-    "input_quests.pack": "b25df5c6a93df6cfb19159dc21612a8ad70a9e6e57958fb361986669069ca464",
+    "input_quests.pack": "85b1cc52ec68484206dafe43bbfde094ecd75b19070a03fd8ecfa8f147811c5a",
     "quest_template.sql": "5dc7e6c92ea6875a5fc68cf5d3e33150e86cda5819a11af0c59217b24c63a37f",
     "quest_template_addon.sql": "ca1081203af9dc5ab9b948d94652a66674d116ce387f629595ec38f89c4af5d2"
   }

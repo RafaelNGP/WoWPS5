@@ -169,7 +169,7 @@ int main(int argc,char** argv) {
             ++checked;if(!q->chainGate.unsupportedReason.empty())++blocked;
             if(std::none_of(content.quests.begin(),content.quests.end(),[&](const auto& authored){return authored.id==q->id;}))++lazy;
         }
-        assert(checked==950 && lazy && blocked==3);
+        assert(checked==1182 && lazy && blocked==4); // 950 + 232 start-item quests
         LocalGameplay fresh;assert(fresh.loadContent(argv[2],error));
         for(const auto& entry:content.questChainGates) {
             const auto* q=content.quest(entry.first);

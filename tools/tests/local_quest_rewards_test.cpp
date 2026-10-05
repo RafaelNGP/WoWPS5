@@ -103,7 +103,7 @@ static void catalog(const std::string& directory) {
         for(size_t i=0;i<localQuestRewardCount(q);++i){LocalItemDefinition item;assert(catalog.item(localQuestRewardAt(q,i).itemId,item,result));}
         for(const auto& r:q.rewardChoices){LocalItemDefinition item;assert(catalog.item(r.itemId,item,result));}
     }
-    assert(count==950 && choices==140 && multiple==18);
+    assert(count==1182 && choices==155 && multiple==18); // 950 + 232 start-item quests
     std::cout<<"PASS quest reward catalog: all 950 parsed; 140 choice quests and 18 multi-fixed quests; every reward item resolves\n";
 }
 int main(int argc,char**argv){assert(argc==2);authority();questLan();catalog(argv[1]);}

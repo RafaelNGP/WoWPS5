@@ -429,6 +429,7 @@ bool LocalWorldCatalog::quest(uint32_t id,LocalQuestDefinition& result,std::stri
         q.allowableRaces=number(j,"allowableRaces",0,UINT32_MAX);q.allowableClasses=number(j,"allowableClasses",0,UINT32_MAX);q.requiredSkill=number(j,"requiredSkill",0,UINT32_MAX);
         q.requiredMinRepFaction=number(j,"requiredMinRepFaction",0,UINT32_MAX);q.requiredMaxRepFaction=number(j,"requiredMaxRepFaction",0,UINT32_MAX);q.requiredMinRepValue=signedNumber(j,"requiredMinRepValue");q.requiredMaxRepValue=signedNumber(j,"requiredMaxRepValue");
         if(j.contains("reputationRequirements")){size_t ri=0;for(const auto& r:array(j,"reputationRequirements",2)){q.requiredReputationFactions[ri]=number(r,"factionId",1,UINT32_MAX);q.requiredReputationValues[ri]=signedNumber(r,"value",0,-42000,42999);++ri;}}
+        q.startItem=number(j,"startItem",0,UINT32_MAX);q.startItemCount=uint16_t(number(j,"startItemCount",q.startItem?1:0,255));
         q.xp=number(j,"xp");q.money=number(j,"money");q.rewardItem=number(j,"rewardItem",0,UINT32_MAX);q.rewardCount=uint16_t(number(j,"rewardCount",0,65535));
         if(j.contains("additionalRewards"))for(const auto& r:array(j,"additionalRewards",3))q.additionalRewards.push_back(stack(r));
         if(j.contains("rewardChoices"))for(const auto& r:array(j,"rewardChoices",6))q.rewardChoices.push_back(stack(r));

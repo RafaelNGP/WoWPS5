@@ -5218,6 +5218,8 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         }
         if(!applyScriptTriggers(staged,c,LocalScriptTriggerKind::QuestAbandon,cmd.id,&actions))return reject("Quest abandon script failed");
         std::erase_if(staged.quests,[&](const auto& q){return q.id==cmd.id;});
+        // The quest's provided item goes with it.
+        if(def&&def->startItem)if(const auto held=totalItem(staged,def->startItem))removeItem(staged,def->startItem,held);
         if(!commitScriptActions(staged,actions))return false;p=std::move(staged);
         // Generic inventory items remain owned; abandoning only resets this
         // quest's tracked objective credit and never erases rewarded history.
@@ -6099,6 +6101,10 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         }
         if(const auto* reason=localQuestAcceptanceError(p,*def))return reject(reason);
         auto candidate=p;LocalScriptActionBatch actions;LocalQuestProgress q;q.id=cmd.id;q.progress.resize(def->objectives.size(),0);candidate.quests.push_back(std::move(q));
+        // The provided item (a letter, an order) comes with the quest.
+        if(def->startItem&&totalItem(candidate,def->startItem)<def->startItemCount&&
+           !addItem(candidate,c,def->startItem,uint16_t(def->startItemCount-totalItem(candidate,def->startItem))))
+            return reject("Inventory is full");
         if(!applyScriptTriggers(candidate,c,LocalScriptTriggerKind::QuestAccept,cmd.id,&actions))return reject("Quest script transition could not be applied");
         for(const auto& route:c.escortRoutes)if(route.questId==cmd.id) {
             if(p.escort.routeId || p.instanceId || n->guid!=(NpcPrefix|route.spawnId) || p.flight.active || p.transportEntry)
@@ -6132,6 +6138,7 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         if (uint64_t(candidate.money) + def->money > 1000000000ULL)
             return reject("Quest reward would exceed the money limit; reward remains unclaimed");
         for(const auto& obj:def->objectives)if(obj.type==LocalQuestObjective::Type::Collect)removeItem(candidate,obj.entry,obj.count);
+        if(def->startItem)if(const auto held=totalItem(candidate,def->startItem))removeItem(candidate,def->startItem,held);
         for(size_t i=0;i<localQuestRewardCount(*def);++i) {
             const auto r=localQuestRewardAt(*def,i);
             if(!addItem(candidate,c,r.itemId,r.count))return reject("Inventory full or reward unavailable; entire quest reward remains unclaimed");

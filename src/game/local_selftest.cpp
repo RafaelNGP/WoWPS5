@@ -783,6 +783,35 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
     for (const auto& f : uniq) out << "  FAILURE " << f << "\n";
     if (startsWithQuest != startIndex) { out << "FAIL some starts completed no quest\n"; return false; }
     out << "PASS start-zone quests: every start accepted, completed and turned in quests\n";
+    // ---- 4. A quest that hands over an item (quest_template.StartItem): given
+    // on accept, taken back on abandon.
+    {
+        size_t withStartItem = 0; const LocalQuestDefinition* pick = nullptr;
+        for (const auto& [id, gate] : c.questChainGates) if (const auto* q = c.quest(id); q && q->startItem) {
+            ++withStartItem;
+            if (!pick && !q->prerequisite && q->minLevel <= 20 && spawns.count(q->giverEntry)) pick = q;
+        }
+        SELFTEST_CHECK(pick);
+        LocalGameplay world; SELFTEST_CHECK(world.loadContent(worldPath, error));
+        LocalRealmPlayer p; p.guid = 1900; p.name = "Courier"; p.race = 1; p.classId = 1;
+        for (uint8_t r = 1; r <= 11; ++r) if (!pick->allowableRaces || (pick->allowableRaces & (1u << (r - 1)))) { p.race = r; break; }
+        for (uint8_t k = 1; k <= 11; ++k) if (k != 10 && (!pick->allowableClasses || (pick->allowableClasses & (1u << (k - 1))))) { p.classId = k; break; }
+        world.initializePlayer(p, true, std::max<uint8_t>(pick->minLevel, 1));
+        std::vector<LocalRealmPlayer*> players{&p};
+        const auto spawn = spawns.find(pick->giverEntry)->second;
+        p.mapId = spawn.map; p.instanceId = 0; p.x = spawn.x; p.y = spawn.y; p.z = spawn.z; ++p.positionRevision;
+        const LocalRealmNpc* giver = nullptr;
+        for (int i = 0; i < 200 && !giver; ++i) { world.tick(0.05f, players);
+            for (const auto& n : world.npcs()) if (n.entry == pick->giverEntry && !n.dead && std::hypot(n.x - p.x, n.y - p.y) < 60) giver = &n; }
+        const auto held = [&] { uint32_t n = 0; for (const auto& st : p.inventory) if (st.itemId == pick->startItem) n += st.count; return n; };
+        bool ok = giver != nullptr;
+        if (ok) { p.x = giver->x; p.y = giver->y; p.z = giver->z; ++p.positionRevision;
+            ok = world.execute(p, {LocalAction::AcceptQuest, giver->guid, pick->id}, players, result) && held() >= pick->startItemCount; }
+        ok = ok && world.execute(p, {LocalAction::AbandonQuest, 0, pick->id}, players, result) && held() == 0;
+        if (!ok) { out << "FAIL start item: quest " << pick->id << " '" << pick->title << "' item " << pick->startItem << ": " << result << "\n"; return false; }
+        out << "PASS start items: " << withStartItem << " catalog quests hand over an item; quest " << pick->id << " '" << pick->title
+            << "' gave item " << pick->startItem << " on accept and took it back on abandon\n";
+    }
     return true;
 }
 #undef SELFTEST_CHECK

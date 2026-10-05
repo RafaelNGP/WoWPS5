@@ -1304,6 +1304,10 @@ struct LocalQuestDefinition {
     std::string title, description;
     uint32_t xp = 0, money = 0, rewardItem = 0;
     uint16_t rewardCount = 0;
+    // quest_template.StartItem / addon ProvidedItemCount: given on accept,
+    // taken back on abandon and at the turn-in (letters, orders, samples).
+    uint32_t startItem = 0;
+    uint16_t startItemCount = 0;
     std::vector<LocalQuestObjective> objectives;
     // Legacy rewardItem/rewardCount is the first guaranteed reward. These
     // optional lists extend old content without changing character saves.
