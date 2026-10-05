@@ -60,7 +60,7 @@ struct LocalSpellImport {
 // They are also generous rather than tight: only abilities this ruleset can
 // actually cast are kept, and only recipes that name both reagents and a
 // created item, which is a small fraction of either table.
-inline constexpr size_t kLocalMaxImportedClassAbilities = 1024;
+inline constexpr size_t kLocalMaxImportedClassAbilities = 2048;
 inline constexpr size_t kLocalMaxImportedRecipes = 2048;
 
 // SkillLineCategory 7 is a class skill line - the lines a class trainer
@@ -1101,6 +1101,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         bool valid=u(71)==6&&u(95)==36&&u(110)==form->form&&u(86)==1&&!u(89)&&!u(116);
         if(form->clazz==11)valid=valid&&u(72)==6&&u(96)==77&&u(111)==17&&u(87)==1&&!u(90)&&!u(117)&&
             (d.id==768?(u(73)==6&&u(97)==23&&u(88)==1&&!u(118)):!u(73));
+        else if(d.id==1784)valid=valid&&u(72)==6&&u(96)==16&&u(87)==1&&u(73)==6&&u(97)==33&&i(82)==-31&&u(88)==1;
         else valid=valid&&(d.id==2457?(u(72)==6&&u(96)==280&&i(81)==9&&u(87)==1):!u(72))&&!u(73);
         if(valid){
             d.formId=form->form;d.allowableClasses=1u<<(form->clazz-1);
@@ -1142,7 +1143,11 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // Soul Shard; its caster-side proc aura is the execute-range bonus script.
     bool deathItemChannel=false;
     if(!creatureCaster&&(u(5)&0x44u))for(uint32_t e=0;e<3;++e)if(u(71+e)==6&&u(95+e)==86&&u(86+e)==6)deathItemChannel=true;
-    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel)
+    // A hunter Aspect (SPELL_SPECIFIC_ASPECT, until cancelled): its proc
+    // effects are talent hooks (Improved Aspect of the Hawk, the Cheetah's daze)
+    // and are set aside; Cheetah's daze is the combat rule in the runtime.
+    const bool aspectSpell=!creatureCaster&&d.spellFamily==9&&u(40)==21&&localSpellSpecific(d)==LocalSpellSpecific::Aspect;
+    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&d.id!=1784) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
     // Spell.dbc column 38 is BaseLevel and column 39 is SpellLevel
     // (DBCStructure.h:1679-1680). previously both this field and d.spellLevel
@@ -1200,7 +1205,12 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     const bool chargeSpell=!creatureCaster&&(u(71)==96||u(72)==96||u(73)==96);
     if(!creatureCaster)d.outOfCombatOnly=(u(4)&0x10000000u)!=0;
     if(!creatureCaster&&u(21)==2&&!u(20)&&!u(22)&&!u(23)&&!u(24)&&!u(25)&&!u(26)&&!u(27))d.targetMaxHealthPct=20;
-    else if(u(20)||u(21)||u(22)||u(23)||u(24)||u(25)||u(26)||(u(27)&&!chargeSpell)) unavailable("Aura requirements are not implemented");
+    // Stealth's CasterAuraStateNot 12 (Faerie Fire) never holds here: no
+    // creature in this realm casts it on a player.
+    else if(u(20)||u(21)||(u(22)&&!(d.id==1784&&u(22)==12))||u(23)||u(24)||u(25)||u(26)||(u(27)&&!chargeSpell)) unavailable("Aura requirements are not implemented");
+    // SPELL_ATTR0_ONLY_STEALTHED: the rogue openers also require Stealth's
+    // form; Prowl (a cat-form aura) is not implemented, so Ravage and Pounce wait.
+    if(!creatureCaster&&(u(4)&0x20000u)&&!(u(12)&(1u<<29)))unavailable("Prowl is not implemented");
     d.requiresMainHand=(u(7)&0x400u)!=0;d.requiresOffHand=(u(7)&0x1000000u)!=0;
     if(i(68)>=0) {
         if(i(68)!=2&&i(68)!=4)unavailable("Unsupported spell equipment class");
@@ -1292,14 +1302,15 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // or attack power (99). Party/raid forms land on the caster here (and on a
     // friendly target when cast at one); other auras in it are set aside.
     bool classBuffSpell=false;
-    if(!creatureCaster&&d.durationMs) {
+    if(!creatureCaster&&(d.durationMs||aspectSpell)) {
         bool any=false,shape=true;
         for(uint32_t e=0;e<3;++e) if(u(71+e)) {
             const auto ty=u(71+e),au=u(95+e),tg=u(86+e);
+            if(aspectSpell&&ty==6&&tg==1&&(au==42||au==87)&&i(80+e)==-1)continue; // talent proc hook, empty modifier
             if((ty!=6&&ty!=35&&ty!=65)||u(89+e)||u(116+e)||(tg!=1&&tg!=21&&tg!=25&&tg!=20&&tg!=22&&tg!=30&&tg!=31&&tg!=56&&tg!=57&&tg!=0))shape=false;
-            if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99||(tg==1&&(au==31||au==49)&&i(80+e)>=0))any=true;
+            if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99||(tg==1&&(au==31||au==49||au==124)&&i(80+e)>=0))any=true;
         }
-        classBuffSpell=any&&shape&&!u(spell335::ProcFlags)&&!u(spell335::ProcCharges);
+        classBuffSpell=any&&shape&&((!u(spell335::ProcFlags)&&!u(spell335::ProcCharges))||aspectSpell);
     }
     // A ground area: SPELL_EFFECT_PERSISTENT_AREA_AURA (27) at the destination
     // (28) or the caster (18), with a fixed radius.
@@ -1339,6 +1350,12 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
            i(80+effect)<-1&&i(80+effect)>=-100&&d.durationMs&&d.durationMs<=600000&&!u(116+effect)&&u(46)!=1) { // range 1: a talent's triggered daze
             d.snarePercent=uint8_t(-(i(80+effect)+1));harm=true;continue;
         }
+        // SPELL_EFFECT_ADD_COMBO_POINTS on the enemy of an opener outside the
+        // reviewed combo profiles (Ambush, Garrote, Cheap Shot).
+        if(!combo&&type==80&&u(86+effect)==6&&!u(89+effect)&&!u(116+effect)&&u(74+effect)<=1) {
+            const int32_t points=i(80+effect)+1;
+            if(points>=1&&points<=5){d.comboGain=uint8_t(points);harm=true;continue;}
+        }
         if(classBuffSpell) {
             const auto au=u(95+effect),tg=u(86+effect);const int32_t amount=i(80+effect)+1,misc=i(110+effect);
             if(amount>0&&amount<=100000) {
@@ -1348,6 +1365,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 else if(au==34)d.classBuffHealth+=amount;
                 else if(au==31&&tg==1)d.classBuffSpeedPct+=amount;
                 else if(au==49&&tg==1)d.classBuffDodgePct+=amount;
+                else if(au==124&&tg==1)d.classBuffRangedAttackPower+=amount;
             }
             d.classBuff=true;buff=true;
             buffTarget=(tg==21||tg==25)?tg:(buffTarget?buffTarget:1);
@@ -1512,7 +1530,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 unavailable("Proc, charge or triggered control auras are not implemented");
             else if(u(spell335::ChannelInterruptFlags))
                 unavailable("Channelled control auras are not implemented");
-            else if(u(72)||u(73))
+            else if((u(72)&&u(72)!=80)||(u(73)&&u(73)!=80)) // Cheap Shot's combo points ride along
                 unavailable("A control aura beside another effect is not implemented");
             // No mechanic requirement is imposed on either aura. The reference
             // imposes none: MOD_STUN carries five different mechanics across

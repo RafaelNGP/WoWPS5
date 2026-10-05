@@ -33,7 +33,12 @@ inline constexpr LocalFormProfile kLocalForms[]={
     // SpellShapeshiftForm 16: Beast, model 4613, no alternate action bar or
     // attack-speed override. Spell 2645 supplies the 40% run-speed aura.
     {2645,16,7,0,LocalResourceType::Mana,4613,4613,100,100,100,100,140,100},
+    // Stealth (form 30): no model change, the client's stealth bar (column 1,
+    // filled with the openers when empty); its aura 33 is the 30% slow. It is
+    // not a shapeshift, so items stay usable.
+    {1784,30,4,1,LocalResourceType::Energy,0,0,100,100,100,100,70,100},
 };
+inline bool localStealthed(const LocalRealmPlayer& p){return p.formSpellId==1784&&p.classId==4&&!p.dead;}
 inline const LocalFormProfile* localFormProfile(uint32_t spell){for(const auto& f:kLocalForms)if(f.spell==spell)return &f;return nullptr;}
 inline const LocalFormProfile* localFormProfileByForm(uint8_t form){for(const auto& f:kLocalForms)if(f.form==form)return &f;return nullptr;}
 // The reference's per-form grant table is the switch in

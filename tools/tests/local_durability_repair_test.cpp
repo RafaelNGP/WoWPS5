@@ -390,23 +390,24 @@ int main() {
         std::cout << "[TEST] 8. Dual-wield off-hand weapon immunity from armor damage...\n";
         auto p = makePlayer(8);
         p.inventory.push_back({25, 1, 0, {}}); // Main-hand weapon
-        p.inventory.push_back({25, 1, 1, {}}); // Off-hand weapon
+        p.inventory.push_back({2092, 1, 1, {}}); // Off-hand weapon (Worn Dagger; the Shortsword is main-hand only)
         game.initializePlayer(p, false);
 
         std::vector<LocalRealmPlayer*> players{&p};
         std::string res;
         assert(game.execute(p, {LocalAction::EquipItem, 16, 25}, players, res)); // Main hand
-        assert(game.execute(p, {LocalAction::EquipItem, 17, 25}, players, res)); // Off hand
+        assert(game.execute(p, {LocalAction::EquipItem, 17, 2092}, players, res)); // Off hand
 
         auto* oh = findEquippedStack(p, 16);
-        assert(oh && oh->instance.curDurability == 20);
+        assert(oh && oh->itemId == 2092 && oh->instance.maxDurability && oh->instance.curDurability == oh->instance.maxDurability);
+        const auto ohDurability = oh->instance.curDurability;
 
         // Attempting to degrade armor when only weapons are worn:
         // No armor pieces exist, and off-hand weapon must NOT be chosen as armor.
         for (uint32_t roll = 0; roll < 20; ++roll) {
             localDamageArmorInCombat(p, roll);
         }
-        assert(oh->instance.curDurability == 20); // Off-hand weapon untouched!
+        assert(oh->instance.curDurability == ohDurability); // Off-hand weapon untouched!
         std::cout << "  PASS 8: Off-hand weapon excluded from incoming armor damage\n";
     }
 

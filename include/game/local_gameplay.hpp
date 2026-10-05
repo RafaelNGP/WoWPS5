@@ -195,6 +195,8 @@ struct LocalAreaAuraApplication {
     bool effective=false;
     bool operator==(const LocalAreaAuraApplication&) const = default;
 };
+/// The fixed lease of an until-cancelled class aura (hunter aspects); it never counts down.
+inline constexpr uint32_t kLocalIndefiniteAuraMs=3600000;
 struct LocalStatAura {
     uint32_t spellId=0, remainingMs=0, mapId=0, instanceId=0;
     uint64_t casterGuid=0; // zero denotes legacy/self caster
@@ -965,6 +967,7 @@ struct LocalSpellDefinition {
     std::array<int32_t,5> classBuffStats{};
     int32_t classBuffAttackPower=0,classBuffArmor=0,classBuffHealth=0;
     int32_t classBuffSpeedPct=0,classBuffDodgePct=0; // aura 31 (Sprint), aura 49 (Evasion)
+    int32_t classBuffRangedAttackPower=0; // aura 124 (Aspect of the Hawk)
     /// A player channel (Mind Flay, Drain Life, Drain Soul): its periodic
     /// effect runs while the caster keeps channelling; moving ends both.
     bool channel=false,periodicLeech=false,soulShardOnKill=false;

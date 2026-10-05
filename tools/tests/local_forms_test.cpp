@@ -371,7 +371,7 @@ void nothingRetained() {
                        ": the form changed at least one number while it was active");
         }
     }
-    expect(checked == 36, "all nine forms are exercised at four levels");
+    expect(checked == 40, "all ten forms are exercised at four levels");
     // Every helper answers zero without a form, which is why there is nothing
     // to sweep: the reference's IsRemovedOnShapeLost population here is five
     // passive talent ranks, all recomputed live.
@@ -517,8 +517,8 @@ void formLists() {
                    "kLocalForms row " + std::to_string(f.spell) + " has a bar entry");
         }
     }
-    expect(entries == 14 && modelled == 8,
-           "the bar table is 14 entries, 8 of them forms this realm models");
+    expect(entries == 14 && modelled == 9,
+           "the bar table is 14 entries, 9 of them forms this realm models");
     expect(allShapeshiftForms(7).size() == 1 && allShapeshiftForms(7)[0].spellId == 2645 &&
            allShapeshiftForms(7)[0].formId == 16,
            "a shaman now has the Ghost Wolf button it never had");
@@ -531,8 +531,8 @@ void formLists() {
         for (const auto& e : allShapeshiftForms(clazz))
             if (!localFormProfile(e.spellId)) { ++unmodelled; expect(!accepted(e.spellId),
                    "bar entry " + std::to_string(e.spellId) + " is one the local realm refuses"); }
-    expect(unmodelled == 6,
-           "six entries - Stealth, Shadowform, Moonkin, Tree of Life and the two flight forms - are "
+    expect(unmodelled == 5,
+           "five entries - Shadowform, Moonkin, Tree of Life and the two flight forms - are "
            "client forms this realm does not model, kept for connected play and filtered out of the "
            "local stance bar by its acceptance test");
     // The presences are not shapeshift auras at all.

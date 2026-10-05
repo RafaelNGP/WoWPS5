@@ -110,6 +110,9 @@ inline LocalRangedAmounts localRangedAmounts(const LocalRealmPlayer& p,const Loc
         }
     const auto level=uint32_t(p.level);
     const float baseAp=float(stats.attributes[1])-10.f+float(p.classId==3?2*level:(p.classId==1||p.classId==4)?level:0);
+    // Ranged attack power auras (Aspect of the Hawk / Dragonhawk).
+    for(const auto& sa:p.statAuras)if(sa.remainingMs&&sa.mapId==p.mapId&&sa.instanceId==p.instanceId)
+        if(const auto* sd=c.spell(sa.spellId);sd&&sd->classBuff)itemAp+=sd->classBuffRangedAttackPower;
     const auto ap=std::clamp(double(baseAp)+itemAp,0.0,1000000.0);
     a.basePeriodMs=weapon->delay;
     const float haste=std::clamp(float(hasteRating)*ratio->haste,0.f,1000.f);

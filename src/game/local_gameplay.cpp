@@ -2753,7 +2753,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         // creature types and combat states it may be cast at.
         hash(d.sourceRangeFlags);hash(d.sourceFacingFlags);hash(d.targetCreatureType);
         hash(uint32_t(d.weaponDamage)|uint32_t(d.normalizedWeapon)<<1|uint32_t(d.interruptCast)<<2|uint32_t(d.taunt)<<3|uint32_t(d.charge)<<4|uint32_t(d.outOfCombatOnly)<<5);hash(d.chargeRage);hash(d.weaponPercent);hash(d.targetMaxHealthPct);hash(d.createItemId);hash(d.createItemCount);hash(uint32_t(d.channel)|uint32_t(d.periodicLeech)<<1|uint32_t(d.soulShardOnKill)<<2|uint32_t(d.teleport)<<3|uint32_t(d.groundAtCaster)<<4);{uint32_t gr;std::memcpy(&gr,&d.groundRadius,4);hash(gr);}for(size_t r=0;r<d.reagentItems.size();++r){hash(d.reagentItems[r]);hash(d.reagentCounts[r]);}
-        hash(uint32_t(d.classBuff));for(auto v:d.classBuffStats)hash(uint32_t(v));hash(uint32_t(d.classBuffAttackPower));hash(uint32_t(d.classBuffArmor));hash(uint32_t(d.classBuffHealth));hash(uint32_t(d.classBuffSpeedPct));hash(uint32_t(d.classBuffDodgePct));
+        hash(uint32_t(d.classBuff));for(auto v:d.classBuffStats)hash(uint32_t(v));hash(uint32_t(d.classBuffAttackPower));hash(uint32_t(d.classBuffArmor));hash(uint32_t(d.classBuffHealth));hash(uint32_t(d.classBuffSpeedPct));hash(uint32_t(d.classBuffDodgePct));hash(uint32_t(d.classBuffRangedAttackPower));
         hash(uint32_t(d.sourceOnlyPeacefulTargets));
         // P05 line of sight : two peers must agree on which casts are
         // exempt from the test before they can agree on the test's answer.
@@ -4882,7 +4882,7 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
     }
     if(cmd.action==LocalAction::CancelForm){
         if(cmd.id&&cmd.id!=p.formSpellId)return reject("Form changed; refresh the stance bar");
-        if((p.classId!=11&&p.classId!=7)||!p.formSpellId)return reject("No cancellable form");
+        if((p.classId!=11&&p.classId!=7&&p.classId!=4)||!p.formSpellId)return reject("No cancellable form");
         leaveLocalForm(p);clearCast(p,LocalCastStatus::Interrupted);stats(p,c,false);result="Returned to caster form";return true;
     }
     if(cmd.action==LocalAction::DismissPet){
@@ -6153,7 +6153,8 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if((d->meleeSpecialProfile||d->stormstrikeProfile)&&!validEquipment(p,c))return reject("Invalid equipped weapon state");
     if(!localSpellEquipmentReady(p,c,*d))return reject("Required spell equipment is not equipped");
     if(!d->maxAuraStacks)return reject("Invalid aura stack limit");
-    const auto talentedDuration=localSpellDuration(p,c,*d);
+    // An aspect lasts until cancelled: it holds a fixed lease that never counts down.
+    const auto talentedDuration=d->classBuff&&d->indefiniteDuration?kLocalIndefiniteAuraMs:localSpellDuration(p,c,*d);
     const auto talentedGlobalCooldown=localSpellGlobalCooldown(p,c,*d);
     if(!finishing&&p.castingSpellId)return reject("A spell is already being cast; move or stop to cancel");
     if(!finishing&&p.globalCooldownMs)return reject("Global cooldown is active");
@@ -6607,6 +6608,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(d->formId&&p.classId==11&&p.resourceType!=LocalResourceType::Mana)p.druidMana-=paidCost;else p.mana-=paidCost;
     if(!avoided)p.mana-=extraEnergy;
     if(d->comboFinisher&&!avoided)clearLocalCombo(p);
+    if(localStealthed(p))leaveLocalForm(p); // An attack ends Stealth, even one that kills.
     if(d->comboGain&&!avoided&&p.comboTarget!=cmd.target)clearLocalCombo(p);
     if(cost&&(p.resourceType==LocalResourceType::Mana||(d->formId&&p.classId==11)))p.manaRegenDelayMs=5000;
     if(d->formId){
@@ -6933,7 +6935,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         if(localElementalShield(*d))healed->statAuras[buffSlot].procCooldownMs=std::min(shieldCooldown,d->proc.cooldownMs);
         stats(*healed,c,false);
     }
-    if((d->comboProfile||d->meleeSpecialProfile||d->stormstrikeProfile==1)&&n&&!n->dead){
+    if((d->comboProfile||d->meleeSpecialProfile||d->stormstrikeProfile==1||d->comboGain)&&n&&!n->dead){
         if(d->comboGain)addLocalCombo(p,*n,d->comboGain);
         p.attackTarget=n->guid;
     }
@@ -7303,7 +7305,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                (d->arcaneBlastProfile==2&&(p->classId!=8||a.casterGuid!=p->guid||a.remainingMs>d->durationMs)))a.remainingMs=0;
             else {
                 const auto activeMs=std::min(elapsedMs,a.remainingMs);
-                a.stacks=std::min(a.stacks,d->maxAuraStacks);a.remainingMs-=activeMs;
+                a.stacks=std::min(a.stacks,d->maxAuraStacks);if(!(d->classBuff&&d->indefiniteDuration))a.remainingMs-=activeMs;
                 a.absorbRemaining=std::min(a.absorbRemaining,d->wardProfile?1000000u:localStackedAuraAmount(d->buffAbsorb,a.stacks));
                 if(d->buffAbsorb&&!a.absorbRemaining){a.remainingMs=0;continue;}
                 a.procCharges=std::min(a.procCharges,d->proc.charges);
@@ -7554,6 +7556,13 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
             if(const auto now=uint64_t(std::time(nullptr));now)p->restLastUnix=now;
         }
         changed=g.syncHunterPet(*p,players)||changed;
+        // Stealth ends when the rogue attacks or anything engages it (the
+        // aura's damage and attack interrupt flags).
+        if(localStealthed(*p)&&(p->attackTarget||localCombatActive(*p,g.npcs))){leaveLocalForm(*p);stats(*p,content(),false);changed=true;}
+        // Aspect of the Cheetah dazes and ends when its hunter is engaged
+        // (its proc); here combat ends the aspect.
+        if(localCombatActive(*p,g.npcs)&&std::erase_if(p->statAuras,[&](const auto& a){const auto* d=content().spell(a.spellId);
+            return d&&d->classBuff&&d->indefiniteDuration&&d->classBuffSpeedPct>0;})){stats(*p,content(),false);changed=true;}
         // A flight owns the character's position for its duration. Combat,
         // casting and NPC aggro are all suppressed by the same rule that
         // suppresses them for a dead player: nothing else runs for them below.
@@ -8119,7 +8128,10 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
         if(!n.targetGuid&&reactState==2&&!n.npcHidden&&!g.npcInvisible(n)) {
             float nearest=std::numeric_limits<float>::max();
             for(auto* p:players)if(!p->dead && isAggressive(*p,n)) {
-                const float radius=def->aggroRadius>0?def->aggroRadius:std::clamp(20.0f+float(n.level)-float(p->level),5.0f,45.0f);
+                float radius=def->aggroRadius>0?def->aggroRadius:std::clamp(20.0f+float(n.level)-float(p->level),5.0f,45.0f);
+                // A stealthed rogue is seen only up close: Unit::CanDetectStealthOf's
+                // 9 yards against an equal level, 1 yard more or less per level.
+                if(localStealthed(*p))radius=std::clamp(9.f+float(n.level)-float(p->level),0.f,radius);
                 const float d=distance2(*p,n);if(d<radius*radius && d<nearest){nearest=d;n.targetGuid=p->guid;
                     if(const auto* hull=g.npc(p->vehicleGuid);hull && !hull->dead && content().vehicleKit(hull->vehicleId))n.targetGuid=hull->guid;
                 }

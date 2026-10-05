@@ -8,6 +8,7 @@
 #include "game/local_equipment.hpp"
 #include "game/local_melee.hpp"
 #include "game/local_feral_talents.hpp"
+#include "game/local_ranged.hpp"
 #include "game/local_pet.hpp"
 #include "game/local_world_catalog.hpp"
 #include "game/local_inventory_layout.hpp"
@@ -390,7 +391,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // item, 3 raises the caster's stats, 4 mounts the caster, 5 teleports it,
         // 6 charges it into melee range of the enemy with rage, 7 kills with a
         // Drain Soul channel for a Soul Shard, 8 summons a demon, 9 speeds the
-        // caster up, 10 raises its dodge.
+        // caster up, 10 raises its dodge, 11 opens from Stealth for combo points,
+        // 12 holds a hunter aspect until another aspect replaces it.
         struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
@@ -403,7 +405,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 9, "Drain Life", 0}, {1, 8, "Arcane Missiles", 0}, {1, 5, "Mind Flay", 0}, {1, 8, "Teleport: Stormwind", 5},
             {1, 8, "Blizzard", 0}, {1, 2, "Consecration", 0}, {1, 9, "Rain of Fire", 0},
             {1, 1, "Hamstring", 1}, {4, 3, "Concussive Shot", 1}, {1, 1, "Charge", 6}, {1, 9, "Drain Soul", 7}, {1, 9, "Summon Voidwalker", 8},
-            {1, 4, "Sprint", 9}, {1, 4, "Evasion", 10},
+            {1, 4, "Sprint", 9}, {1, 4, "Evasion", 10}, {1, 4, "Ambush", 11}, {1, 4, "Garrote", 11}, {1, 4, "Cheap Shot", 11},
+            {4, 3, "Aspect of the Hawk", 12}, {4, 3, "Aspect of the Cheetah", 9},
         };
         size_t passed = 0;
         for (const auto& a : abilities) {
@@ -427,10 +430,12 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             p.inventory.push_back({a.cls == 3 ? bow : sword2h, 1, 20});
             if (a.cls == 3) { p.inventory.push_back({sword2h, 1, 21}); p.inventory.push_back({arrows, 200, 22}); }
             if (a.cls == 7) p.inventory.push_back({findItem(2, 4, 13, c), 1, 23});
+            if (a.cls == 4 && c.item(2092)) p.inventory.push_back({2092, 1, 23}); // Ambush needs a dagger (Worn Dagger)
             normalizeLocalInventory(p);
             for (const auto& stack : std::vector<LocalItemStack>(p.inventory))
                 if (const auto* m = localAuctionMetadata(stack.itemId); m && m->itemClass == 2)
                     arena.execute(p, {LocalAction::EquipItem, 0, stack.itemId}, players, result);
+            if (a.cls == 4) arena.execute(p, {LocalAction::EquipItem, localEquipmentIndex(LocalEquipmentSlot::MainHand) + 1u, 2092}, players, result);
             // Reagents: refused without them, consumed by the cast.
             if (const auto* sd = content.spell(spellId); sd && sd->reagentItems[0]) {
                 p.globalCooldownMs = 0; p.mana = p.maxMana;
@@ -441,8 +446,10 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             }
             const uint32_t reagentBefore = [&] { const auto* sd = content.spell(spellId); uint32_t n = 0;
                 for (const auto& st : p.inventory) if (sd && st.itemId == sd->reagentItems[0]) n += st.count; return n; }();
-            if ((a.kind >= 2 && a.kind <= 5) || a.kind >= 8) {
+            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || a.kind == 12) {
                 const auto meleeBefore = localMeleeStats(p, content); const auto healthBefore = p.maxHealth; const auto items = p.inventory.size();
+                const auto* autoShot = content.spell(75);
+                const auto rangedBefore = autoShot ? localRangedAmounts(p, content, *autoShot) : LocalRangedAmounts{};
                 p.ridingSkill = 150; p.mana = p.maxMana; p.globalCooldownMs = 0;
                 bool ok = arena.execute(p, {LocalAction::CastSpell, p.guid, spellId}, players, result);
                 for (int t = 0; t < 200 && p.castingSpellId; ++t) arena.tick(0.05f, players);
@@ -452,8 +459,19 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 if (a.kind == 3) ok = ok && (meleeAfter.attackPower > meleeBefore.attackPower || p.maxHealth > healthBefore ||
                                              meleeAfter.attributes[3] > meleeBefore.attributes[3]);
                 if (a.kind == 4) ok = ok && p.mountSpellId == spellId;
-                if (a.kind == 9) ok = ok && localFormRunPercent(p, content) > 140.f;
+                if (a.kind == 9) ok = ok && localFormRunPercent(p, content) > 120.f;
                 if (a.kind == 10) ok = ok && meleeAfter.dodge > meleeBefore.dodge + 40.f;
+                if (a.kind == 12 && ok) {
+                    // An aspect does not expire; another aspect replaces it.
+                    for (int t = 0; t < 400; ++t) arena.tick(0.05f, players);
+                    const auto rangedAfter = autoShot ? localRangedAmounts(p, content, *autoShot) : LocalRangedAmounts{};
+                    const auto held = [&](const char* name) { for (const auto& s : p.statAuras) if (const auto* sd = content.spell(s.spellId); sd && sd->name == name && s.remainingMs) return true; return false; };
+                    ok = held(a.name) && rangedAfter.active && rangedAfter.high > rangedBefore.high;
+                    uint32_t monkey = 0; for (auto id : p.knownSpells) if (const auto* sd = content.spell(id); sd && sd->name == "Aspect of the Monkey" && sd->unsupportedReason.empty()) monkey = id;
+                    p.globalCooldownMs = 0;
+                    ok = ok && monkey && arena.execute(p, {LocalAction::CastSpell, p.guid, monkey}, players, result) && !held(a.name) && held("Aspect of the Monkey");
+                    if (!ok) result = "aspect not held, no ranged attack power or not exclusive (" + result + ")";
+                }
                 if (a.kind == 8) { bool summoned = false;
                     for (const auto& v : arena.pets()) if (v.ownerGuid == p.guid && !v.dead) summoned = true;
                     ok = ok && summoned; if (!summoned && ok) result = "no demon"; }
@@ -515,6 +533,11 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 else if (a.kind == 6) landed = p.lastCastSpellId == spellId && after && std::hypot(after->x - p.x, after->y - p.y) < 6 &&
                                           p.mana > 0 && p.attackTarget == foeGuid;
                 else if (a.kind == 1) landed = p.lastCastSpellId == spellId;
+                else if (a.kind == 11) {
+                    // A level 80 Ambush can kill a start-zone creature outright: then no points remain.
+                    const bool killed = !after || after->dead;
+                    landed = p.lastCastSpellId == spellId && !localStealthed(p) && (killed || (p.comboPoints > 0 && p.comboTarget == foeGuid));
+                    if (!landed) result = "combo=" + std::to_string(p.comboPoints) + " stealthed=" + std::to_string(localStealthed(p)) + " last=" + std::to_string(p.lastCastSpellId); }
                 else if (a.kind == 0) {
                     // A damage-over-time spell lands its first tick a few seconds later.
                     for (int t = 0; t < 90 && after && !after->dead && after->health >= before; ++t) {
@@ -528,7 +551,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.
