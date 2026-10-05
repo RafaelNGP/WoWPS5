@@ -2809,7 +2809,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         // creature types and combat states it may be cast at.
         hash(d.sourceRangeFlags);hash(d.sourceFacingFlags);hash(d.targetCreatureType);
         hash(uint32_t(d.weaponDamage)|uint32_t(d.normalizedWeapon)<<1|uint32_t(d.interruptCast)<<2|uint32_t(d.taunt)<<3|uint32_t(d.charge)<<4|uint32_t(d.outOfCombatOnly)<<5);hash(d.chargeRage);hash(d.weaponPercent);hash(d.targetMaxHealthPct);hash(d.createItemId);hash(d.createItemCount);hash(uint32_t(d.channel)|uint32_t(d.periodicLeech)<<1|uint32_t(d.soulShardOnKill)<<2|uint32_t(d.teleport)<<3|uint32_t(d.groundAtCaster)<<4);{uint32_t gr;std::memcpy(&gr,&d.groundRadius,4);hash(gr);}for(size_t r=0;r<d.reagentItems.size();++r){hash(d.reagentItems[r]);hash(d.reagentCounts[r]);}
-        hash(uint32_t(d.classBuff));for(auto v:d.classBuffStats)hash(uint32_t(v));hash(uint32_t(d.classBuffAttackPower));hash(uint32_t(d.classBuffArmor));hash(uint32_t(d.classBuffHealth));hash(uint32_t(d.classBuffSpeedPct));hash(uint32_t(d.classBuffDodgePct));hash(uint32_t(d.classBuffRangedAttackPower));hash(d.trackCreatureMask);hash(d.totemEntry);hash(d.dispelMask);hash(uint32_t(d.classBuffMeleeHastePct));hash(d.comboDurationMaxMs);
+        hash(uint32_t(d.classBuff));for(auto v:d.classBuffStats)hash(uint32_t(v));hash(uint32_t(d.classBuffAttackPower));hash(uint32_t(d.classBuffArmor));hash(uint32_t(d.classBuffHealth));hash(uint32_t(d.classBuffSpeedPct));hash(uint32_t(d.classBuffDodgePct));hash(uint32_t(d.classBuffRangedAttackPower));hash(d.trackCreatureMask);hash(d.totemEntry);hash(d.dispelMask);hash(uint32_t(d.classBuffMeleeHastePct));hash(d.comboDurationMaxMs);hash(uint32_t(d.onlyStealthed));
         hash(uint32_t(d.sourceOnlyPeacefulTargets));
         // P05 line of sight : two peers must agree on which casts are
         // exempt from the test before they can agree on the test's answer.
@@ -6305,6 +6305,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     }
     if(!d->unsupportedReason.empty())return reject(d->name+": "+d->unsupportedReason);
     if(!localSpellFormReady(p,*d))return reject("This spell cannot be used in the current form or stance");
+    if(d->onlyStealthed&&!localStealthed(p))return reject("You must be stealthed");
     if(!localFormEnvironmentReady(p,*d))return reject("This form cannot be used while travelling or in this environment");
     if((d->meleeSpecialProfile||d->stormstrikeProfile)&&!validEquipment(p,c))return reject("Invalid equipped weapon state");
     if(!localSpellEquipmentReady(p,c,*d))return reject("Required spell equipment is not equipped");
@@ -6775,7 +6776,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(d->formId&&p.classId==11&&p.resourceType!=LocalResourceType::Mana)p.druidMana-=paidCost;else p.mana-=paidCost;
     if(!avoided)p.mana-=extraEnergy;
     if(d->comboFinisher&&!avoided)clearLocalCombo(p);
-    if(localStealthed(p)&&n&&!d->formId)leaveLocalForm(p); // An attack ends Stealth, even one that kills.
+    if(localStealthed(p)&&n&&!d->formId)breakLocalStealth(p); // An attack ends Stealth, even one that kills.
     if(d->comboGain&&!avoided&&p.comboTarget!=cmd.target)clearLocalCombo(p);
     if(cost&&(p.resourceType==LocalResourceType::Mana||(d->formId&&p.classId==11)))p.manaRegenDelayMs=5000;
     if(d->formId){
@@ -7733,7 +7734,9 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
         changed=g.syncHunterPet(*p,players)||changed;
         // Stealth ends when the rogue attacks or anything engages it (the
         // aura's damage and attack interrupt flags).
-        if(localStealthed(*p)&&(p->attackTarget||localCombatActive(*p,g.npcs))){leaveLocalForm(*p);stats(*p,content(),false);changed=true;}
+        if(localStealthed(*p)&&(p->attackTarget||localCombatActive(*p,g.npcs))){breakLocalStealth(*p);stats(*p,content(),false);changed=true;}
+        // Prowl outlives nothing but Cat Form.
+        if(p->formSpellId!=768&&std::erase_if(p->statAuras,[](const auto& a){return a.spellId==kLocalProwlSpell;}))changed=true;
         // Aspect of the Cheetah dazes and ends when its hunter is engaged
         // (its proc); here combat ends the aspect.
         if(localCombatActive(*p,g.npcs)&&std::erase_if(p->statAuras,[&](const auto& a){const auto* d=content().spell(a.spellId);

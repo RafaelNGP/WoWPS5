@@ -1152,13 +1152,15 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     bool trackerSpell=false;
     if(!creatureCaster&&u(40)==21&&d.id!=30645)for(uint32_t e=0;e<3;++e)
         if(u(71+e)==6&&u(95+e)==44&&u(86+e)==1&&i(110+e)>=1&&i(110+e)<=12)trackerSpell=true;
-    const bool untilCancelled=aspectSpell||trackerSpell;
+    // Prowl: the cat's stealth, held until cancelled or broken (localStealthed).
+    const bool prowlSpell=!creatureCaster&&d.id==kLocalProwlSpell&&u(40)==21&&u(71)==6&&u(95)==16&&u(86)==1;
+    const bool untilCancelled=aspectSpell||trackerSpell||prowlSpell;
     // A shaman totem: one SPELL_EFFECT_SUMMON whose SummonProperties row is a
     // totem slot (63 fire, 81 earth, 82 water, 83 air; Title 4).
     const bool totemSummon=!creatureCaster&&d.spellFamily==11&&u(71)==28&&!u(72)&&!u(73)&&u(110)&&
         (u(113)==63||u(113)==81||u(113)==82||u(113)==83);
     if(totemSummon)d.totemEntry=u(110);
-    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&d.id!=1784) // Stealth: its damage and attack breaks are the form rule
+    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&d.id!=1784) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
     // Spell.dbc column 38 is BaseLevel and column 39 is SpellLevel
     // (DBCStructure.h:1679-1680). previously both this field and d.spellLevel
@@ -1218,10 +1220,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if(!creatureCaster&&u(21)==2&&!u(20)&&!u(22)&&!u(23)&&!u(24)&&!u(25)&&!u(26)&&!u(27))d.targetMaxHealthPct=20;
     // Stealth's CasterAuraStateNot 12 (Faerie Fire) never holds here: no
     // creature in this realm casts it on a player.
-    else if(u(20)||u(21)||(u(22)&&!(d.id==1784&&u(22)==12))||u(23)||u(24)||u(25)||u(26)||(u(27)&&!chargeSpell)) unavailable("Aura requirements are not implemented");
+    else if(u(20)||u(21)||(u(22)&&!((d.id==1784||d.id==kLocalProwlSpell)&&u(22)==12))||u(23)||u(24)||u(25)||u(26)||(u(27)&&!chargeSpell)) unavailable("Aura requirements are not implemented");
     // SPELL_ATTR0_ONLY_STEALTHED: the rogue openers also require Stealth's
     // form; Prowl (a cat-form aura) is not implemented, so Ravage and Pounce wait.
-    if(!creatureCaster&&(u(4)&0x20000u)&&!(u(12)&(1u<<29)))unavailable("Prowl is not implemented");
+    if(!creatureCaster&&(u(4)&0x20000u)&&!(u(12)&(1u<<29)))d.onlyStealthed=true; // Ravage, Pounce: under Prowl
     d.requiresMainHand=(u(7)&0x400u)!=0;d.requiresOffHand=(u(7)&0x1000000u)!=0;
     if(i(68)>=0) {
         if(i(68)!=2&&i(68)!=4)unavailable("Unsupported spell equipment class");
@@ -1326,8 +1328,9 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         for(uint32_t e=0;e<3;++e) if(u(71+e)) {
             const auto ty=u(71+e),au=u(95+e),tg=u(86+e);
             if(untilCancelled&&ty==6&&tg==1&&(au==42||au==87||au==168)&&i(80+e)==-1)continue; // talent proc hook, empty modifier
+            if(prowlSpell&&ty==6&&tg==1&&au==33)continue; // its slow
             if((ty!=6&&ty!=35&&ty!=65)||u(89+e)||u(116+e)||(tg!=1&&tg!=21&&tg!=25&&tg!=20&&tg!=22&&tg!=30&&tg!=31&&tg!=56&&tg!=57&&tg!=0))shape=false;
-            if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99||(tg==1&&(au==31||au==49||au==124)&&i(80+e)>=0)||(trackerSpell&&au==44))any=true;
+            if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99||(tg==1&&(au==31||au==49||au==124)&&i(80+e)>=0)||(trackerSpell&&au==44)||(prowlSpell&&au==16))any=true;
         }
         classBuffSpell=any&&shape&&((!u(spell335::ProcFlags)&&!u(spell335::ProcCharges))||untilCancelled);
     }

@@ -38,7 +38,11 @@ inline constexpr LocalFormProfile kLocalForms[]={
     // not a shapeshift, so items stay usable.
     {1784,30,4,1,LocalResourceType::Energy,0,0,100,100,100,100,70,100},
 };
-inline bool localStealthed(const LocalRealmPlayer& p){return p.formSpellId==1784&&p.classId==4&&!p.dead;}
+inline bool localStealthed(const LocalRealmPlayer& p){
+    if(p.dead)return false;
+    if(p.formSpellId==1784&&p.classId==4)return true;
+    return p.classId==11&&p.formSpellId==768&&std::any_of(p.statAuras.begin(),p.statAuras.end(),[](const auto& a){return a.spellId==kLocalProwlSpell&&a.remainingMs;});
+}
 inline const LocalFormProfile* localFormProfile(uint32_t spell){for(const auto& f:kLocalForms)if(f.spell==spell)return &f;return nullptr;}
 inline const LocalFormProfile* localFormProfileByForm(uint8_t form){for(const auto& f:kLocalForms)if(f.form==form)return &f;return nullptr;}
 // The reference's per-form grant table is the switch in
@@ -151,6 +155,11 @@ inline void leaveLocalForm(LocalRealmPlayer& p){
         p.resourceType=LocalResourceType::Mana;p.maxMana=p.druidManaCapacity;p.mana=std::min(p.mana,p.maxMana);
     }
     p.formSpellId=0;p.druidMana=0;p.druidManaRemainder=0;
+}
+/// Stealth or Prowl ends (an attack, combat, leaving Cat Form).
+inline void breakLocalStealth(LocalRealmPlayer& p){
+    if(p.formSpellId==1784){leaveLocalForm(p);return;}
+    std::erase_if(p.statAuras,[](const auto& a){return a.spellId==kLocalProwlSpell;});
 }
 // `entryResource` is what the reference's entry rules leave in the new pool:
 // Furor's energy or rage for a druid, the rage Stance Mastery and Tactical

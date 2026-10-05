@@ -195,6 +195,8 @@ struct LocalAreaAuraApplication {
     bool effective=false;
     bool operator==(const LocalAreaAuraApplication&) const = default;
 };
+/// Prowl (5215): a druid's stealth, an until-cancelled aura held in Cat Form.
+inline constexpr uint32_t kLocalProwlSpell=5215;
 /// A totem's party aura lasts this long past the last pulse that reached its holder.
 inline constexpr uint32_t kLocalTotemAuraLeaseMs=2500;
 /// The fixed lease of an until-cancelled class aura (hunter aspects); it never counts down.
@@ -971,6 +973,7 @@ struct LocalSpellDefinition {
     int32_t classBuffSpeedPct=0,classBuffDodgePct=0; // aura 31 (Sprint), aura 49 (Evasion)
     int32_t classBuffRangedAttackPower=0; // aura 124 (Aspect of the Hawk)
     int32_t classBuffMeleeHastePct=0; // aura 138 (Slice and Dice)
+    bool onlyStealthed=false; // SPELL_ATTR0_ONLY_STEALTHED outside Stealth's form (Ravage, Pounce)
     uint32_t comboDurationMaxMs=0; // a finisher's duration at five points (SpellDuration MaxDuration)
     uint32_t trackCreatureMask=0; // aura 44 (Track Beasts...): creature types shown on the minimap
     uint8_t dispelMask=0; // friendly SPELL_EFFECT_DISPEL: bit per DispelType (1 magic, 2 curse, 3 disease, 4 poison)
