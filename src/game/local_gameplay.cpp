@@ -2886,7 +2886,8 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.targetDebuffResistanceSchool)|uint32_t(d.targetDebuffDamageTakenSchool)<<8|uint32_t(d.targetDebuffArmorPct)<<16|uint32_t(d.targetDebuffEffectMask)<<24);
         hash(uint32_t(d.controlDamageCapPct)|uint32_t(d.controlSingleTarget)<<8);hash(uint32_t(d.classBuffHealingTakenPct));hash(d.lifeTapAmount);hash(uint32_t(d.createItemUnique));hash(uint32_t(d.directLeechPct)|uint32_t(d.immolateBonus)<<16);
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
-        for(auto id:d.afterHitAuras)hash(id);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);}
+        for(auto id:d.afterHitAuras)hash(id);
+        hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -8830,7 +8831,9 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                     if(casting->interruptFlags&0x10u)clearCast(*target,LocalCastStatus::Interrupted);
                     else if(damage && (casting->interruptFlags&2u) && !casting->noPushback && target->castPushbackCount<2) {
                         ++target->castPushbackCount;
-                        const auto reduction=std::min(100u,localTalentPushbackReduction(*target,content(),*casting)+localProcPushbackReduction(*target,content(),*casting));
+                        uint32_t buffPushback=0; // SPELL_AURA_REDUCE_PUSHBACK on class buffs (Barkskin)
+                        for(const auto& a:target->statAuras)if(a.remainingMs)if(const auto* bd=content().spell(a.spellId);bd&&bd->classBuff)buffPushback+=bd->classBuffPushbackPct;
+                        const auto reduction=std::min(100u,localTalentPushbackReduction(*target,content(),*casting)+localProcPushbackReduction(*target,content(),*casting)+buffPushback);
                         const auto delay=std::min(500u*(100u-reduction)/100u,target->castTotalMs-target->castRemainingMs);
                         target->castRemainingMs+=delay;target->castPushbackMs+=delay;
                     }

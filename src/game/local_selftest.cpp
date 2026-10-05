@@ -426,7 +426,9 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // school, then Forbearance and the two markers refuse Divine
         // Protection and Avenging Wrath until they run out. 33 a damage-taken
         // cut (Shield Wall). 34 is Ice Block: immune and held in place (no
-        // casts) until cancelled, then Hypothermia refuses another block.
+        // casts) until cancelled, then Hypothermia refuses another block. 35 a
+        // held class buff whose definition carries its modelled amounts (Fear
+        // Ward: fear immunity with one charge; Barkskin: no pushback, -20%).
         struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
@@ -450,7 +452,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
-            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35},
         };
         size_t passed = 0;
         // Incinerate carries the Immolate bonus (a quarter more on an Immolated target).
@@ -500,7 +502,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             }
             const uint32_t reagentBefore = [&] { const auto* sd = content.spell(spellId); uint32_t n = 0;
                 for (const auto& st : p.inventory) if (sd && st.itemId == sd->reagentItems[0]) n += st.count; return n; }();
-            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || (a.kind >= 12 && a.kind <= 14) || a.kind == 16 || a.kind == 20 || (a.kind >= 28 && a.kind <= 30) || (a.kind >= 32 && a.kind <= 34)) {
+            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || (a.kind >= 12 && a.kind <= 14) || a.kind == 16 || a.kind == 20 || (a.kind >= 28 && a.kind <= 30) || (a.kind >= 32 && a.kind <= 35)) {
                 const auto meleeBefore = localMeleeStats(p, content); const auto healthBefore = p.maxHealth; const auto items = p.inventory.size();
                 const auto armorBefore = localMeleeArmor(p, content);
                 const auto* autoShot = content.spell(75);
@@ -545,23 +547,30 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     const auto holds = [&](uint32_t id) { for (const auto& s : p.statAuras) if (s.spellId == id && s.remainingMs) return true; return false; };
                     const auto* sd = content.spell(spellId);
                     ok = sd && sd->classBuffSchoolImmunity == 127 && holds(spellId) && holds(25771) && holds(61987) && holds(61988);
-                    // A creature beside the paladin swings at it: nothing lands while
-                    // the shield holds, and its blows land once the shield is gone.
-                    const LocalRealmNpc* attacker = nullptr;
-                    for (const auto& m : arena.npcs()) if (m.hostile && !m.dead && m.health && m.mapId == p.mapId && m.instanceId == p.instanceId &&
-                        (!attacker || std::hypot(m.x - p.x, m.y - p.y) < std::hypot(attacker->x - p.x, attacker->y - p.y))) attacker = &m;
-                    uint32_t shieldedLow = p.maxHealth, exposedLow = p.maxHealth;
-                    if (attacker) {
-                        auto& foe = const_cast<LocalRealmNpc&>(*attacker);
+                    // Creatures brought beside the paladin swing at it: a swing shows as
+                    // the creature's attack timer starting over. While the shield holds,
+                    // swings land and nothing is lost; once it is gone, health drops.
+                    std::vector<const LocalRealmNpc*> candidates;
+                    for (const auto& m : arena.npcs()) if (m.hostile && !m.dead && m.health && m.mapId == p.mapId && m.instanceId == p.instanceId) candidates.push_back(&m);
+                    std::sort(candidates.begin(), candidates.end(), [&](const auto* l, const auto* r) { return std::hypot(l->x - p.x, l->y - p.y) < std::hypot(r->x - p.x, r->y - p.y); });
+                    uint32_t shieldedLow = p.maxHealth, exposedLow = p.maxHealth; int swings = 0; LocalRealmNpc* attacker = nullptr;
+                    for (size_t ci = 0; ci < candidates.size() && ci < 4 && !swings && holds(spellId); ++ci) {
+                        auto& foe = const_cast<LocalRealmNpc&>(*candidates[ci]);
                         foe.x = foe.homeX = p.x + 1.5f; foe.y = foe.homeY = p.y; foe.z = foe.homeZ = p.z; foe.maxHealth = foe.health = 1000000;
-                        foe.targetGuid = p.guid; p.health = p.maxHealth; p.attackTarget = foe.guid;
-                        p.orientation = std::atan2(foe.y - p.y, foe.x - p.x);
-                        for (int t = 0; t < 80; ++t) { arena.tick(0.05f, players); shieldedLow = std::min(shieldedLow, p.health); foe.health = foe.maxHealth; }
-                        for (int t = 0; t < 400 && holds(spellId); ++t) { arena.tick(0.05f, players); foe.health = foe.maxHealth; p.health = p.maxHealth; }
-                        for (int t = 0; t < 120; ++t) { arena.tick(0.05f, players); exposedLow = std::min(exposedLow, p.health); foe.health = foe.maxHealth; }
-                        p.health = p.maxHealth; p.attackTarget = 0;
+                        foe.level = p.level; // a start-zone level would miss a level 80 almost every swing
+                        foe.targetGuid = p.guid; p.health = p.maxHealth; p.attackTarget = foe.guid; p.orientation = std::atan2(foe.y - p.y, foe.x - p.x);
+                        float lastTimer = foe.attackTimer;
+                        for (int t = 0; t < 50 && holds(spellId); ++t) {
+                            arena.tick(0.05f, players); shieldedLow = std::min(shieldedLow, p.health); foe.health = foe.maxHealth;
+                            if (foe.attackTimer > lastTimer + 0.5f) ++swings; lastTimer = foe.attackTimer; }
+                        if (swings) attacker = &foe; else { p.attackTarget = 0; foe.targetGuid = 0; }
                     }
-                    ok = ok && attacker && shieldedLow == p.maxHealth && exposedLow < p.maxHealth;
+                    if (attacker) {
+                        for (int t = 0; t < 400 && holds(spellId); ++t) { arena.tick(0.05f, players); attacker->health = attacker->maxHealth; p.health = p.maxHealth; }
+                        for (int t = 0; t < 240; ++t) { arena.tick(0.05f, players); exposedLow = std::min(exposedLow, p.health); attacker->health = attacker->maxHealth; }
+                    }
+                    p.health = p.maxHealth; p.attackTarget = 0;
+                    ok = ok && attacker && swings > 0 && shieldedLow == p.maxHealth && exposedLow < p.maxHealth;
                     std::string again, protection, wrath;
                     const auto known = [&](const char* name) { uint32_t id = 0; for (auto k : p.knownSpells) if (const auto* kd = content.spell(k); kd && kd->name == name && kd->unsupportedReason.empty()) id = k; return id; };
                     p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear(); p.mana = p.maxMana;
@@ -576,8 +585,15 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     p.globalCooldownMs = 0; p.cooldowns.clear(); p.categoryCooldowns.clear(); p.mana = p.maxMana;
                     const bool awLater = arena.execute(p, {LocalAction::CastSpell, p.guid, known("Avenging Wrath")}, players, wrath);
                     ok = ok && awLater && !holds(25771);
-                    if (!ok) result = "shielded low " + std::to_string(shieldedLow) + " exposed low " + std::to_string(exposedLow) + "/" + std::to_string(p.maxHealth) + " immunity " + std::to_string(sd ? sd->classBuffSchoolImmunity : 0) + " markers " + std::to_string(holds(25771)) + std::to_string(holds(61987)) + std::to_string(holds(61988)) +
+                    if (!ok) result = "swings " + std::to_string(swings) + " shielded low " + std::to_string(shieldedLow) + " exposed low " + std::to_string(exposedLow) + "/" + std::to_string(p.maxHealth) + " immunity " + std::to_string(sd ? sd->classBuffSchoolImmunity : 0) + " markers " + std::to_string(holds(25771)) + std::to_string(holds(61987)) + std::to_string(holds(61988)) +
                                       " second " + std::to_string(second) + " dp " + std::to_string(dp) + " aw " + std::to_string(aw) + " later " + std::to_string(awLater) + " (" + again + " / " + protection + " / " + wrath + ")";
+                }
+                if (a.kind == 35 && ok) {
+                    const auto* sd = content.spell(spellId);
+                    bool held = false; for (const auto& s : p.statAuras) if (s.spellId == spellId && s.remainingMs) held = true;
+                    ok = sd && held && (std::string(a.name) == "Fear Ward" ? sd->classBuffMechanicImmunity == (1u << 5) && sd->classBuffImmunityCharge
+                                                                           : sd->classBuffPushbackPct == 100 && sd->classBuffDamageTakenPct == -20);
+                    if (!ok) result = std::string("held ") + std::to_string(held) + " (" + result + ")";
                 }
                 if (a.kind == 34 && ok) {
                     const auto holds = [&](uint32_t id) { for (const auto& s : p.statAuras) if (s.spellId == id && s.remainingMs) return true; return false; };
@@ -884,7 +900,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, fears, armor reductions, curses, warlock armors, Life Tap, school wards, health leech, immunities and Forbearance, damage-taken cuts, Ice Block, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, fears, armor reductions, curses, warlock armors, Life Tap, school wards, health leech, immunities and Forbearance, damage-taken cuts, Ice Block, Fear Ward, Barkskin, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.

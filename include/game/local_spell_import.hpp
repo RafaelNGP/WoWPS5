@@ -990,6 +990,12 @@ inline void decodeCreatureEffects(const ClientSpellTables& t,uint32_t row,LocalS
 // never reads ManaCostPerlevel (column 43), so it does not block such a row.
 // spell_warl_create_healthstone::iTypes, first column: the healthstone of
 // each Create Healthstone rank (Minor ... Fel).
+// The mechanics a creature control on a player can carry (charm, disorient,
+// fear, root, sleep, stun, freeze, knockout, polymorph, horror, sap): a class
+// buff's immunity to them is modelled; snare, silence and the rest are not.
+inline bool localControlMechanic(int32_t m) {
+    switch(m){case 1:case 2:case 5:case 7:case 10:case 12:case 13:case 14:case 17:case 24:case 30:return true;default:return false;}
+}
 inline uint32_t localHealthstoneItem(uint32_t spellId) {
     switch(spellId) {
     case 6201: return 5512; case 6202: return 5511; case 5699: return 5509; case 11729: return 5510;
@@ -1207,7 +1213,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     const bool fearControl=!creatureCaster&&u(71)==6&&u(95)==7&&u(86)==6&&!u(89)&&!u(116)&&
         u(72)==6&&u(96)==31&&u(87)==6&&!u(90)&&!u(117)&&!u(73)&&!u(spell335::ProcCharges)&&
         !(u(spell335::AuraInterruptFlags)&kLocalAuraInterruptTakeDamage);
-    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!incinerate&&d.id!=1784) // Stealth: its damage and attack breaks are the form rule
+    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!incinerate&&d.id!=1784&&
+       !(d.id==6346&&u(spell335::ProcCharges)==1)&&!(d.id==22812&&!u(spell335::ProcChance))) // Fear Ward's immunity charge, Barkskin's inert proc (classBuff) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
     // Spell.dbc column 38 is BaseLevel and column 39 is SpellLevel
     // (DBCStructure.h:1679-1680). previously both this field and d.spellLevel
@@ -1396,6 +1403,11 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // or attack power (99). Party/raid forms land on the caster here (and on a
     // friendly target when cast at one); other auras in it are set aside.
     bool classBuffSpell=false;
+    // A proc that can never fire: Spell.dbc ProcChance 0 with no spell_proc
+    // row at the pin (Barkskin's 50411 trigger).
+    const bool inertProc=!u(spell335::ProcChance)&&!u(spell335::ProcCharges)&&d.id==22812;
+    // Fear Ward: one charge spent by PROC_HIT_IMMUNE (spell_proc 6346).
+    const bool immunityCharge=d.id==6346&&u(spell335::ProcCharges)==1;
     if(!creatureCaster&&(d.durationMs||untilCancelled)) {
         bool any=false,shape=true;
         for(uint32_t e=0;e<3;++e) if(u(71+e)) {
@@ -1403,7 +1415,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(untilCancelled&&ty==6&&tg==1&&(au==42||au==87||au==168)&&i(80+e)==-1)continue; // talent proc hook, empty modifier
             if(prowlSpell&&ty==6&&tg==1&&au==33)continue; // its slow
             if(presenceSpell&&ty==6&&tg==1&&(au==10||au==107||au==118))continue; // threat, global cooldown, marker
-            if((ty!=6&&ty!=35&&ty!=65)||u(89+e)||u(116+e)||(tg!=1&&tg!=21&&tg!=25&&tg!=20&&tg!=22&&tg!=30&&tg!=31&&tg!=56&&tg!=57&&tg!=0))shape=false;
+            if((ty!=6&&ty!=35&&ty!=65)||u(89+e)||(u(116+e)&&!(inertProc&&au==42))||(tg!=1&&tg!=21&&tg!=25&&tg!=20&&tg!=22&&tg!=30&&tg!=31&&tg!=56&&tg!=57&&tg!=0))shape=false;
             if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99||(tg==1&&(au==31||au==49||au==124)&&i(80+e)>=0)||(tg==1&&au==22&&(i(110+e)&1)&&i(80+e)>=0)||(trackerSpell&&au==44)||(prowlSpell&&au==16)||(presenceSpell&&(au==79||au==142||au==138)))any=true;
         }
         // Immunity and damage / healing percentages (Divine Shield, Divine
@@ -1420,11 +1432,15 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 else if(au==25&&u(86+e)!=1){} // Hand of Protection's pacify on its target
                 else if(au==108&&!amount){} // Avenging Wrath's empty spell modifier
                 else if(au==12&&u(86+e)==1&&d.id==kLocalIceBlockSpell){} // Ice Block's own stun (localPlayerControl)
+                else if(au==77&&localControlMechanic(misc))percentage=true; // Fear Ward: mechanic immunity
+                else if(au==149&&u(86+e)==1&&misc==127&&amount>0&&amount<=100)percentage=true; // Barkskin: no pushback
+                else if(au==42&&inertProc){} // Barkskin's proc: chance 0, no spell_proc row
                 else modelled=false;
             }
             any=percentage&&modelled;
         }
-        classBuffSpell=any&&shape&&((!u(spell335::ProcFlags)&&!u(spell335::ProcCharges))||untilCancelled);
+        classBuffSpell=any&&shape&&((!u(spell335::ProcFlags)&&!u(spell335::ProcCharges))||untilCancelled||inertProc||immunityCharge);
+        if(classBuffSpell&&immunityCharge)d.classBuffImmunityCharge=true;
     }
     // A ground area: SPELL_EFFECT_PERSISTENT_AREA_AURA (27) at the destination
     // (28) or the caster (18), with a fixed radius.
@@ -1523,6 +1539,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(au==44&&tg==1&&misc>=1&&misc<=12)d.trackCreatureMask|=1u<<(misc-1);
             if(presenceSpell&&au==87&&tg==1&&misc==127&&amount<0&&amount>-100)d.classBuffDamageTakenPct+=amount; // Frost Presence
             if(au==39&&misc>0&&misc<=127)d.classBuffSchoolImmunity|=uint8_t(misc); // Divine Shield, Hand of Protection
+            if(au==77&&localControlMechanic(misc))d.classBuffMechanicImmunity|=1u<<misc; // Fear Ward
+            if(au==149&&tg==1&&misc==127&&amount>0&&amount<=100)d.classBuffPushbackPct=uint8_t(amount); // Barkskin
             // Divine Shield's damage done and Divine Protection's damage taken.
             if(!presenceSpell&&tg==1&&misc==127&&amount<0&&amount>-100){if(au==79)d.classBuffDamagePct+=amount;else if(au==87)d.classBuffDamageTakenPct+=amount;}
             if(au==136&&tg==1&&misc==127&&amount>0&&amount<=1000)d.classBuffHealingDonePct+=amount; // Avenging Wrath

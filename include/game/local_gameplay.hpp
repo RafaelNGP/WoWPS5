@@ -1346,6 +1346,13 @@ struct LocalSpellDefinition {
     // spell_pal_immunities::CheckCast: refused on a target holding Forbearance
     // or the Avenging Wrath marker.
     bool forbearanceCheck = false;
+    // SPELL_AURA_MECHANIC_IMMUNITY (77) on a class buff: bit per mechanic the
+    // holder ignores in creature controls (Fear Ward: fear). With one charge
+    // (spell_proc HitMask PROC_HIT_IMMUNE) the first immunity ends the aura.
+    uint32_t classBuffMechanicImmunity = 0;
+    bool classBuffImmunityCharge = false;
+    // SPELL_AURA_REDUCE_PUSHBACK (149) on a class buff (Barkskin): percent.
+    uint8_t classBuffPushbackPct = 0;
 
     std::string iconPath, unsupportedReason;
 };

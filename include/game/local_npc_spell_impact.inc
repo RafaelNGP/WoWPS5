@@ -439,6 +439,20 @@
         // the aura does not land (SPELL_MISS_IMMUNE).
         uint32_t duration=d.durationMs;
         auto drGroup=LocalDiminishingGroup::None;
+        if(d.npcPlayerControl&&d.mechanic&&d.mechanic<32) {
+            // Unit::IsImmunedToSpellEffect: a class buff's mechanic immunity
+            // (Fear Ward). A one-charge immunity is spent by the immune hit.
+            bool immune=false;
+            for(auto& a:target.statAuras)if(a.remainingMs&&a.mapId==target.mapId&&a.instanceId==target.instanceId)
+                if(const auto* bd=content->spell(a.spellId);bd&&bd->classBuff&&(bd->classBuffMechanicImmunity&(1u<<d.mechanic))) {
+                    immune=true;if(bd->classBuffImmunityCharge)a.remainingMs=0;break;
+                }
+            if(immune) {
+                if(reportHit){hit.outcome=LocalMeleeOutcome::Immune;emitCombatEvent(hit,players);}
+                LOG_INFO("[LOCAL_NPC_AURA] immune (mechanic ",unsigned(d.mechanic),") npc=",n.guid," spell=",d.id," target=",target.guid);
+                return LocalMeleeOutcome::Immune;
+            }
+        }
         if(d.npcPlayerControl) {
             drGroup=localDiminishingGroupForSpell(d,false);
             if(drGroup!=LocalDiminishingGroup::None) {
