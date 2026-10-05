@@ -77,7 +77,7 @@ fi
 
 if ((deploy)); then
     log "build"
-    ninja -C "$build" > "$build/dev-build.log" 2>&1 || { grep -E 'error' "$build/dev-build.log" | head -20; exit 1; }
+    ninja -C "$build" -j "${PS5_BUILD_JOBS:-6}" > "$build/dev-build.log" 2>&1 || { grep -E 'error' "$build/dev-build.log" | head -20; exit 1; }
     "$root/tools/ps5/link.sh" "$build" > "$build/dev-link.log" 2>&1 || { grep -E 'error' "$build/dev-link.log" | head -20; exit 1; }
     "$root/tools/ps5/package.sh" "$build" > /dev/null
     "$ps5" ctl kill "$title" > /dev/null 2>&1 || true
