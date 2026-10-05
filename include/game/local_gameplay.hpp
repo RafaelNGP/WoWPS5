@@ -950,6 +950,11 @@ struct LocalSpellDefinition {
     bool interruptCast=false;
     /// SPELL_EFFECT_ATTACK_ME (114): Taunt, Growl, Hand of Reckoning.
     bool taunt=false;
+    /// SPELL_EFFECT_CHARGE (96): the caster rushes to the target (Charge,
+    /// Intercept), gaining chargeRage rage; outOfCombatOnly is
+    /// SPELL_ATTR0_CANT_USED_IN_COMBAT for any player spell.
+    bool charge=false,outOfCombatOnly=false;
+    uint16_t chargeRage=0;
     /// TargetAuraState AURA_STATE_HEALTHLESS_20_PERCENT (2): castable only on
     /// a target at or below this health percentage (Execute, Kill Shot).
     uint8_t targetMaxHealthPct=0;

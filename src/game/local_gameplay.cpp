@@ -2752,7 +2752,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         // which range type a spell has, which facings it accepts and which
         // creature types and combat states it may be cast at.
         hash(d.sourceRangeFlags);hash(d.sourceFacingFlags);hash(d.targetCreatureType);
-        hash(uint32_t(d.weaponDamage)|uint32_t(d.normalizedWeapon)<<1|uint32_t(d.interruptCast)<<2|uint32_t(d.taunt)<<3);hash(d.weaponPercent);hash(d.targetMaxHealthPct);hash(d.createItemId);hash(d.createItemCount);hash(uint32_t(d.channel)|uint32_t(d.periodicLeech)<<1|uint32_t(d.soulShardOnKill)<<2|uint32_t(d.teleport)<<3|uint32_t(d.groundAtCaster)<<4);{uint32_t gr;std::memcpy(&gr,&d.groundRadius,4);hash(gr);}for(size_t r=0;r<d.reagentItems.size();++r){hash(d.reagentItems[r]);hash(d.reagentCounts[r]);}
+        hash(uint32_t(d.weaponDamage)|uint32_t(d.normalizedWeapon)<<1|uint32_t(d.interruptCast)<<2|uint32_t(d.taunt)<<3|uint32_t(d.charge)<<4|uint32_t(d.outOfCombatOnly)<<5);hash(d.chargeRage);hash(d.weaponPercent);hash(d.targetMaxHealthPct);hash(d.createItemId);hash(d.createItemCount);hash(uint32_t(d.channel)|uint32_t(d.periodicLeech)<<1|uint32_t(d.soulShardOnKill)<<2|uint32_t(d.teleport)<<3|uint32_t(d.groundAtCaster)<<4);{uint32_t gr;std::memcpy(&gr,&d.groundRadius,4);hash(gr);}for(size_t r=0;r<d.reagentItems.size();++r){hash(d.reagentItems[r]);hash(d.reagentCounts[r]);}
         hash(uint32_t(d.classBuff));for(auto v:d.classBuffStats)hash(uint32_t(v));hash(uint32_t(d.classBuffAttackPower));hash(uint32_t(d.classBuffArmor));hash(uint32_t(d.classBuffHealth));
         hash(uint32_t(d.sourceOnlyPeacefulTargets));
         // P05 line of sight : two peers must agree on which casts are
@@ -6128,6 +6128,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         const auto* reagent=c.item(d->reagentItems[r]);
         return reject("Missing reagent: "+(reagent?reagent->name:std::to_string(d->reagentItems[r])));
     }
+    if(d->outOfCombatOnly&&!finishing&&localCombatActive(p,g.npcs))return reject("You can't do that while in combat");
     if(d->teleport&&!c.spellDestination(d->id))return reject("This destination is not available here");
     if(d->teleport&&(p.flight.active||p.transportEntry))return reject("You can't do that right now");
     if(d->createItemId){auto probe=p;for(size_t r=0;r<d->reagentItems.size();++r)if(d->reagentItems[r])removeItem(probe,d->reagentItems[r],d->reagentCounts[r]);
@@ -6216,7 +6217,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // the reference reads (Unit::GetCreatureType, Unit.cpp:11485).
     const auto* rangeTarget=n?c.npc(n->entry):nullptr;
     const float targetReach=n?localCreatureCombatReach(rangeTarget):kLocalDefaultCombatReach;
-    if((d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->periodicDamage||d->snarePercent||d->controlProfile||d->stormstrikeProfile==1)&&!d->areaRadius) {
+    if((d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->stormstrikeProfile==1)&&!d->areaRadius) {
         if(!n||n->dead||!canAttack(p,*n))return reject("Choose a living enemy");
         // TargetAuraState HEALTHLESS_20_PERCENT (Execute, Kill Shot).
         if(d->targetMaxHealthPct&&uint64_t(n->health)*100>uint64_t(n->maxHealth)*d->targetMaxHealthPct)
@@ -6516,7 +6517,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // defect rather than an unimplemented feature. A positive spell never rolls:
     // the reference returns SPELL_MISS_NONE for one on a non-hostile target.
     const bool magicHitRoll=!meleeRoll&&n&&d->clientSpell&&d->sourceDamageClass==1&&
-        (d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->periodicDamage||d->snarePercent||d->controlProfile)&&!d->heal&&!d->periodicHeal;
+        (d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile)&&!d->heal&&!d->periodicHeal;
     // P04 creature template immunity. WorldObject::SpellHitResult asks
     // Creature::IsImmunedToSpell FIRST (Object.cpp:3746-3751), before the melee
     // or magic roll and before Spell::DoSpellHitOnUnit ever reads a diminishing
@@ -6525,7 +6526,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // (canAttack above), which is the `casterFriendly` clause's constant. The
     // cost is paid below exactly as for a miss: there is no SPELL_FAILED_IMMUNE.
     const auto* targetDefinition=n?c.npc(n->entry):nullptr;
-    const bool hostileCast=n&&!n->dead&&(d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->periodicDamage||d->snarePercent||d->controlProfile||meleeSpecial||d->dispelProfile);
+    const bool hostileCast=n&&!n->dead&&(d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||meleeSpecial||d->dispelProfile);
     const bool templateImmune=hostileCast&&targetDefinition&&localNpcImmuneToSpell(*targetDefinition,*n,*d,false);
     // Spell.cpp:2413-2416: the effect slots the template strips from a cast
     // that still lands. Bit k is column 71+k; the snare rides slot 0 on both
@@ -6979,6 +6980,17 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     }
     if(d->createItemId&&addItem(p,c,d->createItemId,d->createItemCount))
         LOG_INFO("[LOCAL_CREATE_ITEM] player=",p.guid," spell=",d->id," item=",d->createItemId," count=",d->createItemCount);
+    // SPELL_EFFECT_CHARGE: the caster arrives in melee range facing the
+    // target, with the charge's rage, already attacking it.
+    if(d->charge)if(auto* victim=g.npc(cmd.target);victim&&!victim->dead) {
+        const float dx=p.x-victim->x,dy=p.y-victim->y,len=std::sqrt(dx*dx+dy*dy);
+        const float reach=std::max(1.0f,localCreatureCombatReach(c.npc(victim->entry)));
+        if(len>reach){p.x=victim->x+dx/len*reach;p.y=victim->y+dy/len*reach;p.z=victim->z;}
+        p.orientation=std::atan2(victim->y-p.y,victim->x-p.x);++p.positionRevision;
+        if(p.resourceType==LocalResourceType::Rage)p.mana=std::min(p.maxMana,p.mana+d->chargeRage);
+        p.attackTarget=victim->guid;g.addThreat(*victim,p.guid,1);g.selectThreatTarget(*victim,players);
+        LOG_INFO("[LOCAL_CHARGE] player=",p.guid," spell=",d->id," npc=",victim->guid," rage=",d->chargeRage);
+    }
     if(d->taunt)if(auto* victim=g.npc(cmd.target);victim&&!victim->dead) {
         g.tauntNpc(*victim,p.guid);
         LOG_INFO("[LOCAL_TAUNT] player=",p.guid," spell=",d->id," npc=",victim->guid);

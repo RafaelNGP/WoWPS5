@@ -1191,8 +1191,12 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         d.excludedForms=uint64_t(u(14))|(uint64_t(u(15))<<32);
     }
     d.notShapeshifted=(u(4)&0x10000u)!=0;d.allowWithoutForm=(u(6)&0x80000u)!=0;
+    // A charge's ExcludeTargetAuraSpell (65219) names an aura this realm never
+    // applies, so the requirement always holds here.
+    const bool chargeSpell=!creatureCaster&&(u(71)==96||u(72)==96||u(73)==96);
+    if(!creatureCaster)d.outOfCombatOnly=(u(4)&0x10000000u)!=0;
     if(!creatureCaster&&u(21)==2&&!u(20)&&!u(22)&&!u(23)&&!u(24)&&!u(25)&&!u(26)&&!u(27))d.targetMaxHealthPct=20;
-    else if(u(20)||u(21)||u(22)||u(23)||u(24)||u(25)||u(26)||u(27)) unavailable("Aura requirements are not implemented");
+    else if(u(20)||u(21)||u(22)||u(23)||u(24)||u(25)||u(26)||(u(27)&&!chargeSpell)) unavailable("Aura requirements are not implemented");
     d.requiresMainHand=(u(7)&0x400u)!=0;d.requiresOffHand=(u(7)&0x1000000u)!=0;
     if(i(68)>=0) {
         if(i(68)!=2&&i(68)!=4)unavailable("Unsupported spell equipment class");
@@ -1534,6 +1538,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             d.interruptCast=true;harm=true;
         } else if(type==114&&target==6&&!secondary) {
             d.taunt=true;harm=true;
+        } else if(type==96&&target==6&&!secondary) {
+            d.charge=true;harm=true;
+        } else if(chargeSpell&&type==3&&target==1&&!secondary&&base>=0&&base<1000) {
+            d.chargeRage=uint16_t((base+1)/10); // Charge's script: tenths of rage.
         } else if(type==5&&!creatureCaster&&(target==1||target==0)&&(secondary==17||!secondary)) {
             d.teleport=true;
         } else if(type==77&&!creatureCaster&&d.teleport) {
@@ -1552,7 +1560,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         else d.soulShardOnKill=d.name=="Drain Soul";
     }
     if(!setAside.empty()) {
-        const bool directHit=(d.damage||d.weaponDamage||d.interruptCast||d.taunt||d.periodicDamage)&&!healing&&!buff&&!d.controlProfile;
+        const bool directHit=(d.damage||d.weaponDamage||d.interruptCast||d.taunt||d.charge||d.periodicDamage)&&!healing&&!buff&&!d.controlProfile;
         if(!directHit)unavailable(setAside.front());
     }
     if(harm&&!d.schoolMask&&(!creatureCaster||d.damage||d.periodicDamage))unavailable("Damaging spell has no school");
