@@ -2035,6 +2035,9 @@ static bool fillSpellTooltip(lua_State* L, wowee::ui::Widget* w,
     w->tooltipLines.clear();
     line(name, "", 1.0f, 0.82f, 0.0f);   // gold, as WoW titles a tooltip
 
+    const std::string& rank = gh->getSpellRank(spellId);
+    if (!rank.empty()) line(rank, "", 0.5f, 0.5f, 0.5f);
+
     const auto info = gh->getSpellData(spellId);
     std::string cost, range;
     if (info.manaCost > 0) {
@@ -2235,6 +2238,28 @@ int lua_Tooltip_SetSpellByID(lua_State* L) {
     auto* gh = wowee::addons::getGameHandler(L);
     const uint32_t id = static_cast<uint32_t>(luaL_optnumber(L, 2, 0));
     lua_pushboolean(L, fillSpellTooltip(L, w, gh, id) ? 1 : 0);
+    return 1;
+}
+
+int lua_Tooltip_SetSpellBookItem(lua_State* L) {
+    auto* w = widgetOf(L, 1);
+    auto* gh = wowee::addons::getGameHandler(L);
+    int slot = static_cast<int>(luaL_optnumber(L, 2, 0));
+    const char* bookType = luaL_optstring(L, 3, "spell");
+    if (!w || !gh || slot < 1) { lua_pushboolean(L, 0); return 1; }
+    if (bookType && std::string(bookType) == "pet") { lua_pushboolean(L, 0); return 1; }
+    const auto& tabs = gh->getSpellBookTabs();
+    int idx = slot;
+    uint32_t spellId = 0;
+    for (const auto& tab : tabs) {
+        if (idx <= static_cast<int>(tab.spellIds.size())) {
+            spellId = tab.spellIds[idx - 1];
+            break;
+        }
+        idx -= static_cast<int>(tab.spellIds.size());
+    }
+    if (spellId == 0) { lua_pushboolean(L, 0); return 1; }
+    lua_pushboolean(L, fillSpellTooltip(L, w, gh, spellId) ? 1 : 0);
     return 1;
 }
 
@@ -6475,6 +6500,8 @@ void LuaEngine::registerCoreAPI() {
         {"SetBackpackToken", lua_Tooltip_ReturnFalse},
         {"SetGuildBankItem", lua_Tooltip_SetGuildBankItem},
         {"SetSpellByID",    lua_Tooltip_SetSpellByID},
+        {"SetSpell",        lua_Tooltip_SetSpellBookItem},
+        {"SetSpellBookItem", lua_Tooltip_SetSpellBookItem},
         {"SetQuestLogRewardSpell", lua_Tooltip_SetQuestLogRewardSpell},
         {"SetEquipmentSet",        lua_Tooltip_SetEquipmentSet},
         {"SetLFGCompletionReward", lua_Tooltip_SetLFGCompletionReward},
@@ -7587,7 +7614,7 @@ void LuaEngine::registerCoreAPI() {
         "SetScrollChild=1,SetSelection=1,SetSequence=1,\n"
         // SetShadowOffset is a real binding now, applied after this set.
         "SetSequenceTime=1,SetShown=1,SetSize=1,\n"
-        "SetSpacing=1,SetSpell=1,SetSpellByID=1,SetStartDelay=1,SetStatusBarColor=1,\n"
+        "SetSpacing=1,SetSpell=1,SetSpellBookItem=1,SetSpellByID=1,SetStartDelay=1,SetStatusBarColor=1,\n"
         // Tooltip setters for things this client cannot describe yet. They
         // belong here rather than nowhere: a name the metatable does not answer
         // comes back nil, and GameTooltip:SetTalent(...) on nil is "attempt to
@@ -8830,10 +8857,14 @@ void LuaEngine::registerCoreAPI() {
         "function __WoweeFrameMT:SetSpell(slot, bookType)\n"
         "    self:ClearLines()\n"
         "    if bookType == BOOKTYPE_PET then return false end\n"
-        "    local _, spellId = GetSpellBookItemInfo(slot)\n"
+        "    local _, spellId = GetSpellBookItemInfo(slot, bookType)\n"
         "    if not spellId or spellId == 0 then return false end\n"
         "    self:SetSpellByID(spellId)\n"
+        "    self:Show()\n"
         "    return true\n"
+        "end\n"
+        "function __WoweeFrameMT:SetSpellBookItem(slot, bookType)\n"
+        "    return self:SetSpell(slot, bookType)\n"
         "end\n"
         // The pet bar's tooltip. PetActionButton_OnEnter calls this for any
         // button without its own tooltip text, which is every real ability the
@@ -8902,7 +8933,9 @@ void LuaEngine::registerCoreAPI() {
         "            self:AddLine(cost..' '..(powerNames[costType] or 'Mana'), 1, 1, 1)\n"
         "        end\n"
         "        -- Range\n"
-        "        if maxRange and maxRange > 0 then\n"
+        "        if minRange and minRange > 0 and maxRange and maxRange > 0 then\n"
+        "            self:AddDoubleLine(string.format('%.0f - %.0f yd range', minRange, maxRange), '', 1,1,1, 1,1,1)\n"
+        "        elseif maxRange and maxRange > 0 then\n"
         "            self:AddDoubleLine(string.format('%.0f yd range', maxRange), '', 1,1,1, 1,1,1)\n"
         "        end\n"
         "        -- Cast time\n"
@@ -8923,6 +8956,7 @@ void LuaEngine::registerCoreAPI() {
         "            if rem > 0.1 then self:AddLine(string.format('%.0f sec cooldown', rem), 1, 0, 0) end\n"
         "        end\n"
         "        self.__spellId = spellId\n"
+        "        self:Show()\n"
         "    end\n"
         "end\n"
         // Answers whether it filled anything, because the caller asks:

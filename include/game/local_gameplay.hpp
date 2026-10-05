@@ -296,6 +296,7 @@ struct LocalConsumableRegen {
     uint32_t spellId=0,itemId=0,category=0,durationMs=0,elapsedMs=0,health=0,mana=0,givenHealth=0,givenMana=0,lastHealth=0;
     float x=0,y=0;
     bool cancelOnMove=false,cancelOnDamage=false;
+    uint32_t visualAccumulatedHealth=0;
 };
 enum class LocalCastStatus : uint8_t { None = 0, Casting, Finished, Interrupted, Failed };
 enum class LocalQuestStatus : uint8_t { Active = 0, Complete = 1, Rewarded = 2 };

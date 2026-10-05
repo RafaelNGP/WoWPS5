@@ -318,6 +318,18 @@ void applyLocalConsumableBuff(LocalRealmPlayer& p,const LocalConsumable& use) {
     p.consumableBuffs.push_back(b);
     LOG_INFO("[LOCAL_CONSUMABLE] player=",p.guid," buff=",b.spellId," slot=",unsigned(b.slot)," for=",b.durationMs,"ms");
 }
+void pushLocalMeleeView(LocalRealmPlayer& p, uint32_t spell, uint32_t amount, uint32_t blocked,
+                        uint64_t source, uint64_t target, LocalMeleeOutcome outcome,
+                        bool offHand, bool healing, uint32_t resisted = 0) {
+    if(p.meleeViewPositionRevision != p.positionRevision) {
+        p.meleeViews = {};
+        p.meleeViewPositionRevision = p.positionRevision;
+    }
+    for(size_t i = 1; i < p.meleeViews.size(); ++i) p.meleeViews[i - 1] = p.meleeViews[i];
+    if(!++p.meleeSerial) ++p.meleeSerial;
+    p.meleeViews.back() = {p.meleeSerial, spell, amount, blocked, source, target, outcome, offHand, healing, resisted};
+}
+
 void stats(LocalRealmPlayer& p,const LocalWorldContent& c,bool heal);
 bool advanceLocalConsumables(LocalRealmPlayer& p,const LocalWorldContent& c,uint32_t ms) {
     if(p.consumableRegens.empty()&&p.consumableBuffs.empty())return false;
@@ -336,9 +348,17 @@ bool advanceLocalConsumables(LocalRealmPlayer& p,const LocalWorldContent& c,uint
         const auto before=r.elapsedMs;
         r.elapsedMs=std::min(r.durationMs,r.elapsedMs+ms);
         const auto health=uint32_t(uint64_t(r.health)*r.elapsedMs/r.durationMs),mana=uint32_t(uint64_t(r.mana)*r.elapsedMs/r.durationMs);
+        const auto oldHealth=p.health;
         p.health=uint32_t(std::min<uint64_t>(p.maxHealth,uint64_t(p.health)+(health-r.givenHealth)));
+        const auto actualGain=p.health-oldHealth;
+        r.visualAccumulatedHealth+=actualGain;
         if(p.resourceType==LocalResourceType::Mana)p.mana=uint32_t(std::min<uint64_t>(p.maxMana,uint64_t(p.mana)+(mana-r.givenMana)));
         r.givenHealth=health;r.givenMana=mana;
+        const bool visualTick=(r.elapsedMs/1000>before/1000)||(r.elapsedMs>=r.durationMs&&before<r.durationMs);
+        if(visualTick&&r.visualAccumulatedHealth>0) {
+            pushLocalMeleeView(p,r.spellId,r.visualAccumulatedHealth,0,p.guid,p.guid,LocalMeleeOutcome::Hit,false,true,0);
+            r.visualAccumulatedHealth=0;
+        }
         // Well Fed: the meal's periodic trigger after its first interval of eating.
         if(const auto* use=c.consumable(r.itemId);use&&use->buffSpellId&&use->buffDelayMs&&before<use->buffDelayMs&&r.elapsedMs>=use->buffDelayMs){
             applyLocalConsumableBuff(p,*use);buffsChanged=true;
@@ -2225,10 +2245,14 @@ struct LocalGameplay::Impl {
             if(const auto* d=content->spell(event.spell);d&&d->sourceDamageClass==1)
                 if(auto* caster=player(event.source,players);caster&&consumeLocalArcaneBlast(*caster,*content,*d))
                     LOG_INFO("[LOCAL_ARCANE_BLAST] owner=",caster->guid," action=consume spell=",d->id);
+        const bool isHealEvent = event.kind==LocalCombatEventKind::DirectHeal ||
+                                 event.kind==LocalCombatEventKind::PeriodicHeal ||
+                                 event.kind==LocalCombatEventKind::ProcHeal;
         if(event.kind==LocalCombatEventKind::PlayerMelee||event.kind==LocalCombatEventKind::NpcMelee||event.kind==LocalCombatEventKind::PlayerRanged||
            event.kind==LocalCombatEventKind::PetMelee||
-           event.kind==LocalCombatEventKind::SpellDamage||event.kind==LocalCombatEventKind::DirectHeal||
-           (event.kind==LocalCombatEventKind::ProcDamage&&event.auraSpell&&content->spell(event.auraSpell)&&content->spell(event.auraSpell)->procCanCrit)){
+           event.kind==LocalCombatEventKind::SpellDamage||isHealEvent||
+           event.kind==LocalCombatEventKind::PeriodicDamage||
+           event.kind==LocalCombatEventKind::ProcDamage){
             // A summon's own swing is shown to its owner with the summon as the
             // source; the owner is still neither source nor target of the event.
             uint64_t petViewer=0;
@@ -2236,10 +2260,11 @@ struct LocalGameplay::Impl {
             else if(const auto* victim=pet(event.target))petViewer=victim->ownerGuid;
             for(auto* p:players)if(p&&(p->guid==event.source||p->guid==event.target||p->guid==event.reflectionSource||(petViewer&&p->guid==petViewer)||
                 (p->vehicleGuid && (p->vehicleGuid==event.source || p->vehicleGuid==event.target)))){
-                if(p->meleeViewPositionRevision!=p->positionRevision){p->meleeViews={};p->meleeViewPositionRevision=p->positionRevision;}
-                for(size_t i=1;i<p->meleeViews.size();++i)p->meleeViews[i-1]=p->meleeViews[i];
-                if(!++p->meleeSerial)++p->meleeSerial;
-                p->meleeViews.back()={p->meleeSerial,event.spell,event.effective,event.blocked,event.reflectionSource?event.reflectionSource:event.source,event.target,event.reflectionSource?LocalMeleeOutcome::Reflect:event.outcome,event.offHand,event.kind==LocalCombatEventKind::DirectHeal,event.resisted};
+                pushLocalMeleeView(*p, event.spell, event.effective, event.blocked,
+                                   event.reflectionSource ? event.reflectionSource : event.source,
+                                   event.target,
+                                   event.reflectionSource ? LocalMeleeOutcome::Reflect : event.outcome,
+                                   event.offHand, isHealEvent, event.resisted);
             }
         }
         if(event.kind==LocalCombatEventKind::ProcDamage&&event.auraSpell)if(const auto* shield=content->spell(event.auraSpell);
@@ -6013,7 +6038,13 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
                 if(candidate.categoryCooldowns.size()>=kLocalMaxCategoryCooldowns)return reject("Too many cooldowns are running");
                 candidate.categoryCooldowns.push_back({use->category,kLocalItemCooldownFamily,cooldown});
             }
+            const auto oldHealth = candidate.health;
             candidate.health=uint32_t(std::min<uint64_t>(candidate.maxHealth,uint64_t(candidate.health)+use->instantHealth));
+            const auto instantHealed = candidate.health - oldHealth;
+            if(instantHealed > 0) {
+                pushLocalMeleeView(candidate, use->spellId, instantHealed, 0, candidate.guid, candidate.guid,
+                                   LocalMeleeOutcome::Hit, false, true, 0);
+            }
             if(mana)candidate.mana=uint32_t(std::min<uint64_t>(candidate.maxMana,uint64_t(candidate.mana)+use->instantMana));
             if(use->regenHealth||(mana&&use->regenMana)) {
                 // One meal per category: a second bread restarts eating, a drink runs beside it.
@@ -6034,7 +6065,14 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         const auto* def=c.item(cmd.id);if(!def||!totalItem(p,cmd.id)||(!def->heal&&!def->mana))return reject("Item cannot be used");
         const uint32_t restoredMana=p.resourceType==LocalResourceType::Mana?def->mana:0;
         if((!def->heal||p.health==p.maxHealth)&&(!restoredMana||p.mana==p.maxMana))return reject("Health/resource are already full");
-        p.health=std::min(p.maxHealth,p.health+def->heal);p.mana=std::min(p.maxMana,p.mana+restoredMana);removeItem(p,cmd.id,1);stats(p,c,false);questStatus(p,c);result="Used "+def->name;return true;
+        const auto oldHealth = p.health;
+        p.health=std::min(p.maxHealth,p.health+def->heal);
+        const auto instantHealed = p.health - oldHealth;
+        if(instantHealed > 0) {
+            pushLocalMeleeView(p, 0, instantHealed, 0, p.guid, p.guid,
+                               LocalMeleeOutcome::Hit, false, true, 0);
+        }
+        p.mana=std::min(p.maxMana,p.mana+restoredMana);removeItem(p,cmd.id,1);stats(p,c,false);questStatus(p,c);result="Used "+def->name;return true;
     }
     if(cmd.action==LocalAction::TextEmote) {
         // 2.40 HandleTextEmoteOpcode: the emote reaches the targeted creature's

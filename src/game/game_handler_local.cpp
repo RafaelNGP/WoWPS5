@@ -434,7 +434,13 @@ bool GameHandler::syncLocalRealmPlayer(const LocalRealmPlayer& snapshot, const L
         for(const auto& v:snapshot.meleeViews){
             if(snapshot.meleeViewPositionRevision!=snapshot.positionRevision||!v.serial||(localMeleePresentationSerial_&&int32_t(v.serial-localMeleePresentationSerial_)<=0))continue;
             localMeleePresentationSerial_=v.serial;if(!combatHandler_)continue;
-            using T=CombatTextEntry::Type;T type=v.healing?T::HEAL:(v.spell?T::SPELL_DAMAGE:T::MELEE_DAMAGE);
+            const auto* d = v.spell ? content.spell(v.spell) : nullptr;
+            const bool isPeriodic = (content.consumableSpell(v.spell) != nullptr) ||
+                                    (d && d->periodicEffectSlot != 255 && d->directEffectSlot == 255);
+            using T=CombatTextEntry::Type;
+            T type = v.healing
+                ? (isPeriodic ? T::PERIODIC_HEAL : T::HEAL)
+                : (v.spell ? (isPeriodic ? T::PERIODIC_DAMAGE : T::SPELL_DAMAGE) : T::MELEE_DAMAGE);
             switch(v.outcome){case LocalMeleeOutcome::Miss:type=T::MISS;break;case LocalMeleeOutcome::Dodge:type=T::DODGE;break;
                 case LocalMeleeOutcome::Parry:type=T::PARRY;break;case LocalMeleeOutcome::Critical:type=v.healing?T::CRIT_HEAL:T::CRIT_DAMAGE;break;
                 case LocalMeleeOutcome::Glancing:type=T::GLANCING;break;case LocalMeleeOutcome::Crushing:type=T::CRUSHING;break;
@@ -448,7 +454,7 @@ bool GameHandler::syncLocalRealmPlayer(const LocalRealmPlayer& snapshot, const L
             // (combat_handler.cpp:780-781); a partial resist is the damage line
             // followed by a RESIST line, exactly like a partial block.
             const bool fullResistLine=v.outcome==LocalMeleeOutcome::Resist&&v.resisted;
-            const bool outgoing=v.source==playerGuid || (snapshot.vehicleGuid && v.source==snapshot.vehicleGuid);
+            const bool outgoing=v.source==playerGuid || (snapshot.vehicleGuid && v.source==snapshot.vehicleGuid) || (petGuid_!=0 && v.source==petGuid_);
             if((v.amount||localOutcomeNullifiesDamage(v.outcome))&&!fullResistLine)combatHandler_->addCombatText(type,int32_t(v.amount),v.spell,outgoing,0,v.source,v.target);
             if(v.blocked)combatHandler_->addCombatText(T::BLOCK,int32_t(v.blocked),v.spell,outgoing,0,v.source,v.target);
             if(v.resisted)combatHandler_->addCombatText(T::RESIST,int32_t(v.resisted),v.spell,outgoing,0,v.source,v.target);
