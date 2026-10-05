@@ -1292,8 +1292,15 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if(!creatureCaster&&d.spellFamily==10&&(d.id==498||d.id==642||d.id==1022||d.id==5599||d.id==10278)) {
         d.forbearanceCheck=true;d.afterHitAuras={25771,61987,61988};
     }
-    // spell_mage_ice_block: Hypothermia (its ExcludeCasterAuraSpell) after the hit.
-    if(!creatureCaster&&d.id==kLocalIceBlockSpell&&d.spellFamily==3&&u(26)==41425)d.afterHitAuras={41425,0,0};
+    // Spell::PrepareTriggersExecutedOnHit: a family spell whose excluded aura
+    // is negative adds that aura to its target on the hit (Weakened Soul after
+    // Power Word: Shield, Hypothermia after Ice Block, the Avenging Wrath
+    // marker after Avenging Wrath); DoTriggersOnSpellHit adds Divine Shield's
+    // exclude aura beside 61987. Every realm marker is negative.
+    if(!creatureCaster&&d.spellFamily&&!d.forbearanceCheck) {
+        const uint32_t pre=d.excludeTargetAuraSpell?d.excludeTargetAuraSpell:d.excludeCasterAuraSpell;
+        if(pre)d.afterHitAuras={pre,pre==61987?61988u:0u,0};
+    }
     // SPELL_ATTR0_ONLY_STEALTHED: the rogue openers also require Stealth's
     // form; Prowl (a cat-form aura) is not implemented, so Ravage and Pounce wait.
     if(!creatureCaster&&(u(4)&0x20000u)&&!(u(12)&(1u<<29)))d.onlyStealthed=true; // Ravage, Pounce: under Prowl

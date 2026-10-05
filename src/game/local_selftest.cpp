@@ -436,7 +436,9 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // of maximum mana every 3 s and half the damage done. Icebound
         // Fortitude reuses 35's definition check: stun immunity, -30%. 38 is
         // Devotion Aura: armor by its amount, and Retribution Aura replaces it
-        // (SPELL_SPECIFIC_AURA, one aura per paladin).
+        // (SPELL_SPECIFIC_AURA, one aura per paladin). 39 is Power Word:
+        // Shield: an absorb plus Weakened Soul, which refuses another shield
+        // until it runs out (15 s).
         struct Ability { uint8_t race, cls; const char* name; int kind; };
         const Ability abilities[] = {
             {1, 1, "Mortal Strike", false}, {1, 1, "Heroic Strike", false}, {1, 1, "Overpower", false}, {1, 1, "Pummel", true},
@@ -460,7 +462,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
-            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39},
         };
         size_t passed = 0;
         // Incinerate carries the Immolate bonus (a quarter more on an Immolated target).
@@ -510,7 +512,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             }
             const uint32_t reagentBefore = [&] { const auto* sd = content.spell(spellId); uint32_t n = 0;
                 for (const auto& st : p.inventory) if (sd && st.itemId == sd->reagentItems[0]) n += st.count; return n; }();
-            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || (a.kind >= 12 && a.kind <= 14) || a.kind == 16 || a.kind == 20 || (a.kind >= 28 && a.kind <= 30) || (a.kind >= 32 && a.kind <= 38)) {
+            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || (a.kind >= 12 && a.kind <= 14) || a.kind == 16 || a.kind == 20 || (a.kind >= 28 && a.kind <= 30) || (a.kind >= 32 && a.kind <= 39)) {
                 const auto meleeBefore = localMeleeStats(p, content); const auto healthBefore = p.maxHealth; const auto items = p.inventory.size();
                 const auto armorBefore = localMeleeArmor(p, content);
                 const auto* autoShot = content.spell(75);
@@ -595,6 +597,18 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     ok = ok && awLater && !holds(25771);
                     if (!ok) result = "swings " + std::to_string(swings) + " shielded low " + std::to_string(shieldedLow) + " exposed low " + std::to_string(exposedLow) + "/" + std::to_string(p.maxHealth) + " immunity " + std::to_string(sd ? sd->classBuffSchoolImmunity : 0) + " markers " + std::to_string(holds(25771)) + std::to_string(holds(61987)) + std::to_string(holds(61988)) +
                                       " second " + std::to_string(second) + " dp " + std::to_string(dp) + " aw " + std::to_string(aw) + " later " + std::to_string(awLater) + " (" + again + " / " + protection + " / " + wrath + ")";
+                }
+                if (a.kind == 39 && ok) {
+                    const auto holds = [&](uint32_t id) { for (const auto& s : p.statAuras) if (s.spellId == id && s.remainingMs) return true; return false; };
+                    uint32_t absorb = 0; for (const auto& s : p.statAuras) if (s.spellId == spellId) absorb = s.absorbRemaining;
+                    const bool weakened = holds(6788);
+                    std::string again, later; p.globalCooldownMs = 0; p.cooldowns.clear(); p.mana = p.maxMana;
+                    const bool second = arena.execute(p, {LocalAction::CastSpell, p.guid, spellId}, players, again);
+                    for (int t = 0; t < 320 && holds(6788); ++t) arena.tick(0.05f, players);
+                    p.globalCooldownMs = 0; p.cooldowns.clear(); p.mana = p.maxMana;
+                    const bool third = arena.execute(p, {LocalAction::CastSpell, p.guid, spellId}, players, later);
+                    ok = absorb > 0 && weakened && !second && third;
+                    if (!ok) result = "absorb " + std::to_string(absorb) + " weakened " + std::to_string(weakened) + " second " + std::to_string(second) + " later " + std::to_string(third) + " (" + again + " / " + later + ")";
                 }
                 if (a.kind == 38 && ok) {
                     const auto* sd = content.spell(spellId);
@@ -944,7 +958,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             if (!landed) { out << "FAIL class ability " << a.name << ": " << last << "\n"; return false; }
             ++passed;
         }
-        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, fears, armor reductions, curses, warlock armors, Life Tap, school wards, health leech, immunities and Forbearance, damage-taken cuts, Ice Block, Fear Ward, Barkskin, level-scaled absorbs, mana aspects, Icebound Fortitude, Devotion Aura, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
+        out << "PASS class abilities: " << passed << " Spell.dbc abilities (weapon strikes, shots, DoTs, channels, ground areas, snares, charges, soul shards, demon summons, interrupts, taunts, spells, conjuring, stat buffs, speed and dodge buffs, stealth openers, hunter aspects, creature tracking, totems, dispels, combo finishers, stuns and breakable controls, fears, armor reductions, curses, warlock armors, Life Tap, school wards, health leech, immunities and Forbearance, damage-taken cuts, Ice Block, Fear Ward, Barkskin, level-scaled absorbs, mana aspects, Icebound Fortitude, Devotion Aura, Power Word: Shield, Prowl, presences, offensive dispels, slowing totems, cleaves, reagents, class mounts, teleports)\n";
     }
 
     // ---- 2d. Every chain is reachable: closure over the realm's own gates.
