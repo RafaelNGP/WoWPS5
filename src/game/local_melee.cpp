@@ -153,7 +153,11 @@ static uint32_t armorFromAttributes(const LocalRealmPlayer& p,const LocalWorldCo
     // Scroll of Protection, Elixir of Defense: bonus armor (TOTAL_VALUE).
     for(const auto& b:p.consumableBuffs)if(b.remainingMs&&b.armor>0)flatArmor+=float(b.armor);
     for(const auto& a:p.statAuras)if(a.remainingMs&&a.mapId==p.mapId&&a.instanceId==p.instanceId)
-        if(const auto* d=c.spell(a.spellId);d&&d->classBuff&&d->classBuffArmor>0)flatArmor+=float(d->classBuffArmor);
+        if(const auto* d=c.spell(a.spellId);d&&d->classBuffArmor>0&&d->classBuff)flatArmor+=float(d->classBuffArmor);
+    // Devotion Aura: the effective (dominant) area application's armor, a
+    // bonus (TOTAL_VALUE) like the other aura armor.
+    for(const auto& a:p.areaAuras)if(a.effective&&(a.effectMask&1)&&a.mapId==p.mapId&&a.instanceId==p.instanceId)
+        if(const auto* d=c.spell(a.spellId);d&&d->areaAuraProfile&&d->areaAuraTypes[0]==22&&(d->areaAuraMiscValues[0]&1))flatArmor+=float(a.amount);
     // Player::_ApplyItemBonuses keeps bonus/miscellaneous armor in TOTAL_VALUE.
     // Bear form and Thick Hide multiply only the equipment BASE_VALUE, before
     // agility, flat equipment armor and Mark of the Wild are added.

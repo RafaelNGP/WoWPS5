@@ -69,6 +69,9 @@ inline constexpr uint32_t kSourceSpellFamilyShaman = 11;
 /// The one area-aura profile this ruleset runs: Retribution Aura's caster-
 /// anchored, fixed-radius, indefinite raid shape.
 inline constexpr uint8_t kLocalAreaAuraProfileRetribution = 1;
+/// Devotion Aura's: the same caster-anchored, fixed-radius, indefinite raid
+/// shape with one effect, SPELL_AURA_MOD_RESISTANCE on armor (misc 1).
+inline constexpr uint8_t kLocalAreaAuraProfileDevotion = 2;
 /// Player class bits of 3.3.5a: classes 1-9 and 11. Class 10 does not exist.
 inline constexpr uint32_t kSourcePlayerClassMask = 0x5ffu;
 
@@ -94,6 +97,21 @@ inline constexpr ClientAreaAuraProfile kClientRetributionAuraProfiles[] = {
     {27150, 66,  61, 0},
     {54043, 76, 111, 0},
 };
+/// The ten player Devotion Aura ranks, pinned the same way (each row checked
+/// column by column against the client Spell.dbc): maxLevel (column 37),
+/// level, base points and column 205, which is 38 on rank 9 only.
+struct ClientDevotionAuraProfile { uint32_t id, maxLevel, level, basePoints, column205; };
+inline constexpr ClientDevotionAuraProfile kClientDevotionAuraProfiles[] = {
+    {465, 9, 1, 54, 133},     {10290, 19, 10, 159, 133}, {643, 29, 20, 274, 133},
+    {10291, 39, 30, 389, 133}, {1032, 49, 40, 504, 133},  {10292, 59, 50, 619, 133},
+    {10293, 69, 60, 734, 133}, {27149, 0, 70, 860, 133},  {48941, 0, 74, 1014, 38},
+    {48942, 0, 79, 1204, 133},
+};
+inline const ClientDevotionAuraProfile* clientDevotionAuraProfile(uint32_t id) {
+    for (const auto& candidate : kClientDevotionAuraProfiles)
+        if (candidate.id == id) return &candidate;
+    return nullptr;
+}
 inline const ClientAreaAuraProfile* clientRetributionAuraProfile(uint32_t id) {
     for (const auto& candidate : kClientRetributionAuraProfiles)
         if (candidate.id == id) return &candidate;
@@ -250,6 +268,25 @@ inline bool decodeClientAreaAuraProfile(const Tables& t, uint32_t row, LocalSpel
     // Spell.dbc. Columns 131-203 are presentation. EffectBasePoints[1..2] are
     // pinned as -1 rather than 0 and EffectMiscValue[2] as 127 only on rank one:
     // the record is validated as written, never as tidied.
+    if (const auto* devotion = clientDevotionAuraProfile(d.id)) {
+        if (!matchesClientSourceColumns(t, row,
+            {{4, 151322624u}, {6, 17u}, {7, 1114112u}, {8, 3145728u}, {11, 4u},
+             {28, 1u}, {35, 101u}, {37, devotion->maxLevel}, {38, devotion->level}, {39, devotion->level}, {40, 21u}, {46, 1u},
+             {68, 4294967295u}, {71, kSourceEffectApplyAreaAuraRaid}, {74, 1u}, {80, devotion->basePoints},
+             {86, kSourceTargetUnitCaster}, {92, 23u}, {95, kSourceAuraModResistance}, {110, 1u},
+             {205, devotion->column205}, {206, 1500u}, {208, 10u}, {209, 64u}, {211, 32u}, {213, 1u}, {214, 1u},
+             {216, 1065353216u}, {217, 1065353216u}, {218, 1065353216u}, {225, 2u}}))
+            return reject("Unreviewed Devotion Aura source columns");
+        d.areaAuraProfile = kLocalAreaAuraProfileDevotion;
+        d.areaAuraEffectMask = mask;
+        d.areaAuraTypes = types;
+        d.areaAuraAmounts = amounts;
+        d.areaAuraMiscValues = miscValues;
+        d.areaAuraRadius = radius;
+        d.indefiniteDuration = true;
+        d.durationMs = 0;
+        return true;
+    }
     const auto* profile = clientRetributionAuraProfile(d.id);
     if (!profile) return reject("Unreviewed area aura source profile");
     if (!matchesClientSourceColumns(t, row,

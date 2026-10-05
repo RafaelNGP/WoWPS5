@@ -1507,6 +1507,9 @@ struct LocalGameplay::Impl {
         uint32_t best=0,spellId=0;
         for(const auto& a:recipient.areaAuras) {
             if(!a.effective||!(a.effectMask&1)||a.mapId!=recipient.mapId||a.instanceId!=recipient.instanceId)continue;
+            // Only a damage shield retaliates (Retribution, not Devotion's armor).
+            const auto* source=content->spell(a.spellId);
+            if(!source||source->areaAuraTypes[0]!=15)continue;
             if(a.amount>best){best=a.amount;spellId=a.spellId;}
         }
         if(!best||!spellId)return;
@@ -7456,17 +7459,18 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         // cast must never leave the caster with the old aura cancelled. The
         // replaced emitter is counted out of the bound, because replacing is
         // not adding.
-        const auto displaced=size_t(std::count_if(p.areaEmitters.begin(),p.areaEmitters.end(),
-            [&](const LocalAreaAuraEmitter& e) {
-                const auto* existing=c.spell(e.spellId);
-                return !existing||localAreaAuraGroup(*existing)==group;
-            }));
+        // SPELL_SPECIFIC_AURA is per caster across every paladin aura
+        // (Retribution replaces Devotion), not only within one aura's ranks.
+        const bool specificAura=localSpellSpecific(*d)==LocalSpellSpecific::Aura;
+        const auto replaces=[&](const LocalAreaAuraEmitter& e) {
+            const auto* existing=c.spell(e.spellId);
+            return !existing||localAreaAuraGroup(*existing)==group||
+                   (specificAura&&localSpellSpecific(*existing)==LocalSpellSpecific::Aura);
+        };
+        const auto displaced=size_t(std::count_if(p.areaEmitters.begin(),p.areaEmitters.end(),replaces));
         if(!validLocalAreaAuraEmitter(emitter)||p.areaEmitters.size()-displaced>=kLocalMaxAreaAuraEmitters)
             return reject("Too many active area auras");
-        std::erase_if(p.areaEmitters,[&](const LocalAreaAuraEmitter& e) {
-            const auto* existing=c.spell(e.spellId);
-            return !existing||localAreaAuraGroup(*existing)==group;
-        });
+        std::erase_if(p.areaEmitters,replaces);
         p.areaEmitters.push_back(emitter);
         g.reconcileAreaAuras(players);
         LOG_INFO("[LOCAL_AREA_AURA] owner=",p.guid," spell=",d->id," action=activate amount=",emitter.amount,
