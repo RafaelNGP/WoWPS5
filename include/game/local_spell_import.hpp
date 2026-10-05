@@ -2933,6 +2933,9 @@ inline LocalSpellImport importClientStarterSpells(
         for(const auto& [item,count]:amounts)recipe.reagents.push_back({item,uint16_t(count)});
         if(recipe.reagents.empty())continue;
         for(size_t slot=0;slot<recipe.tools.size();++slot)recipe.tools[slot]=u(50+slot);
+        const auto toolCat = u(222);
+        if (toolCat == 162 && !recipe.tools[0]) recipe.tools[0] = 5956;
+        recipe.requiresSpellFocus = u(18);
         const auto name=spells->getString(entry.second,136);
         recipe.name=!name.empty()&&name.size()<=96?name:"Recipe #"+std::to_string(recipe.spellId);
         out.recipes.push_back(std::move(recipe));

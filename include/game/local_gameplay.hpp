@@ -244,6 +244,7 @@ struct LocalRecipe {
     // Keep previously learned recipe IDs loadable even when a source rule
     // cannot be executed. Such a recipe is visible but cannot be sold/crafted.
     std::string unsupportedReason;
+    uint32_t requiresSpellFocus = 0; // 1 = Anvil, 3 = Forge
 };
 struct LocalCooldown { uint32_t spellId = 0; uint32_t remainingMs = 0; };
 inline constexpr size_t kLocalMaxCategoryCooldowns=16;
@@ -543,6 +544,8 @@ struct LocalRealmPlayer {
     bool introSeen = true;
     std::vector<LocalItemStack> inventory;
     std::array<LocalItemStack, kLocalBankSlots> bank{}; // Stable personal bank slots; no purchased bags yet.
+    std::array<LocalItemStack, 4> bagContainers{};
+    std::array<LocalItemStack, 7> bankBagContainers{};
     // The most recent twelve sales, newest first. IDs never shift when an
     // older row is bought back, so a delayed LAN command cannot buy another row.
     uint32_t buybackSerial = 0;
@@ -716,6 +719,40 @@ struct LocalRealmPlayer {
     uint32_t revengeWindowMs = 0;
     uint32_t victoryRushWindowMs = 0;
 };
+
+inline uint8_t localItemContainerSlots(uint32_t itemId) {
+    switch (itemId) {
+        case 184: case 805: case 828: case 965: case 1281: case 1537: case 1729: case 2002: case 2003: case 2082: case 2101: case 2102: case 2115: case 3233: case 4238: case 4496: case 4930: case 4957: case 5081: case 5571: case 5572: case 5603: case 5762: case 6446: case 11845: case 13330: case 20474: case 22571: case 23389: case 29889: case 34464: case 34466: case 35874: case 37606: case 38059: return 6;
+        case 806: case 855: case 856: case 918: case 1470: case 2657: case 3298: case 3343: case 3568: case 3762: case 4240: case 4241: case 4498: case 5439: case 5441: case 5573: case 5574: case 5763: case 6754: case 22976: case 23852: return 8;
+        case 804: case 857: case 930: case 931: case 932: case 933: case 1100: case 1724: case 3352: case 4245: case 4497: case 4981: case 5575: case 5576: case 5764: case 5765: case 6756: case 7278: case 7279: case 21313: return 10;
+        case 1623: case 1652: case 1725: case 3914: case 4501: case 9587: case 10050: case 10051: case 11324: case 11362: case 11363: case 16057: case 22250: return 12;
+        case 1685: case 4500: case 7371: case 7372: case 10683: case 10959: case 11742: case 14046: case 19914: case 22233: return 14;
+        case 2662: case 2663: case 3573: case 3574: case 3604: case 3605: case 4499: case 8217: case 8218: case 14155: case 20400: case 21193: case 21841: case 22244: case 22246: case 22679: case 33117: case 34845: case 35516: case 43345: case 50316: case 50317: return 16;
+        case 14156: case 17966: case 18714: case 19319: case 19320: case 21194: case 21843: case 23162: case 27680: case 34067: return 18;
+        case 1977: case 19291: case 21195: case 21340: case 21857: case 21876: case 22243: case 22248: case 22251: case 23774: case 24270: case 29118: case 29143: case 29144: case 29540: case 30744: case 30745: case 38082: case 39489: case 41599: case 44446: return 20;
+        case 38145: case 41600: case 49295: return 22;
+        case 21341: case 21858: case 22249: case 22252: case 30747: case 34099: case 34100: case 51809: return 24;
+        case 21342: case 21872: case 30746: case 30748: case 34105: case 34106: case 34482: case 34490: case 38225: case 38399: case 44447: case 44448: return 28;
+        case 23775: case 38307: case 38347: case 41597: case 41598: case 45773: return 32;
+        default: return 0;
+    }
+}
+
+inline size_t localPlayerStorageCapacity(const LocalRealmPlayer& p) {
+    size_t cap = 24; // Base backpack capacity
+    for (const auto& b : p.bagContainers) {
+        if (b.itemId) cap += localItemContainerSlots(b.itemId);
+    }
+    return cap;
+}
+
+inline size_t localPlayerBankCapacity(const LocalRealmPlayer& p) {
+    size_t cap = kLocalBankSlots; // 28
+    for (const auto& b : p.bankBagContainers) {
+        if (b.itemId) cap += localItemContainerSlots(b.itemId);
+    }
+    return cap;
+}
 
 inline bool validLocalVehicleState(const LocalRealmPlayer& p) {
     if (!p.vehicleGuid) return !p.vehicleId && !p.vehicleSeat && !p.vehicleControl;
@@ -2189,13 +2226,26 @@ inline bool localGameObjectUsable(const LocalGameObject& object,const LocalRealm
     // Range first: most of the ~900 placed objects are far away every frame.
     const float dx=object.x-player.x,dy=object.y-player.y,dz=object.z-player.z;
     if(!std::isfinite(dx+dy+dz) || dx*dx+dy*dy+dz*dz>object.useRadius*object.useRadius)return false;
-    if(object.requiredSkillId && std::none_of(player.professions.begin(),player.professions.end(),[&](const auto& skill){
-        return skill.skillId==object.requiredSkillId && skill.current>=object.requiredSkill;
+    const bool isMiningNode = (object.entry == 1731 || object.entry == 1732 || object.entry == 1735 ||
+                               object.id == 1731 || object.id == 1732 || object.id == 1735);
+    const uint32_t reqSkillId = object.requiredSkillId ? object.requiredSkillId : (isMiningNode ? 186 : 0);
+    const uint32_t reqSkill = object.requiredSkill ? object.requiredSkill :
+        (isMiningNode ? (object.entry == 1732 || object.id == 1732 ? 65 : (object.entry == 1735 || object.id == 1735 ? 125 : 1)) : 0);
+    if(reqSkillId && std::none_of(player.professions.begin(),player.professions.end(),[&](const auto& skill){
+        return skill.skillId==reqSkillId && skill.current>=reqSkill;
     }))return false;
-    if((object.toolItemId || !object.toolItemIds.empty()) && std::none_of(player.inventory.begin(),player.inventory.end(),[&](const auto& item){
-        return item.count && (item.itemId==object.toolItemId ||
-            std::find(object.toolItemIds.begin(),object.toolItemIds.end(),item.itemId)!=object.toolItemIds.end());
-    }))return false;
+    static constexpr std::array<uint32_t, 5> kMiningPicks = {2901, 20723, 40772, 40892, 40893};
+    const auto hasTool = [&](uint32_t toolId) {
+        if (!toolId) return false;
+        const bool inInv = std::any_of(player.inventory.begin(), player.inventory.end(),
+            [&](const auto& item){ return item.count && item.itemId == toolId; });
+        const bool eq = std::any_of(player.equipment.begin(), player.equipment.end(),
+            [&](uint32_t id){ return id == toolId; });
+        return inInv || eq;
+    };
+    if (object.toolItemId && !hasTool(object.toolItemId)) return false;
+    if (!object.toolItemIds.empty() && std::none_of(object.toolItemIds.begin(), object.toolItemIds.end(), hasTool)) return false;
+    if (isMiningNode && object.toolItemIds.empty() && !object.toolItemId && std::none_of(kMiningPicks.begin(), kMiningPicks.end(), hasTool)) return false;
     if(object.requiredQuestId && std::none_of(player.quests.begin(),player.quests.end(),[&](const auto& quest){
         return quest.id==object.requiredQuestId && quest.status==LocalQuestStatus::Active;
     }))return false;
@@ -2332,6 +2382,27 @@ bool localPlayerNeedsQuestItem(const LocalRealmPlayer& player,const LocalWorldCo
 bool localGameObjectUsable(const LocalGameObject& object,const LocalRealmPlayer& player,const LocalWorldContent& content);
 const LocalVehicleAbility* localVehicleCastAbility(const LocalVehicleCast& cast,const LocalWorldContent& content);
 bool validLocalVehicleCastView(const LocalVehicleCast& cast,const LocalWorldContent& content);
+inline bool localPlayerNearSpellFocus(const LocalWorldContent& content, const LocalRealmPlayer& player, uint32_t focus) {
+    if (!focus) return true;
+    for (const auto& obj : content.gameObjects) {
+        if (obj.mapId != player.mapId) continue;
+        const float dx = obj.x - player.x, dy = obj.y - player.y, dz = obj.z - player.z;
+        if (!std::isfinite(dx + dy + dz) || dx * dx + dy * dy + dz * dz > 100.0f) continue;
+        if (focus == 1) { // Anvil
+            if (obj.entry == 4087 || obj.entry == 4088 || obj.entry == 4089 || obj.entry == 123244 ||
+                obj.id == 4087 || obj.id == 4088 || obj.id == 4089 || obj.id == 123244 ||
+                obj.name.find("Anvil") != std::string::npos || obj.name.find("anvil") != std::string::npos) {
+                return true;
+            }
+        } else if (focus == 3) { // Forge
+            if (obj.entry == 4090 || obj.id == 4090 ||
+                obj.name.find("Forge") != std::string::npos || obj.name.find("forge") != std::string::npos) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
 inline std::array<float,3> localVehicleSeatPosition(const LocalRealmNpc& vehicle,uint8_t seat) {
     std::array<float,3> result{vehicle.x,vehicle.y,vehicle.z};
     if(seat>=vehicle.vehicleSeatCount || seat>=8)return result;

@@ -78,7 +78,7 @@ constexpr uint32_t WireMagic = 0x57504c52; // WPLR
 constexpr uint32_t SaveMagic = 0x57505253; // WPRS
 constexpr uint32_t IdentityMagic = 0x57504944; // WPID
 constexpr uint8_t Version = lan::GameplayVersion; // LAN103 creature periodic-damage views in the owner snapshot.
-constexpr uint8_t SaveVersion = 47;  // Rested experience; reads 1-47 with schedule-ID/object migration.
+constexpr uint8_t SaveVersion = 48;  // Bags & Professions (G6); reads 1-48 with schedule-ID/object migration.
 constexpr size_t HeaderSize = 20, MaxPacket = 1400, MaxSavedPlayers = 128;
 constexpr size_t VehicleWireBytes = 14;
 constexpr size_t PublicPlayerBytes = 4 + 49 + 34 + 4 * kLocalEquipmentSlotCount + 6 + 4 + 30 + VehicleWireBytes;
@@ -179,7 +179,7 @@ constexpr size_t MaxOwnerProgressBytes = 21 + HeaderSize + 8 + 16 + 20 + 34 + 4 
     // Professions (count plus six bytes each), Save35's u16 recipe count plus
     // four bytes per learned recipe, and the inn binding.
     1 + LocalGameplay::MaxProfessions * 6 + 2 + LocalGameplay::MaxRecipes * 4 +
-    1 + 4 + 16 + 4 + 25 + 17 + 20 + 12 + 4 + kLocalBankSlots * (6 + ItemInstanceWireBytes) + LocalGameplay::MaxProfessions * 2 + 2 + 2 + 512 * 4 + 53 + 1 + 71 * 5 + 1 + kLocalMaxStatAuras * 49 + 1 + kLocalMaxHealingAuraViews * 21 + 1 + kLocalMaxHealingAuraViews * HarmfulViewWireBytes + KnockbackWireBytes + 1 + kLocalMaxSchoolLockouts * 5 + 4 * 39 + 4 +
+    1 + 4 + 16 + 4 + 25 + 17 + 20 + 12 + 4 + kLocalBankSlots * (6 + ItemInstanceWireBytes) + 4 * (6 + ItemInstanceWireBytes) + 7 * (6 + ItemInstanceWireBytes) + LocalGameplay::MaxProfessions * 2 + 2 + 2 + 512 * 4 + 53 + 1 + 71 * 5 + 1 + kLocalMaxStatAuras * 49 + 1 + kLocalMaxHealingAuraViews * 21 + 1 + kLocalMaxHealingAuraViews * HarmfulViewWireBytes + KnockbackWireBytes + 1 + kLocalMaxSchoolLockouts * 5 + 4 * 39 + 4 +
     // Save29: the owner's saved emitters, plus the derived applications the
     // owner-directed message carries for its own buff display only.
     AreaAuraWireBytes + 30 +
@@ -577,6 +577,10 @@ void writeProgress(Writer& w, const LocalRealmPlayer& p, uint8_t version = SaveV
     if(version>=41)w.u32(p.escort.guideHealth);
     if(version>=46){const auto& h=p.hunterPet;w.u32(h.entry);w.u32(h.displayId);w.u8(h.family);w.u8(uint8_t(h.dead)|uint8_t(h.active)<<1);w.text(h.name);}
     if(version>=47){w.u32(p.restedXp);w.u64(p.restLastUnix);w.u8(p.resting?1:0);}
+    if(version>=48){
+        for(const auto& b:p.bagContainers){w.u32(b.itemId);w.u16(b.count);writeItemInstance(w,b.instance);}
+        for(const auto& b:p.bankBagContainers){w.u32(b.itemId);w.u16(b.count);writeItemInstance(w,b.instance);}
+    }
 }
 // CharSections indices retain their full uint8 domain; only the model selector
 // is a boolean. Asset-specific option ranges are resolved by the character UI.
@@ -594,7 +598,7 @@ bool readProgress(Reader& r, LocalRealmPlayer& p, uint8_t version = SaveVersion)
     readVitals(r, p, version); p.xp = r.u32(); p.xpToLevel = r.u32(); p.money = r.u32(); p.level = r.u8();
     const auto initialized = r.u8(); p.gameplayInitialized = initialized != 0;
     if (initialized > 1 || p.xp > 1000000000 || !p.xpToLevel || p.xpToLevel > 1000000 || p.money > 1000000000 || !p.level || p.level > 80) return false;
-    uint8_t count = r.u8(); if (count > LocalGameplay::MaxInventory) return false;
+    uint8_t count = r.u8(); if (count > (version >= 48 ? 168 : LocalGameplay::MaxInventory)) return false;
     p.inventory.clear();
     for (unsigned i = 0; i < count; ++i) {
         LocalItemStack s; s.itemId = r.u32(); s.count = r.u16(); if(version>=33)s.instance=readItemInstance(r);
@@ -679,7 +683,7 @@ bool readProgress(Reader& r, LocalRealmPlayer& p, uint8_t version = SaveVersion)
         }
         for (auto& skill : p.professions) { skill.progress = r.u16(); if (skill.progress >= 1000) return false; }
     }
-    if(version>=15){for(auto& item:p.inventory)item.bagSlot=r.u8();if(!validLocalInventoryLayout(p))return false;}
+    if(version>=15){for(auto& item:p.inventory)item.bagSlot=r.u8();if(version<48 && !validLocalInventoryLayout(p))return false;}
     else normalizeLocalInventory(p);
     p.flight={};p.knownTaxiNodes.clear();p.ridingSkill=0;p.migrateLegacyRiding=version<16;
     if(version>=16){
@@ -763,6 +767,21 @@ bool readProgress(Reader& r, LocalRealmPlayer& p, uint8_t version = SaveVersion)
     }
     p.restedXp=0;p.restLastUnix=0;p.resting=false;
     if(version>=47){p.restedXp=r.u32();p.restLastUnix=r.u64();const auto resting=r.u8();if(resting>1||p.restedXp>100000000)return false;p.resting=resting!=0;}
+    p.bagContainers.fill({});
+    p.bankBagContainers.fill({});
+    if(version>=48){
+        for(auto& b:p.bagContainers){
+            b.itemId=r.u32();b.count=r.u16();b.instance=readItemInstance(r);
+            if(!validLocalItemInstance(b))return false;
+            if(b.itemId && !localItemContainerSlots(b.itemId))return false;
+        }
+        for(auto& b:p.bankBagContainers){
+            b.itemId=r.u32();b.count=r.u16();b.instance=readItemInstance(r);
+            if(!validLocalItemInstance(b))return false;
+            if(b.itemId && !localItemContainerSlots(b.itemId))return false;
+        }
+        if(!validLocalInventoryLayout(p))return false;
+    }
     return r.valid;
 }
 void writeHealingViews(Writer& w,const LocalRealmPlayer& p){
@@ -1612,7 +1631,7 @@ struct LocalRealm::Impl {
         }
         if(trade.state!=2)return reject("Wait for the other player to open the trade");
         if(cmd.action==LocalAction::TradeOffer) {
-            if(cmd.durationMinutes>=6 || cmd.buyout>=LocalGameplay::MaxInventory || cmd.target>65535)return reject("Invalid trade slot or quantity");
+            if(cmd.durationMinutes>=6 || cmd.buyout>=localPlayerStorageCapacity(player) || cmd.target>65535)return reject("Invalid trade slot or quantity");
             LocalTradeItem item;
             if(cmd.target){item={uint32_t(cmd.serviceNpcGuid>>32),uint16_t(cmd.target),uint16_t(cmd.serviceNpcGuid),uint8_t(cmd.buyout)};
                 if(!localTradeItemValid(player,item,gameplay.content()))return reject("Choose an unbound, unequipped stack with known item data");
@@ -1898,12 +1917,15 @@ struct LocalRealm::Impl {
         if (!asynchronous) { autosave.flush(); (void)autosave.takeFailure(); }
         if (auto* local = findSaved(self.guid)) local->player = self;
         for (const auto& record : saved) {
-            if (record.player.inventory.size() > LocalGameplay::MaxInventory || record.player.quests.size() > LocalGameplay::MaxQuests ||
+            if (record.player.inventory.size() > localPlayerStorageCapacity(record.player) || record.player.quests.size() > LocalGameplay::MaxQuests ||
                 record.player.knownSpells.size() > LocalGameplay::MaxSpells || record.player.cooldowns.size() > LocalGameplay::MaxCooldowns ||
                 record.player.knownRecipes.size() > LocalGameplay::MaxRecipes || record.player.knownTaxiNodes.size()>512 ||
                 record.player.professions.size() > LocalGameplay::MaxProfessions ||
                 !validBuyback(record.player.buybackSerial, record.player.buyback) ||
+                !validLocalInventoryLayout(record.player) ||
                 !std::all_of(record.player.inventory.begin(),record.player.inventory.end(),[](const auto& item){return validLocalItemInstance(item);}) ||
+                !std::all_of(record.player.bagContainers.begin(),record.player.bagContainers.end(),[](const auto& item){return validLocalItemInstance(item) && (!item.itemId || localItemContainerSlots(item.itemId) > 0);}) ||
+                !std::all_of(record.player.bankBagContainers.begin(),record.player.bankBagContainers.end(),[](const auto& item){return validLocalItemInstance(item) && (!item.itemId || localItemContainerSlots(item.itemId) > 0);}) ||
                 !std::all_of(record.player.bank.begin(),record.player.bank.end(),[](const auto& item){return validLocalItemInstance(item);}) ||
                 !validLocalCategoryCooldowns(record.player) || !validLocalStatAuras(record.player) || !validLocalTalents(record.player) ||
                 !record.player.phaseMask || !validLocalScriptStates(record.player.scriptStates) || !validLocalScriptTimers(record.player.scriptTimers) ||

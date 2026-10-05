@@ -283,8 +283,14 @@ bool localRecipeAllows(const LocalRecipe& recipe, const LocalRealmPlayer& player
 }
 
 bool localRecipeHasTools(const LocalRecipe& recipe, const LocalRealmPlayer& player) {
-    for (auto tool : recipe.tools) if (tool && std::none_of(player.inventory.begin(), player.inventory.end(),
-        [&](const auto& stack) { return stack.itemId == tool && stack.count; })) return false;
+    for (auto tool : recipe.tools) {
+        if (!tool) continue;
+        const bool inInventory = std::any_of(player.inventory.begin(), player.inventory.end(),
+            [&](const auto& stack) { return stack.itemId == tool && stack.count; });
+        const bool equipped = std::any_of(player.equipment.begin(), player.equipment.end(),
+            [&](uint32_t id) { return id == tool; });
+        if (!inInventory && !equipped) return false;
+    }
     return true;
 }
 

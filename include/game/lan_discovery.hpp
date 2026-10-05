@@ -13,7 +13,7 @@ namespace wowee::game::lan {
 // Discovery is deliberately separate from the authenticated gameplay messages.
 // No user identity, character data or address is advertised in the payload.
 inline constexpr uint16_t Port = 3725;
-inline constexpr uint8_t GameplayVersion = 112; // LAN112: shaman totems in the owned-creature roster (kind 3, up to 24); Save47.
+inline constexpr uint8_t GameplayVersion = 113; // LAN113: G6 bag containers and expanded storage; Save48.
 inline constexpr size_t MaxRealms = 32, MaxName = 48, QuerySize = 16, ReplySize = 80;
 inline constexpr double ScanSeconds = 3.0, ExpirySeconds = 10.0;
 inline bool validName(const std::string& name) {

@@ -5,13 +5,15 @@
 namespace wowee::game {
 // The vector remains dense for existing game rules. Physical backpack cells
 // are independent, so erasing vector entries does not relocate other stacks.
-inline std::array<uint8_t,24> localInventoryLayout(const LocalRealmPlayer& p) {
-    std::array<uint8_t,24> slots;slots.fill(255);std::array<bool,24> used{};
-    for(size_t i=0;i<std::min(p.inventory.size(),size_t(24));++i){
-        const auto slot=p.inventory[i].bagSlot;if(slot<24 && !used[slot]){slots[i]=slot;used[slot]=true;}
+inline std::vector<uint8_t> localInventoryLayout(const LocalRealmPlayer& p) {
+    const size_t cap = localPlayerStorageCapacity(p);
+    std::vector<uint8_t> slots(p.inventory.size(), 255);
+    std::vector<bool> used(cap, false);
+    for(size_t i=0;i<p.inventory.size();++i){
+        const auto slot=p.inventory[i].bagSlot;if(slot<cap && !used[slot]){slots[i]=slot;used[slot]=true;}
     }
-    for(size_t i=0;i<std::min(p.inventory.size(),size_t(24));++i)if(slots[i]==255)
-        for(uint8_t slot=0;slot<24;++slot)if(!used[slot]){slots[i]=slot;used[slot]=true;break;}
+    for(size_t i=0;i<p.inventory.size();++i)if(slots[i]==255)
+        for(uint8_t slot=0;slot<cap;++slot)if(!used[slot]){slots[i]=slot;used[slot]=true;break;}
     return slots;
 }
 inline void normalizeLocalInventory(LocalRealmPlayer& p) {
@@ -24,8 +26,10 @@ inline size_t localInventoryIndex(const LocalRealmPlayer& p,uint32_t slot) {
     return p.inventory.size();
 }
 inline bool validLocalInventoryLayout(const LocalRealmPlayer& p) {
-    std::array<bool,24> seen{};if(p.inventory.size()>seen.size())return false;
-    for(const auto& s:p.inventory){if(s.bagSlot>=24 || seen[s.bagSlot])return false;seen[s.bagSlot]=true;}
+    const size_t cap = localPlayerStorageCapacity(p);
+    if(p.inventory.size()>cap)return false;
+    std::vector<bool> seen(cap, false);
+    for(const auto& s:p.inventory){if(s.bagSlot>=cap || seen[s.bagSlot])return false;seen[s.bagSlot]=true;}
     return true;
 }
 inline bool validLocalItemInstance(const LocalItemStack& s) {
@@ -53,7 +57,7 @@ inline bool addLocalInventoryStack(LocalRealmPlayer& player,LocalItemStack incom
         const uint16_t n=std::min<uint16_t>(left,uint16_t(limit-stack.count));stack.count+=n;left-=n;if(!left)break;
     }
     while(left){
-        if(candidate.inventory.size()>=LocalGameplay::MaxInventory)return false;
+        if(candidate.inventory.size()>=localPlayerStorageCapacity(candidate))return false;
         LocalItemStack copy=incoming;copy.count=std::min<uint16_t>(left,limit);copy.bagSlot=255;candidate.inventory.push_back(copy);left-=copy.count;
     }
     normalizeLocalInventory(candidate);player=std::move(candidate);return true;

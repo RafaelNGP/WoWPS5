@@ -1482,6 +1482,204 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         }
         out << "PASS warrior mechanics: stances (Battle/Defensive/Berserker), bonus bar paging, Overpower, Revenge, Execute, Victory Rush, Disarm, shouts, Shield Block, Shield Slam, Shield Wall, Berserker Rage, Whirlwind\n";
     }
+
+    // -------------------------------------------------------------------------
+    // 6. Bags, Mining & Blacksmithing (G6)
+    // -------------------------------------------------------------------------
+    {
+        LocalGameplay world;
+        if (!world.loadContent(worldPath, error)) { out << error << "\n"; return false; }
+        world.useContent(world.sharedContent());
+        std::vector<LocalRealmPlayer*> players;
+        std::string res;
+
+        LocalRealmPlayer p;
+        p.guid = 101;
+        p.race = 1; // Human
+        p.classId = 1; // Warrior
+        p.level = 20;
+        p.money = 50000;
+        world.initializePlayer(p, true);
+        players.push_back(&p);
+
+        const auto pushItem = [&](uint32_t id, uint16_t count) {
+            std::vector<bool> seen(localPlayerStorageCapacity(p), false);
+            for (const auto& s : p.inventory) if (s.bagSlot < seen.size()) seen[s.bagSlot] = true;
+            uint8_t slot = 0;
+            while (slot < seen.size() && seen[slot]) ++slot;
+            p.inventory.push_back({id, count, slot});
+        };
+        const auto hasItem = [&](uint32_t id) {
+            uint32_t n = 0;
+            for (const auto& s : p.inventory) if (s.itemId == id) n += s.count;
+            return n;
+        };
+
+        // 6a. Base storage capacity is 24
+        SELFTEST_CHECK(localPlayerStorageCapacity(p) == 24);
+
+        // 6b. Bag equipping & dynamic capacity expansion
+        // Item 4496: Small Brown Pouch (6 slots, inventoryType 18)
+        pushItem(4496, 1);
+        SELFTEST_CHECK(world.execute(p, {LocalAction::EquipItem, 0, 4496}, players, res));
+        SELFTEST_CHECK(p.bagContainers[0].itemId == 4496);
+        SELFTEST_CHECK(localPlayerStorageCapacity(p) == 24 + 6); // 30 slots
+
+        // Equip a second bag in slot 2 (target 2)
+        // Item 4496: Small Brown Pouch (6 slots)
+        pushItem(4496, 1);
+        SELFTEST_CHECK(world.execute(p, {LocalAction::EquipItem, 2, 4496}, players, res));
+        SELFTEST_CHECK(p.bagContainers[1].itemId == 4496);
+        SELFTEST_CHECK(localPlayerStorageCapacity(p) == 24 + 6 + 6); // 36 slots
+
+        // Put an item into bag 1 (slot range: 24..29 for bag 0, 30..35 for bag 1)
+        LocalItemStack potion{118, 5, 25}; // In bag 0
+        p.inventory.push_back(potion);
+
+        // 6c. Unequip non-empty bag rejected
+        // Slot 19 corresponds to bagContainer 0
+        bool ok = world.execute(p, {LocalAction::UnequipItem, 0, 19}, players, res);
+        SELFTEST_CHECK(!ok); // Rejected because bag 0 is not empty!
+        SELFTEST_CHECK(p.bagContainers[0].itemId == 4496);
+
+        // Unequip empty bag 1 (slot 20) succeeds
+        ok = world.execute(p, {LocalAction::UnequipItem, 0, 20}, players, res);
+        SELFTEST_CHECK(ok);
+        SELFTEST_CHECK(p.bagContainers[1].itemId == 0);
+        SELFTEST_CHECK(localPlayerStorageCapacity(p) == 30);
+
+        // Move potion back to backpack (slot 5) and now unequip bag 0
+        p.inventory.erase(std::remove_if(p.inventory.begin(), p.inventory.end(), [](const auto& s){ return s.itemId == 118; }), p.inventory.end());
+        ok = world.execute(p, {LocalAction::UnequipItem, 0, 19}, players, res);
+        SELFTEST_CHECK(ok);
+        SELFTEST_CHECK(p.bagContainers[0].itemId == 0);
+        SELFTEST_CHECK(localPlayerStorageCapacity(p) == 24);
+
+        // 6d. Mining node harvesting with Mining Pick
+        // Learn Mining (skill 186)
+        p.professions.push_back({186, 1, 75, 0});
+        LocalGameObject vein;
+        vein.id = 990001;
+        vein.entry = 1731; // Copper Vein
+        vein.name = "Copper Vein";
+        vein.mapId = p.mapId;
+        vein.x = p.x + 1.0f;
+        vein.y = p.y;
+        vein.z = p.z;
+        vein.kind = LocalGameObjectKind::Resource;
+        vein.requiredSkillId = 186;
+        vein.requiredSkill = 1;
+        vein.useRadius = 5.0f;
+
+        auto contentPtr = std::make_shared<LocalWorldContent>(world.content());
+        contentPtr->gameObjects.push_back(vein);
+        std::sort(contentPtr->gameObjects.begin(), contentPtr->gameObjects.end(), [](const auto& a, const auto& b) { return a.id < b.id; });
+        world.useContent(contentPtr);
+
+        // Try mining without Mining Pick -> rejected
+        const uint32_t veinRev = world.gameObjectState(vein.id) ? world.gameObjectState(vein.id)->revision : 1;
+        const LocalRealmCommand mineCmd{LocalAction::UseGameObject, localGameObjectGuid(vein.id), vein.id, veinRev};
+        SELFTEST_CHECK(!world.execute(p, mineCmd, players, res));
+
+        // Add Mining Pick (2901) to inventory
+        pushItem(2901, 1);
+        SELFTEST_CHECK(world.execute(p, mineCmd, players, res));
+        // Verify ore obtained
+        SELFTEST_CHECK(hasItem(2770) >= 1); // Copper Ore
+
+        // 6e. Smelting at Forge (SpellFocus 3)
+        // Add Forge game object
+        LocalGameObject forge;
+        forge.id = 990002;
+        forge.entry = 4090;
+        forge.name = "Forge";
+        forge.mapId = p.mapId;
+        forge.x = p.x + 2.0f;
+        forge.y = p.y;
+        forge.z = p.z;
+        forge.kind = LocalGameObjectKind::Decorative;
+        contentPtr->gameObjects.push_back(forge);
+        std::sort(contentPtr->gameObjects.begin(), contentPtr->gameObjects.end(), [](const auto& a, const auto& b) { return a.id < b.id; });
+
+        // Recipe: Smelt Copper (2657)
+        LocalRecipe smeltCopper;
+        smeltCopper.spellId = 2657;
+        smeltCopper.skillId = 186;
+        smeltCopper.name = "Smelt Copper";
+        smeltCopper.createdItemId = 2840; // Copper Bar
+        smeltCopper.createdCount = 1;
+        smeltCopper.reagents = {{2770, 1}};
+        smeltCopper.requiresSpellFocus = 3; // Forge
+        contentPtr->recipes.push_back(smeltCopper);
+        std::sort(contentPtr->recipes.begin(), contentPtr->recipes.end(), [](const auto& a, const auto& b) { return a.spellId < b.spellId; });
+        p.knownRecipes.push_back(2657);
+
+        // Smelting near forge succeeds
+        SELFTEST_CHECK(world.execute(p, {LocalAction::CraftItem, 1, 2657}, players, res));
+        SELFTEST_CHECK(hasItem(2840) >= 1); // Copper Bar created!
+
+        // Smelting far from forge is rejected
+        for (auto& obj : contentPtr->gameObjects) {
+            if (obj.id == forge.id) { obj.x = p.x + 50.0f; break; }
+        }
+        SELFTEST_CHECK(!world.execute(p, {LocalAction::CraftItem, 1, 2657}, players, res));
+
+        // 6f. Blacksmithing at Anvil (SpellFocus 1) with Blacksmith Hammer (5956)
+        // Learn Blacksmithing (skill 164)
+        p.professions.push_back({164, 1, 75, 0});
+        LocalGameObject anvil;
+        anvil.id = 990003;
+        anvil.entry = 4087;
+        anvil.name = "Anvil";
+        anvil.mapId = p.mapId;
+        anvil.x = p.x + 2.0f;
+        anvil.y = p.y;
+        anvil.z = p.z;
+        anvil.kind = LocalGameObjectKind::Decorative;
+        contentPtr->gameObjects.push_back(anvil);
+        std::sort(contentPtr->gameObjects.begin(), contentPtr->gameObjects.end(), [](const auto& a, const auto& b) { return a.id < b.id; });
+
+        // Sharpening stone: focus 0, no hammer
+        LocalRecipe stoneRecipe;
+        stoneRecipe.spellId = 2660; // Rough Sharpening Stone
+        stoneRecipe.skillId = 164;
+        stoneRecipe.name = "Rough Sharpening Stone";
+        stoneRecipe.createdItemId = 2862;
+        stoneRecipe.createdCount = 1;
+        stoneRecipe.reagents = {{2835, 1}}; // Rough Stone
+        stoneRecipe.requiresSpellFocus = 0;
+        contentPtr->recipes.push_back(stoneRecipe);
+
+        // Weapon/gear recipe: requires Anvil (SpellFocus 1) and Blacksmith Hammer (5956)
+        LocalRecipe vestRecipe;
+        vestRecipe.spellId = 3321; // Copper Chain Vest
+        vestRecipe.skillId = 164;
+        vestRecipe.name = "Copper Chain Vest";
+        vestRecipe.createdItemId = 2853;
+        vestRecipe.createdCount = 1;
+        vestRecipe.reagents = {{2840, 1}}; // Copper Bar
+        vestRecipe.tools = {5956, 0}; // Blacksmith Hammer
+        vestRecipe.requiresSpellFocus = 1; // Anvil
+        contentPtr->recipes.push_back(vestRecipe);
+        std::sort(contentPtr->recipes.begin(), contentPtr->recipes.end(), [](const auto& a, const auto& b) { return a.spellId < b.spellId; });
+        p.knownRecipes.push_back(2660);
+        p.knownRecipes.push_back(3321);
+
+        // Craft sharpening stone without anvil/hammer
+        pushItem(2835, 2);
+        SELFTEST_CHECK(world.execute(p, {LocalAction::CraftItem, 1, 2660}, players, res));
+        SELFTEST_CHECK(hasItem(2862) >= 1);
+
+        // Try crafting without hammer -> rejected
+        SELFTEST_CHECK(!world.execute(p, {LocalAction::CraftItem, 1, 3321}, players, res));
+
+        // Add Blacksmith Hammer (5956) -> succeeds
+        pushItem(5956, 1);
+        SELFTEST_CHECK(world.execute(p, {LocalAction::CraftItem, 1, 3321}, players, res));
+        SELFTEST_CHECK(hasItem(2853) >= 1);
+
+        out << "PASS bags & professions (G6): bag container slots, dynamic inventory expansion, unequip restrictions, mining harvesting, smelting at forge, blacksmithing at anvil\n";
+    }
     return true;
 }
 #undef SELFTEST_CHECK

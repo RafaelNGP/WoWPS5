@@ -170,7 +170,8 @@ bool addItem(LocalRealmPlayer& p, const LocalWorldContent& c, uint32_t id, uint3
     const auto* def = c.item(id);
     if (!def || count > 65535) return false;
     for (const auto& existing : p.inventory) if (existing.itemId == id && existing.count > def->stack) return false;
-    uint32_t available = uint32_t(LocalGameplay::MaxInventory - std::min(p.inventory.size(), LocalGameplay::MaxInventory)) * def->stack;
+    const size_t cap = localPlayerStorageCapacity(p);
+    uint32_t available = uint32_t(cap - std::min(p.inventory.size(), cap)) * def->stack;
     for (const auto& stack : p.inventory) if (stack.itemId == id) available += def->stack - std::min(stack.count, def->stack);
     if (available < count) return false;
     normalizeLocalInventory(p);
@@ -491,12 +492,133 @@ bool validEquipment(const LocalRealmPlayer& p, const LocalWorldContent& c) {
     return !main || main->inventoryType != 17 || !p.equipment[localEquipmentIndex(LocalEquipmentSlot::OffHand)];
 }
 
+inline std::pair<uint8_t, uint8_t> localBagSlotRange(const LocalRealmPlayer& p, size_t bagIndex) {
+    if (bagIndex >= 4 || !p.bagContainers[bagIndex].itemId) return {0, 0};
+    uint8_t start = 24;
+    for (size_t i = 0; i < bagIndex; ++i) {
+        if (p.bagContainers[i].itemId) {
+            start += uint8_t(localItemContainerSlots(p.bagContainers[i].itemId));
+        }
+    }
+    uint8_t count = uint8_t(localItemContainerSlots(p.bagContainers[bagIndex].itemId));
+    return {start, uint8_t(start + count)};
+}
+
+inline bool localBagContainerEmpty(const LocalRealmPlayer& p, size_t bagIndex) {
+    auto [start, end] = localBagSlotRange(p, bagIndex);
+    if (start == end) return true;
+    for (const auto& item : p.inventory) {
+        if (item.bagSlot >= start && item.bagSlot < end) return false;
+    }
+    return true;
+}
+
 // Explicit target is slot+1, zero asks for an empty compatible slot followed
 // by deterministic replacement. Build a candidate before changing any stats.
 bool equipItem(LocalRealmPlayer& p, const LocalWorldContent& c, uint32_t id, uint64_t target, const char** why = nullptr) {
     const auto* item = c.item(id);
     const uint32_t owned = totalItem(p, id);
-    if (!item || !owned || target > kLocalEquipmentSlotCount || !validEquipment(p, c)) return false;
+    if (!item || !owned || !validEquipment(p, c)) return false;
+    if (item->inventoryType == 18) {
+        const auto bagSlots = localItemContainerSlots(id);
+        if (!bagSlots) {
+            if (why) *why = "Item is not a valid container";
+            return false;
+        }
+        auto it = std::find_if(p.inventory.begin(), p.inventory.end(), [&](const auto& s){ return s.itemId == id; });
+        if (it == p.inventory.end() || !it->count) {
+            if (why) *why = "Bag is not in your inventory";
+            return false;
+        }
+        bool isBank = false;
+        size_t bagIndex = 4;
+        if (target == 0) {
+            for (size_t i = 0; i < p.bagContainers.size(); ++i) {
+                if (!p.bagContainers[i].itemId) { bagIndex = i; break; }
+            }
+            if (bagIndex == 4) {
+                if (why) *why = "Bag slots are full";
+                return false;
+            }
+        } else if (target >= 1 && target <= 4) {
+            bagIndex = size_t(target - 1);
+        } else if (target >= 20 && target <= 23) {
+            bagIndex = size_t(target - 20);
+        } else if (target >= 24 && target <= 30) {
+            isBank = true;
+            bagIndex = size_t(target - 24);
+        } else {
+            if (why) *why = "Invalid container slot";
+            return false;
+        }
+
+        auto candidate = p;
+        normalizeLocalInventory(candidate);
+        auto candIt = std::find_if(candidate.inventory.begin(), candidate.inventory.end(), [&](const auto& s){ return s.itemId == id; });
+        if (candIt == candidate.inventory.end()) return false;
+        LocalItemStack newBag = *candIt;
+        newBag.count = 1;
+        newBag.bagSlot = 0;
+
+        if (isBank) {
+            if (candidate.bankBagContainers[bagIndex].itemId) {
+                LocalItemStack oldBag = candidate.bankBagContainers[bagIndex];
+                if (candIt->count > 1) --candIt->count;
+                else candidate.inventory.erase(candIt);
+                candidate.bankBagContainers[bagIndex] = newBag;
+                if (!addLocalInventoryStack(candidate, oldBag, c)) {
+                    if (why) *why = "Inventory full; cannot replace bank bag";
+                    return false;
+                }
+            } else {
+                if (candIt->count > 1) --candIt->count;
+                else candidate.inventory.erase(candIt);
+                candidate.bankBagContainers[bagIndex] = newBag;
+            }
+        } else {
+            if (candidate.bagContainers[bagIndex].itemId) {
+                if (!localBagContainerEmpty(candidate, bagIndex)) {
+                    if (why) *why = "Can only replace an empty bag";
+                    return false;
+                }
+                LocalItemStack oldBag = candidate.bagContainers[bagIndex];
+                auto [start, end] = localBagSlotRange(candidate, bagIndex);
+                const int diff = int(bagSlots) - int(end - start);
+                if (diff != 0) {
+                    for (auto& s : candidate.inventory) {
+                        if (s.bagSlot >= end) {
+                            s.bagSlot = uint8_t(int(s.bagSlot) + diff);
+                        }
+                    }
+                }
+                if (candIt->count > 1) --candIt->count;
+                else candidate.inventory.erase(candIt);
+                candidate.bagContainers[bagIndex] = newBag;
+                if (!addLocalInventoryStack(candidate, oldBag, c)) {
+                    if (why) *why = "Inventory full; cannot replace bag";
+                    return false;
+                }
+            } else {
+                if (candIt->count > 1) --candIt->count;
+                else candidate.inventory.erase(candIt);
+                uint8_t start = 24;
+                for (size_t i = 0; i < bagIndex; ++i) {
+                    if (candidate.bagContainers[i].itemId) start += uint8_t(localItemContainerSlots(candidate.bagContainers[i].itemId));
+                }
+                for (auto& s : candidate.inventory) {
+                    if (s.bagSlot >= start) {
+                        s.bagSlot += uint8_t(bagSlots);
+                    }
+                }
+                candidate.bagContainers[bagIndex] = newBag;
+            }
+        }
+        normalizeLocalInventory(candidate);
+        if (!validLocalInventoryLayout(candidate)) return false;
+        p = std::move(candidate);
+        return true;
+    }
+    if (target > kLocalEquipmentSlotCount) return false;
     if(const auto* meta=localAuctionMetadata(id)){
         const auto refuse=[&](const char* reason){if(why)*why=reason;return false;};
         if(!p.classId || p.classId>32 || !p.race || p.race>32)return false;
@@ -3415,6 +3537,7 @@ std::vector<uint32_t> LocalGameplay::craftableRecipes(const LocalRealmPlayer& p)
     for (auto spellId : p.knownRecipes) {
         const auto* recipe = content().recipe(spellId);
         if (!recipe || !localRecipeAllows(*recipe,p) || !localRecipeHasTools(*recipe,p)) continue;
+        if (recipe->requiresSpellFocus && !localPlayerNearSpellFocus(content(), p, recipe->requiresSpellFocus)) continue;
         const auto skill=std::find_if(p.professions.begin(),p.professions.end(),[&](const auto& row){return row.skillId==recipe->skillId;});
         if(skill==p.professions.end() || skill->current<recipe->requiredSkill)continue;
         bool haveAll = true;
@@ -5142,18 +5265,34 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
                 });
                 for(const auto& item:rolled)if(!addItem(staged,c,item.itemId,item.count))return reject("Inventory full; nothing was collected");
             }
+            if(object->kind==LocalGameObjectKind::Resource && object->loot.empty() && object->lootTable.empty()) {
+                if(object->entry==1731 || object->id==1731) {
+                    if(!addItem(staged,c,2770,1) || !addItem(staged,c,2835,1)) return reject("Inventory full; nothing was collected");
+                } else if(object->entry==1732 || object->id==1732) {
+                    if(!addItem(staged,c,2771,1) || !addItem(staged,c,2836,1)) return reject("Inventory full; nothing was collected");
+                } else if(object->entry==1735 || object->id==1735) {
+                    if(!addItem(staged,c,2772,1) || !addItem(staged,c,2838,1)) return reject("Inventory full; nothing was collected");
+                }
+            }
             if(uint64_t(staged.money)+object->money>1000000000ULL)return reject("Money limit; nothing was collected");
             staged.money+=object->money;
             if(object->persistent){next.status=kLocalGameObjectReady;next.remainingMs=0;}
             else {next.status=kLocalGameObjectDepleted;next.remainingMs=object->respawnMs;}
             // Gathering skill: Player::UpdateGatherSkill against the lock's
             // required value, accumulated like crafting (localCraftSkillChance).
-            if(object->kind==LocalGameObjectKind::Resource && object->requiredSkillId) {
-                auto learned=std::find_if(staged.professions.begin(),staged.professions.end(),[&](const auto& skill){return skill.skillId==object->requiredSkillId;});
-                if(learned!=staged.professions.end() && learned->current<learned->max) {
-                    learned->progress=uint16_t(learned->progress+localGatherSkillChance(learned->current,object->requiredSkill));
-                    while(learned->progress>=1000 && learned->current<learned->max){learned->progress=uint16_t(learned->progress-1000);++learned->current;}
-                    if(learned->current>=learned->max)learned->progress=0;
+            if(object->kind==LocalGameObjectKind::Resource) {
+                const bool isMining = (object->entry==1731||object->entry==1732||object->entry==1735||
+                                       object->id==1731||object->id==1732||object->id==1735);
+                const uint32_t skillId = object->requiredSkillId ? object->requiredSkillId : (isMining ? 186 : 0);
+                const uint32_t reqSkill = object->requiredSkill ? object->requiredSkill :
+                    (skillId == 186 ? (object->entry==1732||object->id==1732 ? 65 : (object->entry==1735||object->id==1735 ? 125 : 1)) : 0);
+                if(skillId) {
+                    auto learned=std::find_if(staged.professions.begin(),staged.professions.end(),[&](const auto& skill){return skill.skillId==skillId;});
+                    if(learned!=staged.professions.end() && learned->current<learned->max) {
+                        learned->progress=uint16_t(learned->progress+localGatherSkillChance(learned->current,reqSkill));
+                        while(learned->progress>=1000 && learned->current<learned->max){learned->progress=uint16_t(learned->progress-1000);++learned->current;}
+                        if(learned->current>=learned->max)learned->progress=0;
+                    }
                 }
             }
         } else if(object->kind==LocalGameObjectKind::Door) {
@@ -5824,7 +5963,8 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         const bool bank=cmd.action==LocalAction::BankWithdrawSlot;
         if(inCombat() || p.castingSpellId || p.flight.active || p.transportEntry)return reject("Cannot rearrange inventory now");
         if(bank && (!cmd.serviceNpcGuid || !serviceNpc(p,kLocalNpcFlagBanker,cmd.serviceNpcGuid)))return reject("Stand at the selected friendly banker");
-        if(!cmd.target || cmd.target>65535 || !cmd.id || cmd.id>(bank?kLocalBankSlots:24) || !cmd.buyout || cmd.buyout>24 || (!bank && cmd.id==cmd.buyout))return reject("Choose different valid inventory cells");
+        const size_t maxBackpackSlots = localPlayerStorageCapacity(p);
+        if(!cmd.target || cmd.target>65535 || !cmd.id || cmd.id>(bank?kLocalBankSlots:maxBackpackSlots) || !cmd.buyout || cmd.buyout>maxBackpackSlots || (!bank && cmd.id==cmd.buyout))return reject("Choose different valid inventory cells");
         auto candidate=p;normalizeLocalInventory(candidate);
         const auto sourceIndex=bank?size_t(cmd.id-1):localInventoryIndex(candidate,cmd.id-1);
         if(!bank && sourceIndex>=candidate.inventory.size())return reject("The source backpack cell is empty");
@@ -5837,7 +5977,7 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
             if(totalItem(p,originalDestination.itemId)<worn+originalDestination.count)return reject("Unequip that stack before swapping it into the bank");
         }
         if(destinationIndex==candidate.inventory.size()){
-            if(candidate.inventory.size()>=MaxInventory)return reject("Backpack full");
+            if(candidate.inventory.size()>=localPlayerStorageCapacity(candidate))return reject("Backpack full");
             candidate.inventory.push_back({0,0,uint8_t(cmd.buyout-1)});
         }
         auto& source=bank?candidate.bank[sourceIndex]:candidate.inventory[sourceIndex];
@@ -5959,6 +6099,9 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         if (!recipe) return reject("Your client's data no longer describes that recipe");
         if(!localRecipeAllows(*recipe,p))return reject(recipe->unsupportedReason.empty()?"This recipe is not available to your race or class":recipe->unsupportedReason);
         if(!localRecipeHasTools(*recipe,p))return reject("You need the required crafting tools in your inventory");
+        if(recipe->requiresSpellFocus && !localPlayerNearSpellFocus(c,p,recipe->requiresSpellFocus)) {
+            return reject(recipe->requiresSpellFocus == 1 ? "Requires an Anvil" : (recipe->requiresSpellFocus == 3 ? "Requires a Forge" : "Requires a spell focus"));
+        }
         auto skill = std::find_if(p.professions.begin(), p.professions.end(),
             [&](const LocalProfessionSkill& s) { return s.skillId == recipe->skillId; });
         if (skill == p.professions.end()) return reject("You no longer have that profession");
@@ -6119,6 +6262,8 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
     }
     if(cmd.action==LocalAction::EquipItem) {
         if(inCombat() || p.castingSpellId || p.flight.active || p.transportEntry)return reject("Cannot change equipment now");
+        if(cmd.target>=24 && cmd.target<=30 && (!cmd.serviceNpcGuid || !serviceNpc(p,kLocalNpcFlagBanker,cmd.serviceNpcGuid)))
+            return reject("Stand at a friendly banker");
         const auto* equipDef = c.item(cmd.id);
         if (equipDef && !localMeetsReputation(p, equipDef->requiredReputationFaction, equipDef->requiredReputationRank)) return reject("Requires higher reputation");
         const char* why = nullptr;
@@ -6127,6 +6272,47 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
     }
     if (cmd.action == LocalAction::UnequipItem) {
         if(inCombat() || p.castingSpellId || p.flight.active || p.transportEntry)return reject("Cannot change equipment now");
+        if (cmd.id >= 19 && cmd.id <= 22) {
+            const size_t bagIndex = size_t(cmd.id - 19);
+            if (!p.bagContainers[bagIndex].itemId) return reject("No bag in that slot");
+            if (!localBagContainerEmpty(p, bagIndex)) return reject("Bag must be empty before unequipping");
+            const auto* itemDef = c.item(p.bagContainers[bagIndex].itemId);
+            const size_t bagSlots = localItemContainerSlots(p.bagContainers[bagIndex].itemId);
+            const size_t curCap = localPlayerStorageCapacity(p);
+            const size_t newCap = curCap >= bagSlots ? curCap - bagSlots : 24;
+            if (p.inventory.size() + 1 > newCap) return reject("Inventory is full; free space before unequipping bag");
+            auto candidate = p;
+            LocalItemStack unequipped = candidate.bagContainers[bagIndex];
+            candidate.bagContainers[bagIndex] = {};
+            auto [start, end] = localBagSlotRange(p, bagIndex);
+            for (auto& item : candidate.inventory) {
+                if (item.bagSlot >= end) item.bagSlot -= uint8_t(end - start);
+            }
+            if (!addLocalInventoryStack(candidate, unequipped, c)) return reject("Inventory is full");
+            normalizeLocalInventory(candidate);
+            if (!validLocalInventoryLayout(candidate)) return reject("Inventory layout invalid");
+            p = std::move(candidate);
+            stats(p, c, false);
+            result = "Unequipped " + (itemDef ? itemDef->name : "Bag");
+            return true;
+        }
+        if (cmd.id >= 24 && cmd.id <= 30) {
+            if (!cmd.serviceNpcGuid || !serviceNpc(p, kLocalNpcFlagBanker, cmd.serviceNpcGuid)) return reject("Stand at a friendly banker");
+            const size_t bankIndex = size_t(cmd.id - 24);
+            if (!p.bankBagContainers[bankIndex].itemId) return reject("No bank bag in that slot");
+            const auto* itemDef = c.item(p.bankBagContainers[bankIndex].itemId);
+            if (p.inventory.size() >= localPlayerStorageCapacity(p)) return reject("Inventory is full");
+            auto candidate = p;
+            LocalItemStack unequipped = candidate.bankBagContainers[bankIndex];
+            candidate.bankBagContainers[bankIndex] = {};
+            if (!addLocalInventoryStack(candidate, unequipped, c)) return reject("Inventory is full");
+            normalizeLocalInventory(candidate);
+            if (!validLocalInventoryLayout(candidate)) return reject("Inventory layout invalid");
+            p = std::move(candidate);
+            stats(p, c, false);
+            result = "Unequipped " + (itemDef ? itemDef->name : "Bag");
+            return true;
+        }
         if (cmd.target || cmd.id >= p.equipment.size() || !p.equipment[cmd.id] || !validEquipment(p, c))
             return reject("Equipment slot cannot be cleared");
         const auto* item = c.item(p.equipment[cmd.id]);

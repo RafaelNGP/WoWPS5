@@ -33,6 +33,8 @@ inline uint64_t localTradeFingerprint(const LocalRealmPlayer& p) {
         add(item.itemId);add(item.count);add(slots[index++]);const auto& i=item.instance;add(i.instanceFlags);add(i.permanentEnchantId);add(i.temporaryEnchantId);
         for(auto socket:i.socketEnchantIds)add(socket);add(i.curDurability);add(i.maxDurability);add(uint32_t(i.randomPropertyId));add(i.suffixFactor);add(i.soulbound?1:0);
     }
+    for(const auto& b:p.bagContainers){add(b.itemId);add(b.count);}
+    for(const auto& b:p.bankBagContainers){add(b.itemId);add(b.count);}
     for(auto id:p.equipment)add(id);return h;
 }
 inline bool localTradeAvailable(const LocalRealmPlayer& p) {
@@ -66,7 +68,8 @@ inline bool prepareLocalTrade(const LocalTrade& trade,const LocalRealmPlayer& a,
     std::array<std::vector<LocalItemStack>,2> outgoing;
     for(unsigned side=0;side<2;++side) {
         if(trade.money[side]>originals[side]->money)return reject("Not enough money for this offer");
-        std::array<bool,LocalGameplay::MaxInventory> seen{};
+        const size_t cap = localPlayerStorageCapacity(*originals[side]);
+        std::vector<bool> seen(cap, false);
         for(const auto& item:trade.items[side])if(item.item){
             if(item.bag>=seen.size() || !localTradeItemValid(*originals[side],item,content) || seen[item.bag])return reject("An offered stack is stale, bound or equipped");
             seen[item.bag]=true;const auto index=localInventoryIndex(*originals[side],item.bag);
