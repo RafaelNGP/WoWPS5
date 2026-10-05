@@ -1356,6 +1356,11 @@ struct LocalSpellDefinition {
     // An absorb shield's RealPointsPerLevel (Ice Barrier): the amount is the
     // caster-level CalcValue at application, kept in the aura's snapshot.
     float buffAbsorbPerLevel = 0;
+    // SPELL_AURA_OBS_MOD_POWER (21) on mana for a class buff (Aspect of the
+    // Viper): this percent of maximum mana every interval
+    // (AuraEffect::HandleObsModPowerAuraTick).
+    uint8_t classBuffManaPct = 0;
+    uint32_t classBuffManaIntervalMs = 0;
 
     std::string iconPath, unsupportedReason;
 };

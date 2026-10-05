@@ -1435,6 +1435,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 else if(au==77&&localControlMechanic(misc))percentage=true; // Fear Ward: mechanic immunity
                 else if(au==149&&u(86+e)==1&&misc==127&&amount>0&&amount<=100)percentage=true; // Barkskin: no pushback
                 else if(au==42&&inertProc){} // Barkskin's proc: chance 0, no spell_proc row
+                else if(au==21&&u(86+e)==1&&!misc&&amount>0&&amount<=100&&u(98+e)>=1000&&u(98+e)<5000)percentage=true; // Viper: mana %
                 else modelled=false;
             }
             any=percentage&&modelled;
@@ -1541,6 +1542,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(au==39&&misc>0&&misc<=127)d.classBuffSchoolImmunity|=uint8_t(misc); // Divine Shield, Hand of Protection
             if(au==77&&localControlMechanic(misc))d.classBuffMechanicImmunity|=1u<<misc; // Fear Ward
             if(au==149&&tg==1&&misc==127&&amount>0&&amount<=100)d.classBuffPushbackPct=uint8_t(amount); // Barkskin
+            if(au==21&&tg==1&&!misc&&amount>0&&amount<=100&&u(98+effect)>=1000&&u(98+effect)<5000){d.classBuffManaPct=uint8_t(amount);d.classBuffManaIntervalMs=u(98+effect);}
             // Divine Shield's damage done and Divine Protection's damage taken.
             if(!presenceSpell&&tg==1&&misc==127&&amount<0&&amount>-100){if(au==79)d.classBuffDamagePct+=amount;else if(au==87)d.classBuffDamageTakenPct+=amount;}
             if(au==136&&tg==1&&misc==127&&amount>0&&amount<=1000)d.classBuffHealingDonePct+=amount; // Avenging Wrath

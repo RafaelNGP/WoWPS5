@@ -2887,7 +2887,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.controlDamageCapPct)|uint32_t(d.controlSingleTarget)<<8);hash(uint32_t(d.classBuffHealingTakenPct));hash(d.lifeTapAmount);hash(uint32_t(d.createItemUnique));hash(uint32_t(d.directLeechPct)|uint32_t(d.immolateBonus)<<16);
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
-        hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -7761,7 +7761,15 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                 a.procCooldownMs-=std::min(elapsedMs,a.procCooldownMs);
                 if(d->proc.charges&&!a.procCharges){a.remainingMs=0;continue;}
                 const bool hiddenMana=p->classId==11&&p->formSpellId&&p->resourceType!=LocalResourceType::Mana;
-                if(d->periodicHealMaxHealthPct) {
+                if(d->classBuff&&d->classBuffManaPct&&d->classBuffManaIntervalMs&&p->resourceType==LocalResourceType::Mana) {
+                    // HandleObsModPowerAuraTick: amount% of maximum mana each
+                    // period; the sub-5000 field holds the elapsed milliseconds.
+                    const uint32_t credit=a.manaRegenRemainder%d->classBuffManaIntervalMs+activeMs;
+                    a.manaRegenRemainder=credit%d->classBuffManaIntervalMs;
+                    const auto capacity=localManaCapacity(*p);
+                    for(uint32_t tick=0;tick<credit/d->classBuffManaIntervalMs;++tick)
+                        p->mana=uint32_t(std::min(uint64_t(capacity),uint64_t(p->mana)+uint64_t(capacity)*d->classBuffManaPct/100));
+                } else if(d->periodicHealMaxHealthPct) {
                     // This non-mana aura uses the persisted sub-5000 field as
                     // elapsed milliseconds. Reapplication resets to zero.
                     const uint32_t credit=a.manaRegenRemainder%d->periodicIntervalMs+activeMs;
