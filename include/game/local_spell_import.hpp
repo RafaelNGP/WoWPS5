@@ -1506,6 +1506,23 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         if(confuseControl&&type==6&&u(95+effect)==33&&u(86+effect)==6&&!u(89+effect)&&!u(116+effect))continue;
         if(confuseControl&&type==6&&u(95+effect)==56&&effect==1){d.controlTransformEntry=u(110+effect);continue;} // Polymorph's model
         if(fearControl&&effect==1)continue; // Fear's run speed (verified above).
+        // Raise Dead: its three effects are the script's (spell_dk_raise_dead);
+        // the guardian, its lifetime and the reagent come from 46585 and 48289.
+        if(!creatureCaster&&d.id==46584&&d.spellFamily==15) {
+            if(effect==1&&type==77&&!d.raiseDeadEntry) {
+                const auto radius=ClientSpellTables::lookup(t.radiusIndex,u(92+effect));
+                const auto guardian=ClientSpellTables::lookup(t.spellIndex,46585),reagent=ClientSpellTables::lookup(t.spellIndex,48289);
+                const float r=t.radii&&radius>=0?t.radii->getFloat(radius,1):0.f;
+                const auto gu=[&](uint32_t col){return t.spells->getUInt32(uint32_t(guardian),col);};
+                const auto durationRow=guardian>=0?ClientSpellTables::lookup(t.durationIndex,gu(40)):-1;
+                const int32_t duration=durationRow>=0?t.durations->getInt32(uint32_t(durationRow),1):0;
+                if(guardian<0||reagent<0||gu(71)!=28||!gu(110)||duration<=0||duration>600000||!std::isfinite(r)||r<=0||r>50)
+                    unavailable("Unreviewed Raise Dead rows");
+                else {d.raiseDeadEntry=gu(110);d.raiseDeadDurationMs=uint32_t(duration);d.raiseDeadRadius=r;
+                      d.raiseDeadReagent=t.spells->getUInt32(uint32_t(reagent),52);}
+            }
+            continue;
+        }
         // Pestilence: two dummies and the script effect around the target; the
         // script (spell_dk_pestilence) is the spread, its radius effect 2's.
         if(!creatureCaster&&d.id==50842&&d.spellFamily==15) {
@@ -1930,7 +1947,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if(harm&&!d.schoolMask&&(!creatureCaster||d.damage||d.periodicDamage))unavailable("Damaging spell has no school");
     if(buff&&(harm||healing)) unavailable("Mixed stat buffs and other effects are not implemented");
     if(harm&&healing) unavailable("Mixed hostile/friendly spells are not implemented");
-    if(!harm&&!healing&&!buff&&!d.formId&&!formBoost&&!formResource&&!summonPet&&!areaAura&&!d.controlProfile&&!d.createItemId&&!d.teleport&&!d.totemEntry&&!d.dispelMask&&!d.lifeTapAmount) unavailable("No supported direct or periodic damage/healing effect");
+    if(!harm&&!healing&&!buff&&!d.formId&&!formBoost&&!formResource&&!summonPet&&!areaAura&&!d.controlProfile&&!d.createItemId&&!d.teleport&&!d.totemEntry&&!d.dispelMask&&!d.lifeTapAmount&&!d.raiseDeadEntry) unavailable("No supported direct or periodic damage/healing effect");
     if(d.teleport&&(harm||healing||buff||d.createItemId))unavailable("Teleport beside other effects is not implemented");
     if(d.createItemId&&(harm||healing||buff))unavailable("Item creation beside other effects is not implemented");
     if(!creatureCaster){d.healingSelfOnly=healingTarget==1;d.buffSelfOnly=d.formId!=0||formBoost||formResource||buffTarget==1;}

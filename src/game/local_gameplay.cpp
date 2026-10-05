@@ -2332,6 +2332,29 @@ struct LocalGameplay::Impl {
             " power=",pets.back().power,"/",pets.back().maxPower);
         return true;
     }
+    /// A timed guardian of `entry` beside its owner (Raise Dead's ghoul): the
+    /// owner does not command it, PetAI follows and fights, and it leaves when
+    /// its lifetime runs out. The owner's level and the pet_levelstats row.
+    bool summonGuardian(LocalRealmPlayer& owner,uint32_t entry,uint32_t durationMs,uint32_t spellId) {
+        const auto* tmpl=localPetTemplate(entry);
+        const auto* def=content->npc(entry);
+        if((!tmpl&&!def)||!durationMs||durationMs>3600000||pets.size()>=kLocalMaxPets)return false;
+        if(size_t(std::count_if(pets.begin(),pets.end(),[&](const auto& p){return p.ownerGuid==owner.guid&&p.kind==LocalPetKind::Guardian;}))>=kLocalMaxGuardiansPerOwner)return false;
+        LocalRealmPet summon;
+        summon.guid=kLocalPetGuidPrefix|(uint64_t(owner.instanceId)<<32)|uint32_t(++nextPetSerial);
+        summon.ownerGuid=owner.guid;summon.summonEpoch=allocateSummonEpoch();
+        summon.entry=entry;summon.displayId=tmpl?tmpl->displayId:def->displayId;
+        summon.mapId=owner.mapId;summon.instanceId=owner.instanceId;
+        summon.summonSpellId=spellId;summon.kind=LocalPetKind::Guardian;summon.remainingMs=durationMs;
+        applyPetLevelStats(summon,owner.level);
+        summon.name=def?def->name:(tmpl?tmpl->name:std::string());
+        summon.command=kLocalPetDefaultCommand;summon.react=kLocalPetDefaultReact;
+        summon.x=owner.x;summon.y=owner.y;summon.z=owner.z;summon.orientation=owner.orientation;
+        if(!validLocalPet(summon))return false;
+        pets.push_back(std::move(summon));
+        LOG_INFO("[LOCAL_PET] owner=",owner.guid," pet=",pets.back().guid," entry=",entry," action=guardian spell=",spellId," ms=",durationMs);
+        return true;
+    }
     /// The hunter's kept beast, brought out (Call Pet, Tame Beast, Revive Pet
     /// at `healthPct`). Pet::CreateBaseAtCreature: the creature's own model and
     /// a focus pool, the owner's level, stats from the hunter pet row.
@@ -3126,7 +3149,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);}hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -6895,6 +6918,19 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(d->teleport&&(p.flight.active||p.transportEntry))return reject("You can't do that right now");
     // spell_warl_life_tap::CheckCast: more health than the tap (else it fizzles).
     if(d->excludeCasterAuraSpell&&localHoldsStatAura(p,d->excludeCasterAuraSpell))return reject("You can't do that yet");
+    // spell_dk_raise_dead: a humanoid corpse that gives experience within the
+    // radius (RaiseDeadCheck), or else the reagent of 48289 (Corpse Dust).
+    bool raiseFromCorpse=false;
+    if(d->raiseDeadEntry) {
+        raiseFromCorpse=std::any_of(g.npcs.begin(),g.npcs.end(),[&](const auto& m){
+            return m.dead&&m.mapId==p.mapId&&m.instanceId==p.instanceId&&localNpcCreatureType(m.entry)==7&&
+                   m.level>localProcGrayLevel(p.level)&&m.displayId==(c.npc(m.entry)?c.npc(m.entry)->displayId:m.displayId)&&
+                   distance2(p.x,p.y,p.z,m.x,m.y,m.z)<=d->raiseDeadRadius*d->raiseDeadRadius;});
+        if(!raiseFromCorpse&&(!d->raiseDeadReagent||totalItem(p,d->raiseDeadReagent)<1)) {
+            const auto* reagent=c.item(d->raiseDeadReagent);
+            return reject("Missing reagent: "+(reagent?reagent->name:std::string("Corpse Dust")));
+        }
+    }
     if(d->forbearanceCheck||d->excludeTargetAuraSpell) {
         const LocalRealmPlayer* target=&p;
         if(!d->buffSelfOnly)for(const auto* q:players)if(q&&q->guid==cmd.target)target=q;
@@ -7899,6 +7935,10 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         p.attackTarget=n->guid;
     }
     if(d->summonPetEntry&&!g.summonPet(p,*d,players))return reject("The summon could not be created");
+    if(d->raiseDeadEntry) {
+        if(!g.summonGuardian(p,d->raiseDeadEntry,d->raiseDeadDurationMs,d->id))return reject("The summon could not be created");
+        if(!raiseFromCorpse)removeItem(p,d->raiseDeadReagent,1); // 48289: no corpse, the reagent
+    }
     if(d->totemEntry&&!g.summonTotem(p,*d,players))return reject("The totem could not be placed");
     if(d->areaAuraProfile) {
         // IsAuraExclusiveBySpecificPerCasterWith: one aura of this exclusivity

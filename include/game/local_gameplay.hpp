@@ -1445,6 +1445,11 @@ struct LocalSpellDefinition {
     // 20% of what it absorbs returned as runic power; and no new aura of these
     // schools lands on the holder (SPELL_AURA_MOD_IMMUNE_AURA_APPLY_SCHOOL).
     uint8_t magicShellAbsorbPct = 0, magicShellHealthPct = 0, classBuffAuraImmunitySchool = 0;
+    // Raise Dead (spell_dk_raise_dead): a guardian of this creature for this
+    // long (46585's summon), raised from a humanoid corpse that gives
+    // experience within the radius, or else from this reagent (48289's).
+    uint32_t raiseDeadEntry = 0, raiseDeadDurationMs = 0, raiseDeadReagent = 0;
+    float raiseDeadRadius = 0;
     // SPELL_AURA_REDUCE_PUSHBACK (149) on a class buff (Barkskin): percent.
     uint8_t classBuffPushbackPct = 0;
     // An absorb shield's RealPointsPerLevel (Ice Barrier): the amount is the
