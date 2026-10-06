@@ -1312,6 +1312,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         const float r=t.radii&&radius>=0?t.radii->getFloat(radius,1):0.f;
         if(std::isfinite(r)&&r>0&&r<=40){d.partyHealRadius=r;d.chainMultiplierPermille=1000;}else unavailable("Unreviewed party heal radius");
     }
+    // Cloak of Shadows: the spell-hit reduction, the server-side 35729 (a
+    // magic dispel of the rogue) and an empty physical damage-taken hook.
+    const bool cloakSpell=!creatureCaster&&d.spellFamily==8&&u(71)==6&&u(95)==186&&u(86)==1&&u(110)==126&&u(72)==64&&u(117)==35729&&
+        u(73)==6&&u(97)==87&&u(112)==1&&i(82)+int32_t(u(76))==0&&u(40);
     if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!rootControl&&!incinerate&&!innerFire&&!chillArmor&&!frostNova&&!areaFear&&!intimidatingShout&&!vanishSpell&&!spellReflection&&!retaliation&&!recklessness&&!sealKind&&d.id!=1784&&d.id!=21084&&d.id!=20154&&
        !(d.id==6346&&u(spell335::ProcCharges)==1)&&!(d.id==22812&&!u(spell335::ProcChance))) // Fear Ward's immunity charge, Barkskin's inert proc (classBuff) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
@@ -1960,6 +1964,12 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         if(!creatureCaster&&(d.spellFamily==6||d.spellFamily==7)&&u(71)==6&&u(95)==23&&u(86)==21&&u(98)>=1000&&u(116)&&
            u(72)==38&&u(87)==21&&(u(111)==3||u(111)==4)&&!u(73)&&d.durationMs&&d.durationMs<=60000) {
             if(effect==0){d.classBuffDispelMask=uint8_t(1u<<u(111));d.classBuffDispelIntervalMs=u(98);d.classBuff=true;buff=true;buffTarget=21;}
+            continue;
+        }
+        if(cloakSpell) {
+            if(effect==0){const int32_t amount=i(80)+int32_t(u(74));
+                if(amount<0&&amount>=-100){d.classBuffSpellHitTakenPct=int8_t(amount);d.classBuffSpellHitTakenSchool=126;d.classBuff=true;buff=true;buffTarget=1;}
+                else unavailable("Unreviewed Cloak of Shadows amount");}
             continue;
         }
         if(fanOfKnives&&effect==0) {

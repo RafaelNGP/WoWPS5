@@ -1607,6 +1607,11 @@ struct LocalSpellDefinition {
     // Scorpid Sting: SPELL_AURA_MOD_HIT_CHANCE (54) down on the creature, as
     // the hunter's creature aura (its melee misses that much more often).
     int8_t targetDebuffHitChancePct = 0;
+    // Cloak of Shadows: SPELL_AURA_MOD_ATTACKER_SPELL_HIT_CHANCE (186) on its
+    // schools, creature spells of those schools that much likelier to miss;
+    // 35729 (server-side) removes the magic debuffs at once.
+    int8_t classBuffSpellHitTakenPct = 0;
+    uint8_t classBuffSpellHitTakenSchool = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.

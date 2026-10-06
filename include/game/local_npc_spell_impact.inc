@@ -18,7 +18,12 @@
         // multiplier 7. These whole-entry profiles have no hit/avoidance auras.
         const int32_t difference=int32_t(target.level)-int32_t(n.level);
         const int32_t hitPercent=difference<3?96-difference:94-(difference-2)*7;
-        const uint32_t miss=uint32_t(10000-std::clamp(hitPercent*100,100,10000));
+        // SPELL_AURA_MOD_ATTACKER_SPELL_HIT_CHANCE on the target (Cloak of Shadows),
+        // added to the hit chance before the clamp.
+        int32_t attackerHit=0;
+        for(const auto& st:target.statAuras)if(st.remainingMs)if(const auto* bd=content->spell(st.spellId);bd&&bd->classBuff&&
+            bd->classBuffSpellHitTakenPct&&(bd->classBuffSpellHitTakenSchool&d.schoolMask))attackerHit+=bd->classBuffSpellHitTakenPct;
+        const uint32_t miss=uint32_t(10000-std::clamp((hitPercent+attackerHit)*100,100,10000));
         // The pinned source draws 1..10000 and uses a strict less-than test.
         return meleeRoll()+1<miss;
     }
