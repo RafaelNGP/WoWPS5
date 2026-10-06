@@ -1601,6 +1601,9 @@ struct LocalSpellDefinition {
     // Mage Armor: SPELL_AURA_MOD_MANA_REGEN_INTERRUPT (134), the share of the
     // spirit regeneration kept while casting (the five-second rule).
     uint8_t classBuffManaRegenInterruptPct = 0;
+    // Prayer of Healing: TARGET_UNIT_LASTTARGET_AREA_PARTY, the heal on its
+    // target and each party member of the target's within this radius of it.
+    float partyHealRadius = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.

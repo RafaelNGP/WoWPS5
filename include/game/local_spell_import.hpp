@@ -1304,6 +1304,14 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // 20164): a PROC_TRIGGER_SPELL on the paladin beside an empty modifier.
     const uint8_t sealKind=creatureCaster||d.spellFamily!=10||u(71)!=6||u(95)!=42||u(86)!=1||u(spell335::ProcFlags)!=0x14u?0:
         u(116)==20167?2:u(116)==20168?3:u(116)==20170?4:0;
+    // Prayer of Healing: one HEAL at the friendly target and its party around it
+    // (21/37), with the radius of that area.
+    const bool partyHeal=!creatureCaster&&d.spellFamily==6&&u(71)==10&&u(86)==21&&u(89)==37&&!u(72)&&!u(73);
+    if(partyHeal) {
+        const auto radius=ClientSpellTables::lookup(t.radiusIndex,u(92));
+        const float r=t.radii&&radius>=0?t.radii->getFloat(radius,1):0.f;
+        if(std::isfinite(r)&&r>0&&r<=40){d.partyHealRadius=r;d.chainMultiplierPermille=1000;}else unavailable("Unreviewed party heal radius");
+    }
     if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!rootControl&&!incinerate&&!innerFire&&!chillArmor&&!frostNova&&!areaFear&&!intimidatingShout&&!vanishSpell&&!spellReflection&&!retaliation&&!recklessness&&!sealKind&&d.id!=1784&&d.id!=21084&&d.id!=20154&&
        !(d.id==6346&&u(spell335::ProcCharges)==1)&&!(d.id==22812&&!u(spell335::ProcChance))) // Fear Ward's immunity charge, Barkskin's inert proc (classBuff) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
@@ -1874,7 +1882,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             buffTarget=(tg==21||tg==25)?tg:(buffTarget?buffTarget:1);
             continue;
         }
-        const auto secondary=u(89+effect);
+        auto secondary=u(89+effect);
         // A heal at TARGET_UNIT_TARGET_CHAINHEAL_ALLY with no chain targets
         // (Healing Wave ranks 1-10) heals one ally, as TARGET_UNIT_TARGET_ALLY.
         const auto target=(u(86+effect)==45&&!chainHeal&&type==10&&u(104+effect)<=1&&!secondary)?21u:u(86+effect);
@@ -1977,6 +1985,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             }
             continue; // the target's stun (runtime) and the fleeing run speed, as Fear's
         }
+        if(partyHeal&&effect==0)secondary=0; // the party area is partyHealRadius's
         if(!arcaneExplosion && !(type==5&&target==1&&secondary==17) && !(d.groundRadius&&type==2&&target==16&&!secondary) && (secondary || (target!=1&&target!=6&&target!=21&&target!=25&&!(chainHeal&&target==45)))) unavailable("Area or scripted targeting is not implemented");
         if(type==6 && (u(95+effect)==3 || u(95+effect)==8) && (((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!deathItemChannel&&!rootControl)||u(116+effect)))
             unavailable("Periodic proc, charge or triggered effects are not implemented");
