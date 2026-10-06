@@ -442,6 +442,9 @@ LocalRegenerationRates localRegenerationRates(const LocalRealmPlayer& p,const Lo
             for(size_t stat=0;stat<talent->passiveManaRegenStatPct.size();++stat)
                 statManaPerSecond+=double(std::max(0,stats.attributes[stat]))*talent->passiveManaRegenStatPct[stat]/500.0;
         }
+        // Mage Armor: a class buff's aura 134 adds to the talents' share.
+        if(!p.dead)for(const auto& st:p.statAuras)if(st.remainingMs)if(const auto* d=c.spell(st.spellId);d&&d->classBuff&&d->classBuffManaRegenInterruptPct)
+            interruptedSpiritPct=std::min(100u,interruptedSpiritPct+d->classBuffManaRegenInterruptPct);
         rate.manaSpiritCoefficient=spirit*it->mana;
         const double spiritManaPerSecond=std::sqrt(double(std::max(0,stats.attributes[3])))*rate.manaSpiritCoefficient;
         const double fixedManaPerSecond=double(std::clamp(mp5,int64_t(0),int64_t(1000000)))/5+statManaPerSecond;

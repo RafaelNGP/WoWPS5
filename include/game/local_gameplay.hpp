@@ -1598,6 +1598,9 @@ struct LocalSpellDefinition {
     // at once, and again every classBuffDispelIntervalMs while the aura holds.
     uint8_t classBuffDispelMask = 0;
     uint32_t classBuffDispelIntervalMs = 0;
+    // Mage Armor: SPELL_AURA_MOD_MANA_REGEN_INTERRUPT (134), the share of the
+    // spirit regeneration kept while casting (the five-second rule).
+    uint8_t classBuffManaRegenInterruptPct = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.

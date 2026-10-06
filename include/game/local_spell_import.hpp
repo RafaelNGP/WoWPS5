@@ -1578,6 +1578,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 // Flash of Light, Holy Shock: its class mask), as healing done.
                 else if(au==108&&d.id==54428&&u(86+e)==1&&!misc&&amount<0&&amount>-100)percentage=true;
                 else if(au==103&&u(86+e)==1&&!misc&&amount<0)percentage=true; // Fade
+                else if(au==134&&u(86+e)==1&&!misc&&amount>0&&amount<=100&&d.spellFamily==3)percentage=true; // Mage Armor: regeneration while casting
+                else if(au==22&&u(86+e)==1&&misc==126&&amount>0&&d.spellFamily==3){} // Mage Armor's resistances: player resistance is not modelled
                 else if(au==13&&u(86+e)==1&&misc==1&&amount>0&&amount<=10000&&d.spellFamily==7)percentage=true; // Tiger's Fury
                 else if(au==10&&u(86+e)==1&&misc>0&&misc<=127&&amount>0&&amount<=1000)percentage=true; // Righteous Fury: school threat
                 else if(au==28&&spellReflection)percentage=true; // Spell Reflection
@@ -1847,6 +1849,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(au==136&&tg==1&&misc==127&&amount>0&&amount<=1000)d.classBuffHealingDonePct+=amount; // Avenging Wrath
             if(au==108&&d.id==54428&&tg==1&&!misc&&amount<0&&amount>-100)d.classBuffHealingDonePct+=amount; // Divine Plea
             if(au==13&&tg==1&&misc==1&&amount>0&&amount<=10000&&d.spellFamily==7)d.classBuffWeaponDamageFlat=amount; // Tiger's Fury
+            if(au==134&&tg==1&&!misc&&amount>0&&amount<=100&&d.spellFamily==3)d.classBuffManaRegenInterruptPct=uint8_t(amount); // Mage Armor
             if(au==103&&tg==1&&!misc&&amount<0)d.classBuffThreatReduction=uint32_t(std::min<int64_t>(-int64_t(amount),1000000000)); // Fade
             if(au==10&&tg==1&&misc>0&&misc<=127&&amount>0&&amount<=1000){d.classBuffThreatPct=int16_t(amount);d.classBuffThreatSchool=uint8_t(misc);} // Righteous Fury
             if(au==28&&spellReflection&&amount>0&&amount<=100)d.classBuffReflectPct=uint8_t(amount); // Spell Reflection
