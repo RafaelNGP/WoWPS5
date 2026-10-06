@@ -71,9 +71,9 @@ int main(int argc,char** argv){
                 d.passiveMechanicDurationPct[0]==-25*rank&&d.passiveMechanicDurationNotStack[0]);break;
             case 1653: check(d.passiveTotalStatPct[2]==3*rank&&d.passiveTotalStatPct[0]==2*rank&&d.passiveExpertise==2*rank);break;
             case 1862: check(d.passiveTotalStatPct[0]==2*rank&&d.passiveTotalStatPct[2]==2*rank&&d.passiveExpertise==2*rank);break;
-            case 126: case 131: case 141: case 142: case 158: case 161: case 166: case 1655:
+            case 126: case 131: case 141: case 142: case 158: case 161: case 166: case 662: case 1655:
                 check(d.spellFamily==4&&d.passiveCastModifiers[0].active);break;
-            default: check(false);
+            default: check(d.warriorProc!=0);break; // proc talents: local_warrior_procs_test checks each one
         }
         LocalSpellDefinition wrong;check(!decode(r,wrong,2));check(!decode(r,wrong,1,6));
         const auto row=detail::ClientSpellTables::lookup(t.spellIndex,r.spellId);
@@ -86,7 +86,7 @@ int main(int argc,char** argv){
         }
         check(tables["Spell"].load(bytes["Spell"]));
     }
-    check(records==73);
+    check(records==120);
 
     // 2. The full importer admits them, and normal learning follows the tree.
     auto table=[&](const char* name){return &tables.at(name);};
@@ -190,7 +190,7 @@ int main(int argc,char** argv){
     w.talents={{158,2}};check(localSpellDuration(w,c,*shout)==localSpellDuration(base,c,*shout)*3/2);
     check(localTalentCastModifier(w,c,*demo,6,true)==50);
 
-    std::cout<<"PASS: "<<records<<" reviewed Warrior talent ranks (15 talents) decoded with exact amounts; "<<mutations
+    std::cout<<"PASS: "<<records<<" reviewed Warrior talent ranks (38 talents) decoded with exact amounts; "<<mutations
              <<" gameplay-column mutation rejections; rage costs, Intensify Rage cooldown, dodge/parry/expertise/stat/"
                "armor/armor-penetration/weapon-damage and mechanic-duration runtime\n";
 }
