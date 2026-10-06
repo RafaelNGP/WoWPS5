@@ -480,6 +480,149 @@ bool LocalFrameXml::toggleGameMenu() {
     return engine_->executeString(ui::kToggleLocalGameMenuLua);
 }
 
+bool LocalFrameXml::cyclePadTab(int delta) {
+    if(!ready() || !engine_ || delta == 0) return false;
+    auto& tree = engine_->widgets();
+    const auto* root = panel(tree);
+    if(!root) return false;
+    if(ui::padModalPanel(root->name)) return false;
+
+    std::string panelName = root->name;
+    if(focus_) {
+        if(const auto* owner = ui::padOwningPanel(tree, tree.get(focus_))) {
+            if(!ui::padModalPanel(owner->name)) panelName = owner->name;
+        }
+    }
+
+    const std::string lua =
+        "local panel = \"" + panelName + "\"\n"
+        "local delta = " + std::to_string(delta) + "\n"
+        "local switched = false\n"
+        "local function cycle(tabs, current, onSelect)\n"
+        "    if not tabs or #tabs < 2 then return false end\n"
+        "    local curIdx = 1\n"
+        "    for idx, tabId in ipairs(tabs) do\n"
+        "        if tabId == current then curIdx = idx; break end\n"
+        "    end\n"
+        "    local nextIdx = curIdx + delta\n"
+        "    if nextIdx > #tabs then nextIdx = 1 end\n"
+        "    if nextIdx < 1 then nextIdx = #tabs end\n"
+        "    local target = tabs[nextIdx]\n"
+        "    if onSelect then onSelect(target); return true end\n"
+        "    return false\n"
+        "end\n"
+        "if panel == \"SpellBookFrame\" then\n"
+        "    local tabs = {}\n"
+        "    local maxTabs = MAX_SKILLLINE_TABS or 8\n"
+        "    for i = 1, maxTabs do\n"
+        "        local t = _G[\"SpellBookSkillLineTab\" .. i]\n"
+        "        if t and t.IsShown and t:IsShown() then table.insert(tabs, i) end\n"
+        "    end\n"
+        "    local current = (SpellBookFrame and SpellBookFrame.selectedSkillLine) or 1\n"
+        "    switched = cycle(tabs, current, function(target)\n"
+        "        local btn = _G[\"SpellBookSkillLineTab\" .. target]\n"
+        "        if btn then\n"
+        "            if btn.Click then btn:Click() end\n"
+        "            if SpellBookSkillLineTab_OnClick and SpellBookFrame and SpellBookFrame.selectedSkillLine ~= target then\n"
+        "                SpellBookSkillLineTab_OnClick(btn, target)\n"
+        "            end\n"
+        "        end\n"
+        "    end)\n"
+        "elseif panel == \"CharacterFrame\" then\n"
+        "    local tabs = {}\n"
+        "    local numTabs = (CharacterFrame and CharacterFrame.numTabs) or 5\n"
+        "    for i = 1, numTabs do\n"
+        "        local t = _G[\"CharacterFrameTab\" .. i]\n"
+        "        if t and t.IsShown and t:IsShown() then table.insert(tabs, i) end\n"
+        "    end\n"
+        "    local current = (PanelTemplates_GetSelectedTab and CharacterFrame and PanelTemplates_GetSelectedTab(CharacterFrame))\n"
+        "        or (CharacterFrame and CharacterFrame.selectedTab) or 1\n"
+        "    switched = cycle(tabs, current, function(target)\n"
+        "        local btn = _G[\"CharacterFrameTab\" .. target]\n"
+        "        if btn then\n"
+        "            if btn.Click then btn:Click() end\n"
+        "            if CharacterFrameTab_OnClick and CharacterFrame and CharacterFrame.selectedTab ~= target then\n"
+        "                CharacterFrameTab_OnClick(btn, target)\n"
+        "            elseif PanelTemplates_SetTab and CharacterFrame and CharacterFrame.selectedTab ~= target then\n"
+        "                PanelTemplates_SetTab(CharacterFrame, target)\n"
+        "                if CharacterFrame_ShowSubFrame then CharacterFrame_ShowSubFrame(target) end\n"
+        "            end\n"
+        "        end\n"
+        "    end)\n"
+        "elseif panel == \"PlayerTalentFrame\" or panel == \"TalentFrame\" then\n"
+        "    local prefix = (PlayerTalentFrame and PlayerTalentFrame.IsShown and PlayerTalentFrame:IsShown()) and \"PlayerTalentFrame\" or \"TalentFrame\"\n"
+        "    local frame = _G[prefix]\n"
+        "    local tabs = {}\n"
+        "    for i = 1, 3 do\n"
+        "        local t = _G[prefix .. \"Tab\" .. i]\n"
+        "        if t and t.IsShown and t:IsShown() then table.insert(tabs, i) end\n"
+        "    end\n"
+        "    local current = (PanelTemplates_GetSelectedTab and frame and PanelTemplates_GetSelectedTab(frame))\n"
+        "        or (frame and frame.selectedTab) or 1\n"
+        "    switched = cycle(tabs, current, function(target)\n"
+        "        local btn = _G[prefix .. \"Tab\" .. target]\n"
+        "        if btn then\n"
+        "            if btn.Click then btn:Click() end\n"
+        "            local onClick = _G[prefix .. \"Tab_OnClick\"]\n"
+        "            if onClick and frame and frame.selectedTab ~= target then\n"
+        "                onClick(btn, target)\n"
+        "            elseif PanelTemplates_SetTab and frame and frame.selectedTab ~= target then\n"
+        "                PanelTemplates_SetTab(frame, target)\n"
+        "                local refresh = _G[prefix .. \"_Refresh\"] or _G[prefix .. \"_Update\"]\n"
+        "                if refresh then refresh() end\n"
+        "            end\n"
+        "        end\n"
+        "    end)\n"
+        "else\n"
+        "    local frame = _G[panel]\n"
+        "    local tabs = {}\n"
+        "    local numTabs = (frame and frame.numTabs) or 10\n"
+        "    local tabPrefix = panel .. \"Tab\"\n"
+        "    for i = 1, numTabs do\n"
+        "        local t = _G[tabPrefix .. i]\n"
+        "        if t and t.IsShown and t:IsShown() then table.insert(tabs, i) end\n"
+        "    end\n"
+        "    if #tabs == 0 then\n"
+        "        tabPrefix = panel .. \"SkillLineTab\"\n"
+        "        for i = 1, 8 do\n"
+        "            local t = _G[tabPrefix .. i]\n"
+        "            if t and t.IsShown and t:IsShown() then table.insert(tabs, i) end\n"
+        "        end\n"
+        "    end\n"
+        "    if #tabs > 1 then\n"
+        "        local current = (PanelTemplates_GetSelectedTab and frame and PanelTemplates_GetSelectedTab(frame))\n"
+        "            or (frame and frame.selectedTab) or 1\n"
+        "        switched = cycle(tabs, current, function(target)\n"
+        "            local btn = _G[tabPrefix .. target]\n"
+        "            if btn then\n"
+        "                if btn.Click then btn:Click() end\n"
+        "                local onClick = _G[panel .. \"Tab_OnClick\"]\n"
+        "                if onClick and frame and frame.selectedTab ~= target then\n"
+        "                    onClick(btn, target)\n"
+        "                elseif PanelTemplates_SetTab and frame and frame.selectedTab ~= target then\n"
+        "                    PanelTemplates_SetTab(frame, target)\n"
+        "                end\n"
+        "            end\n"
+        "        end)\n"
+        "    end\n"
+        "end\n"
+        "__WoWPSTabSwitched = switched or false\n";
+
+    if(engine_->executeString(lua)) {
+        auto* L = engine_->getState();
+        if(L) {
+            lua_getglobal(L, "__WoWPSTabSwitched");
+            const bool switched = lua_toboolean(L, -1) != 0;
+            lua_pop(L, 1);
+            if(switched) {
+                LOG_INFO("[PAD_UI] Tab cycled on panel=", panelName, " delta=", delta);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 bool LocalFrameXml::panelOpen() const {return ready() && panel(engine_->widgets());}
 bool LocalFrameXml::navigate() {
     // Same guard as the bar lane: every exit leaves the carried icon where the
@@ -657,20 +800,40 @@ bool LocalFrameXml::navigate() {
             return true;
         }
     }
-    // Shoulder scrolling uses the same clipped hit-test path as a real wheel.
-    if(focused && ((ImGui::IsKeyPressed(ImGuiKey_GamepadL1) && !ui::interfaceConsumedKey(ImGuiKey_GamepadL1)) ||
-                  (ImGui::IsKeyPressed(ImGuiKey_GamepadR1) && !ui::interfaceConsumedKey(ImGuiKey_GamepadR1)))) {
-        const auto focusedId=focused->id;
-        const auto point=controlPoint(focused);
-        if(!point)return true;
-        engine_->dispatchMouseWheel(point->x*tree.uiScale(),point->y*tree.uiScale(),
-                                    ImGui::IsKeyPressed(ImGuiKey_GamepadL1)?1:-1);
-        ui::noteInterfaceConsumedKey(ImGuiKey_GamepadL1);ui::noteInterfaceConsumedKey(ImGuiKey_GamepadR1);
-        // OnMouseWheel can create/reparent/hide controls. WidgetTree owns a
-        // vector, so the pointer from before a Lua callback may be dangling.
-        if (!ready()) return true;
-        focused=tree.get(focusedId);
-        if (!eligible(focused)) {focus_=0;return true;}
+    // Shoulder button tab navigation or scrolling.
+    // When a tabbed panel is open, L1 (previous tab) and R1 (next tab) cycle
+    // through available tabs smoothly. Otherwise, fall back to scrolling.
+    bool shoulderL1 = ImGui::IsKeyPressed(ImGuiKey_GamepadL1, false) && !ui::interfaceConsumedKey(ImGuiKey_GamepadL1);
+    bool shoulderR1 = ImGui::IsKeyPressed(ImGuiKey_GamepadR1, false) && !ui::interfaceConsumedKey(ImGuiKey_GamepadR1);
+#ifdef WOWEE_PS4
+    const auto& shoulderPad = platform::ps4::padState();
+    if(shoulderPad.connected) {
+        if((shoulderPad.pressed & ORBIS_PAD_BUTTON_L1) && !ui::interfaceConsumedKey(ImGuiKey_GamepadL1)) shoulderL1 = true;
+        if((shoulderPad.pressed & ORBIS_PAD_BUTTON_R1) && !ui::interfaceConsumedKey(ImGuiKey_GamepadR1)) shoulderR1 = true;
+    }
+#endif
+    if(shoulderL1 || shoulderR1) {
+        const int tabDelta = (shoulderR1 ? 1 : 0) - (shoulderL1 ? 1 : 0);
+        if(tabDelta != 0 && cyclePadTab(tabDelta)) {
+            ui::noteInterfaceConsumedKey(ImGuiKey_GamepadL1);
+            ui::noteInterfaceConsumedKey(ImGuiKey_GamepadR1);
+            focus_ = 0;
+            engine_->dispatchMouse(-1, -1, io.DisplaySize.y, {false, false, false});
+            engine_->releaseMouseHover();
+            return true;
+        }
+        if(focused) {
+            const auto focusedId = focused->id;
+            const auto point = controlPoint(focused);
+            if(!point) return true;
+            engine_->dispatchMouseWheel(point->x * tree.uiScale(), point->y * tree.uiScale(),
+                                        tabDelta < 0 ? 1 : -1);
+            ui::noteInterfaceConsumedKey(ImGuiKey_GamepadL1);
+            ui::noteInterfaceConsumedKey(ImGuiKey_GamepadR1);
+            if(!ready()) return true;
+            focused = tree.get(focusedId);
+            if(!eligible(focused)) { focus_ = 0; return true; }
+        }
     }
     if(!focused)return false;
     const float scale=tree.uiScale();

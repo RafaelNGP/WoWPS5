@@ -10,7 +10,7 @@ inline constexpr std::string_view kPadPanels[] = {
     "CharacterFrame", "SpellBookFrame", "QuestLogFrame", "WorldMapFrame",
     "ContainerFrame1", "ContainerFrame2", "ContainerFrame3", "ContainerFrame4", "ContainerFrame5",
     "GossipFrame", "QuestFrame", "MerchantFrame", "BankFrame", "ClassTrainerFrame", "AuctionFrame",
-    "TalentFrame", "PlayerTalentFrame", "TradeSkillFrame", "MailFrame", "TradeFrame",
+    "TalentFrame", "PlayerTalentFrame", "TradeSkillFrame", "CraftFrame", "MailFrame", "TradeFrame",
     "GameMenuFrame", "InterfaceOptionsFrame", "VideoOptionsFrame", "AudioOptionsFrame",
     "StaticPopup1", "StaticPopup2", "StaticPopup3", "StaticPopup4"
     , "DropDownList1", "DropDownList2", "DropDownList3"

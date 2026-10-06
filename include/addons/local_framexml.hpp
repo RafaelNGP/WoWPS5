@@ -182,6 +182,7 @@ inline bool padWindowBearsSlots(std::string_view name) {
                                     std::string_view("MailFrame"),
                                     std::string_view("ClassTrainerFrame"),
                                     std::string_view("TradeSkillFrame"),
+                                    std::string_view("CraftFrame"),
                                     std::string_view("GuildBankFrame"),
                                     std::string_view("AuctionFrame")}) {
         if (name == bearer) return true;
@@ -230,6 +231,7 @@ private:
     /// press lifts the slot's contents and the next puts them down.
     bool padPickup(const std::string& name);
     bool activatePadControl(uint32_t id);
+    bool cyclePadTab(int delta);
     /// Let go of what the cursor is carrying, asking first if it is destroyed.
     bool padDropCarried();
     /// Put the pad's focus where the renderer draws the carried icon.
