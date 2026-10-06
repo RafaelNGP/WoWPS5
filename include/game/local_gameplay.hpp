@@ -1526,6 +1526,10 @@ struct LocalSpellDefinition {
     // per-tick amount is snapshotted on the recipient's aura at application.
     uint16_t innervatePct = 0;
     uint32_t innervateIntervalMs = 0;
+    // Vanish (spell_rog_vanish, SPELL_EFFECT_SANCTUARY): creatures drop the
+    // rogue, Stealth comes on with its cooldown cleared, and 18461 (Vanish
+    // Purge) removes the creature roots and snares on it.
+    bool vanish = false;
     // Frost Armor: Chilled, the PROC_TRIGGER_SPELL its holder puts on a
     // creature that lands a melee hit on it (spell_proc -168): the creature's
     // attack speed (aura 138) and movement (aura 33) slowed for its duration.

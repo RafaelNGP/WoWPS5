@@ -1268,7 +1268,12 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             const auto cu=[&](uint32_t col){return t.spells->getUInt32(uint32_t(child),col);};
             return cu(71)==6&&cu(95)==12&&cu(86)==6&&!cu(89)&&!cu(72)&&!cu(73)&&!cu(spell335::ProcFlags)&&
                 (cu(spell335::AuraInterruptFlags)&kLocalAuraInterruptTakeDamage)&&cu(40)==u(40);}();
-    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!rootControl&&!incinerate&&!innerFire&&!chillArmor&&!frostNova&&!areaFear&&!intimidatingShout&&d.id!=1784&&d.id!=21084&&d.id!=20154&&
+    // Vanish: two TRIGGER_SPELLs on the rogue (11327's stealth bonus, 18461's
+    // purge) and SANCTUARY; its proc columns mean nothing without an aura of
+    // its own (charges belong to auras), the script does the rest.
+    const bool vanishSpell=!creatureCaster&&d.spellFamily==8&&u(71)==64&&u(86)==1&&u(116)&&u(72)==64&&u(87)==1&&u(117)==18461&&
+        u(73)==79&&u(88)==1&&!u(118)&&!u(40);
+    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!rootControl&&!incinerate&&!innerFire&&!chillArmor&&!frostNova&&!areaFear&&!intimidatingShout&&!vanishSpell&&d.id!=1784&&d.id!=21084&&d.id!=20154&&
        !(d.id==6346&&u(spell335::ProcCharges)==1)&&!(d.id==22812&&!u(spell335::ProcChance))) // Fear Ward's immunity charge, Barkskin's inert proc (classBuff) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
     // Spell.dbc column 38 is BaseLevel and column 39 is SpellLevel
@@ -1343,9 +1348,9 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if(!creatureCaster&&u(21)==2&&!u(20)&&!u(22)&&!u(23)&&!u(24)&&!u(25)&&!u(26)&&!u(27))d.targetMaxHealthPct=20;
     else if(!creatureCaster&&u(20)==1&&d.spellFamily==4&&!u(21)&&!u(22)&&!u(23)&&!u(24)&&!u(25)&&!u(26)&&!u(27))d.requiresDefenseState=true;
     else if(!creatureCaster&&u(20)==10&&d.spellFamily==4&&!u(21)&&!u(22)&&!u(23)&&!u(24)&&!u(25)&&!u(26)&&!u(27))d.requiresVictoryRush=true;
-    // Stealth's CasterAuraStateNot 12 (Faerie Fire) never holds here: no
+    // Stealth's and Vanish's CasterAuraStateNot 12 (Faerie Fire) never holds here: no
     // creature in this realm casts it on a player.
-    else if((u(20)&&!(u(20)==5&&d.spellFamily==10&&(d.id==20271||d.id==53408||d.id==53407)))||u(21)||(u(22)&&!((d.id==1784||d.id==kLocalProwlSpell)&&u(22)==12))||u(23)||u(24)||u(25)||
+    else if((u(20)&&!(u(20)==5&&d.spellFamily==10&&(d.id==20271||d.id==53408||d.id==53407)))||u(21)||(u(22)&&!((d.id==1784||d.id==kLocalProwlSpell||vanishSpell)&&u(22)==12))||u(23)||u(24)||u(25)||
             (u(26)&&!localRealmMarkerAura(u(26)))||(u(27)&&!chargeSpell&&!localRealmMarkerAura(u(27)))) unavailable("Aura requirements are not implemented");
     // The exclusion markers the realm itself applies (Forbearance family).
     if(!creatureCaster&&localRealmMarkerAura(u(26)))d.excludeCasterAuraSpell=u(26);
@@ -1807,6 +1812,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         // A heal at TARGET_UNIT_TARGET_CHAINHEAL_ALLY with no chain targets
         // (Healing Wave ranks 1-10) heals one ally, as TARGET_UNIT_TARGET_ALLY.
         const auto target=(u(86+effect)==45&&!chainHeal&&type==10&&u(104+effect)<=1&&!secondary)?21u:u(86+effect);
+        if(vanishSpell) {
+            if(effect==2){d.vanish=true;buff=true;buffTarget=1;}
+            continue;
+        }
         if(bloodrage) {
             if(effect==0&&i(80)>=0&&i(80)<1000)d.energizeRage=uint8_t((i(80)+1)/10); // tenths of rage
             else if(effect==1) {
@@ -2140,7 +2149,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if(harm&&!d.schoolMask&&(!creatureCaster||d.damage||d.periodicDamage))unavailable("Damaging spell has no school");
     if(buff&&(harm||healing)) unavailable("Mixed stat buffs and other effects are not implemented");
     if(harm&&healing) unavailable("Mixed hostile/friendly spells are not implemented");
-    if(!harm&&!healing&&!buff&&!d.formId&&!formBoost&&!formResource&&!summonPet&&!areaAura&&!d.controlProfile&&!d.createItemId&&!d.teleport&&!d.totemEntry&&!d.dispelMask&&!d.lifeTapAmount&&!d.raiseDeadEntry) unavailable("No supported direct or periodic damage/healing effect");
+    if(!harm&&!healing&&!buff&&!d.formId&&!formBoost&&!formResource&&!summonPet&&!areaAura&&!d.controlProfile&&!d.createItemId&&!d.teleport&&!d.totemEntry&&!d.dispelMask&&!d.lifeTapAmount&&!d.raiseDeadEntry&&!d.vanish) unavailable("No supported direct or periodic damage/healing effect");
     if(d.teleport&&(harm||healing||buff||d.createItemId))unavailable("Teleport beside other effects is not implemented");
     if(d.createItemId&&(harm||healing||buff))unavailable("Item creation beside other effects is not implemented");
     if(!creatureCaster){d.healingSelfOnly=healingTarget==1;d.buffSelfOnly=d.formId!=0||formBoost||formResource||buffTarget==1;}

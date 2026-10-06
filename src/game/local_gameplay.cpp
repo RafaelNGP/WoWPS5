@@ -3229,7 +3229,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(uint32_t(d.classBuffStatPct));hash(uint32_t(d.areaRoot));hash(uint32_t(d.healthCostBasePct)|uint32_t(d.energizeRage)<<8|uint32_t(d.periodicRage)<<16);hash(d.periodicRageMs);hash(uint32_t(d.innervatePct));hash(d.innervateIntervalMs);{uint32_t fr;std::memcpy(&fr,&d.areaFearRadius,4);hash(fr);}hash(uint32_t(d.areaMaxTargets)|uint32_t(d.areaFearStunsTarget)<<8);hash(uint32_t(d.armorDebuffStackMax)|uint32_t(d.armorDebuffMinor)<<8);hash(uint32_t(d.classBuffHitCharges)|uint32_t(uint8_t(d.chillHastePct))<<8|uint32_t(uint8_t(d.chillSpeedPct))<<16);hash(d.chillSpell);hash(d.chillDurationMs);hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(uint32_t(d.classBuffStatPct));hash(uint32_t(d.areaRoot));hash(uint32_t(d.healthCostBasePct)|uint32_t(d.energizeRage)<<8|uint32_t(d.periodicRage)<<16);hash(d.periodicRageMs);hash(uint32_t(d.innervatePct));hash(d.innervateIntervalMs);hash(uint32_t(d.vanish));{uint32_t fr;std::memcpy(&fr,&d.areaFearRadius,4);hash(fr);}hash(uint32_t(d.areaMaxTargets)|uint32_t(d.areaFearStunsTarget)<<8);hash(uint32_t(d.armorDebuffStackMax)|uint32_t(d.armorDebuffMinor)<<8);hash(uint32_t(d.classBuffHitCharges)|uint32_t(uint8_t(d.chillHastePct))<<8|uint32_t(uint8_t(d.chillSpeedPct))<<16);hash(d.chillSpell);hash(d.chillDurationMs);hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -8208,6 +8208,28 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     }
     // Feign Death (SPELL_AURA_FEIGN_DEATH): every creature drops the hunter
     // from its threat and stops attacking it; the hunter stops attacking too.
+    if(d->vanish) {
+        // SANCTUARY: every creature drops the rogue and stops attacking it.
+        for(auto& n2:g.npcs) {
+            for(auto& e:n2.threat)if(e.guid==p.guid)e={};
+            if(n2.targetGuid==p.guid){n2.targetGuid=0;g.selectThreatTarget(n2,players);}
+        }
+        p.attackTarget=0;
+        // 18461: the creature roots and snares on the rogue go.
+        std::vector<uint32_t> purged;
+        std::erase_if(g.npcPeriodic,[&](const auto& a){
+            const bool gone=a.target==p.guid&&(a.control==2||a.slowPercent);
+            if(gone){g.npcControlEnded(a,&p);purged.push_back(a.spell);}
+            return gone;});
+        std::erase_if(p.harmfulAuras,[&](const auto& a){return std::find(purged.begin(),purged.end(),a.spellId)!=purged.end();});
+        // spell_rog_vanish: Stealth, its cooldown cleared, if not already on.
+        if(p.formSpellId!=1784)if(const auto* stealth=localFormProfile(1784)) {
+            p.cooldowns.erase(std::remove_if(p.cooldowns.begin(),p.cooldowns.end(),[](const auto& cd){return cd.spellId==1784;}),p.cooldowns.end());
+            enterLocalForm(p,*stealth);
+        }
+        stats(p,c,false);
+        LOG_INFO("[LOCAL_VANISH] player=",p.guid," purged=",purged.size()," stealthed=",localStealthed(p));
+    }
     if(d->classBuffFeignDeath&&localFeigningDeath(p,c)) {
         for(auto& n2:g.npcs) {
             for(auto& e:n2.threat)if(e.guid==p.guid)e={};
