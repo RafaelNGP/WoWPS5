@@ -1519,6 +1519,9 @@ struct LocalSpellDefinition {
     // Intimidating Shout: its target cowers (20511, a stun any damage breaks)
     // and the area fear leaves that target out.
     bool areaFearStunsTarget = false;
+    // Challenging Shout / Roar: MOD_TAUNT on every creature within this radius
+    // of the caster, each taunted as by a single-target taunt.
+    float areaTauntRadius = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.

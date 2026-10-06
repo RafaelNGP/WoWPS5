@@ -1835,6 +1835,13 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             continue;
         }
         if(frostNova&&arcaneExplosion&&effect==1){d.areaRoot=true;d.controlDamageCapPct=10;harm=true;continue;}
+        // Challenging Shout / Roar: a lone MOD_TAUNT on the enemies around the caster.
+        if(!creatureCaster&&(d.spellFamily==4||d.spellFamily==7)&&effect==0&&type==6&&u(95)==11&&u(86)==22&&u(89)==15&&!u(72)&&!u(73)&&
+           !u(116)&&i(80)+int32_t(u(74))==0&&!u(212)&&d.durationMs&&d.durationMs<=60000&&!u(spell335::ProcFlags)) {
+            const auto radius=ClientSpellTables::lookup(t.radiusIndex,u(92));
+            const float r=t.radii&&radius>=0?t.radii->getFloat(radius,1):0.f;
+            if(std::isfinite(r)&&r>0&&r<=30){d.areaTauntRadius=r;harm=true;continue;}
+        }
         if(areaFear||intimidatingShout) {
             if(effect==(intimidatingShout?1u:0u)) {
                 d.areaFearStunsTarget=intimidatingShout;
