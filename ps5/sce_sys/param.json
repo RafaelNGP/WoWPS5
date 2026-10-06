@@ -10,7 +10,7 @@
   "conceptId": "99809",
   "contentBadgeType": 1,
   "contentId": "UP9000-PPSA99809_00-WOWPS5CLIENT0000",
-  "contentVersion": "01.000.000",
+  "contentVersion": "00.100.000",
   "downloadDataSize": 256,
   "gameIntent": {
     "permittedIntents": [
@@ -22,10 +22,10 @@
   "localizedParameters": {
     "defaultLanguage": "en-US",
     "en-US": {
-      "titleName": "WoWPS"
+      "titleName": "WoWPS5"
     }
   },
-  "masterVersion": "01.00",
+  "masterVersion": "00.10",
   "pubtools": {
     "creationDate": "2026-10-02 00:00:00",
     "loudnessSnd0": "-28.00",

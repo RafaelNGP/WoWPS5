@@ -40,9 +40,10 @@ endif()
 
 # The explicit release identity takes precedence over git metadata.
 # Rebuilding a source archive preserves the version in BUILD_VERSION.
+# The PS5 port's releases are "PS5 <major>.<minor>.<patch>[-<tag>]" (PS5 0.1.0-alpha).
 if(EXISTS "${SRC_DIR}/BUILD_VERSION")
     file(STRINGS "${SRC_DIR}/BUILD_VERSION" _delivery_version LIMIT_COUNT 1)
-    if(_delivery_version MATCHES "^([0-9][0-9]\\.[0-9][0-9]( HF[1-9][0-9]*)?|B[0-9]+ / [0-9][0-9]\\.[0-9][0-9])$")
+    if(_delivery_version MATCHES "^([0-9][0-9]\\.[0-9][0-9]( HF[1-9][0-9]*)?|B[0-9]+ / [0-9][0-9]\\.[0-9][0-9]|PS5 [0-9]+\\.[0-9]+\\.[0-9]+(-[a-z0-9.]+)?)$")
         set(WOWEE_GIT_VERSION "${_delivery_version}")
     endif()
 endif()
