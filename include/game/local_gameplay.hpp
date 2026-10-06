@@ -1562,6 +1562,13 @@ struct LocalSpellDefinition {
     // maximum mana burned, at most twice it of the priest's, dealing the
     // EffectValueMultiplier percent of it as shadow damage; fears end.
     uint8_t manaBurnPct = 0, manaBurnDamagePct = 0;
+    // Holy Wrath: a stun (aura 12) on every creature its caster-area damage
+    // hits; the spell's TargetCreatureType keeps both to undead and demons.
+    bool areaStun = false;
+    // Righteous Fury: SPELL_AURA_MOD_THREAT (10) on the class buff, this
+    // percent more threat for the schools of classBuffThreatSchool.
+    int16_t classBuffThreatPct = 0;
+    uint8_t classBuffThreatSchool = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.

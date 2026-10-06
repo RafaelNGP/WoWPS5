@@ -10,6 +10,9 @@ namespace wowee::game {
 inline uint64_t localTalentThreat(const LocalRealmPlayer& p,const LocalWorldContent& c,const LocalSpellDefinition* spell,uint64_t amount) {
     amount=localSpellThreatPct(spell,amount);
     if(const auto* f=localActiveForm(p))amount=amount*f->threatPercent/100;
+    // Righteous Fury: a class buff's aura 10 on its schools.
+    for(const auto& aura:p.statAuras)if(aura.remainingMs)if(const auto* d=c.spell(aura.spellId);d&&d->classBuff&&d->classBuffThreatPct&&
+        (d->classBuffThreatSchool&(spell?spell->schoolMask:1u)))amount=amount*uint32_t(100+d->classBuffThreatPct)/100;
     if(p.classId>=1&&p.classId<=11)for(auto [id,rank]:p.talents) {
         const auto* talent=localTalentSpell(c,id,rank);
         if(!talent||!talent->passive||!talent->unsupportedReason.empty()||!(talent->allowableClasses&(1u<<(p.classId-1)))||

@@ -1171,7 +1171,9 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     const bool prowlSpell=!creatureCaster&&d.id==kLocalProwlSpell&&u(40)==21&&u(71)==6&&u(95)==16&&u(86)==1;
     // A death knight presence (SPELL_SPECIFIC_PRESENCE): one at a time, until changed.
     const bool presenceSpell=!creatureCaster&&u(40)==21&&localSpellSpecific(d)==LocalSpellSpecific::Presence;
-    const bool untilCancelled=aspectSpell||trackerSpell||prowlSpell||presenceSpell;
+    // Righteous Fury: the paladin's holy threat, until cancelled.
+    const bool furySpell=!creatureCaster&&d.spellFamily==10&&u(40)==21&&u(71)==6&&u(95)==10&&u(86)==1&&u(110)==2;
+    const bool untilCancelled=aspectSpell||trackerSpell||prowlSpell||presenceSpell||furySpell;
     // A shaman totem: one SPELL_EFFECT_SUMMON whose SummonProperties row is a
     // totem slot (63 fire, 81 earth, 82 water, 83 air; Title 4).
     const bool totemSummon=!creatureCaster&&d.spellFamily==11&&u(71)==28&&!u(72)&&!u(73)&&u(110)&&
@@ -1567,6 +1569,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 // Flash of Light, Holy Shock: its class mask), as healing done.
                 else if(au==108&&d.id==54428&&u(86+e)==1&&!misc&&amount<0&&amount>-100)percentage=true;
                 else if(au==103&&u(86+e)==1&&!misc&&amount<0)percentage=true; // Fade
+                else if(au==10&&u(86+e)==1&&misc>0&&misc<=127&&amount>0&&amount<=1000)percentage=true; // Righteous Fury: school threat
                 else if(au==28&&spellReflection)percentage=true; // Spell Reflection
                 else if(au==4&&retaliation&&!amount)percentage=true; // Retaliation
                 else if(au==107&&recklessness&&misc==7&&amount>0&&amount<=100)percentage=true; // Recklessness
@@ -1827,6 +1830,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(au==136&&tg==1&&misc==127&&amount>0&&amount<=1000)d.classBuffHealingDonePct+=amount; // Avenging Wrath
             if(au==108&&d.id==54428&&tg==1&&!misc&&amount<0&&amount>-100)d.classBuffHealingDonePct+=amount; // Divine Plea
             if(au==103&&tg==1&&!misc&&amount<0)d.classBuffThreatReduction=uint32_t(std::min<int64_t>(-int64_t(amount),1000000000)); // Fade
+            if(au==10&&tg==1&&misc>0&&misc<=127&&amount>0&&amount<=1000){d.classBuffThreatPct=int16_t(amount);d.classBuffThreatSchool=uint8_t(misc);} // Righteous Fury
             if(au==28&&spellReflection&&amount>0&&amount<=100)d.classBuffReflectPct=uint8_t(amount); // Spell Reflection
             if(au==4&&retaliation){d.classBuffRetaliationSpell=20240;d.classBuffHitCharges=uint8_t(u(spell335::ProcCharges));} // Retaliation
             if(recklessness&&au==107&&misc==7&&amount>0&&amount<=100){d.classBuffSpecialCritPct=uint8_t(amount);d.classBuffSpecialCritMask={u(122),u(123)};d.classBuffHitCharges=uint8_t(u(spell335::ProcCharges));}
@@ -1898,6 +1902,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(effect==0){d.areaSnarePercent=uint8_t(-(i(80)+1));d.areaConeDegrees=104.f;harm=true;}
             continue; // effect 2: the empty healing-taken hook (Improved Cone of Cold's)
         }
+        // Holy Wrath: its stun on the creatures the area damage hits (undead and
+        // demons only: the spell's TargetCreatureType).
+        if(!creatureCaster&&d.spellFamily==10&&arcaneExplosion&&effect==1&&type==6&&u(96)==12&&u(87)==22&&u(90)==15&&u(71)==2&&!u(73)&&
+           d.targetCreatureType&&d.durationMs&&!u(spell335::ProcFlags)){d.areaStun=true;harm=true;continue;}
         if(frostNova&&arcaneExplosion&&effect==1){d.areaRoot=true;d.controlDamageCapPct=10;harm=true;continue;}
         // Challenging Shout / Roar: a lone MOD_TAUNT on the enemies around the caster.
         if(!creatureCaster&&(d.spellFamily==4||d.spellFamily==7)&&effect==0&&type==6&&u(95)==11&&u(86)==22&&u(89)==15&&!u(72)&&!u(73)&&
