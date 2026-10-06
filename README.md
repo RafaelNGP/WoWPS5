@@ -43,7 +43,7 @@ says "PS4", read it as the platform the feature was first written for.
 |⚠️|Standalone classes|Most baseline abilities of all ten classes are implemented from AzerothCore's rules; talents, procs and some class mechanics are still partial.|
 |⚠️|Text input|The system IME dialog cannot be used from a homebrew app yet; an on-screen keyboard is used.|
 |⚠️|Performance and stability|Not yet profiled across zones; long sessions are not certified.|
-|❌|Release packaging|No installable release yet: the app is deployed as a development build.|
+|❌|Prebuilt packages|Source only for now (licensing of third-party PS5 runtime components); build it yourself.|
 
 ## About (from WoWPS 2.12)
 
@@ -126,8 +126,9 @@ The client contains login, realm/character selection, movement, combat, quest, i
 ## Install (PS5 development build)
 
 1. A PS5 with homebrew enabled (a kernel exploit with an ELF/payload loader) is required.
-2. Build the app (see below) and copy the app folder to `/data/homebrew/PPSA99809/` on the console; it is a
-   directory title, mounted by a homebrew launcher such as ShadowMountPlus.
+2. Build the app yourself ([docs/BUILD_PS5.md](docs/BUILD_PS5.md); no prebuilt package is published) and copy
+   the app folder to `/data/homebrew/PPSA99809/` on the console; it is a directory title, mounted by a homebrew
+   launcher such as ShadowMountPlus. Full console guide: [docs/INSTALL_PS5.md](docs/INSTALL_PS5.md).
 3. Copy your original WotLK client `Data` directory to `/data/homebrew/PPSA99809/Data/`, keeping locale
    subdirectories and the MPQ layout.
 4. Saves, settings and logs live under `/data/wow_ps/` (logs in `/data/wow_ps/wowps/logs/`). **Back up your saves**
@@ -200,18 +201,17 @@ Local and locally hosted day/night lighting follows PS4 Date and Time changes du
 
 ## Build (PS5)
 
-The PS5 build cross-compiles with Clang and the PS5 payload SDK, and links Mesa RADV as the Vulkan driver.
-These external dependencies (SDK, Mesa build, toolchain) are not vendored in this repository.
+WoWPS5 is published as **source code only** for now; no prebuilt package is distributed (the PS5 binary links
+GPL-3.0 runtime components whose terms conflict with this project's non-commercial restriction). Build it yourself
+for your own console: **[docs/BUILD_PS5.md](docs/BUILD_PS5.md)** has the full steps (PS5_Vulkan, the payload SDK and
+Mesa RADV, then this repository), and [docs/INSTALL_PS5.md](docs/INSTALL_PS5.md) covers the console side.
 
 ```bash
 cmake -S . -B build-ps5 -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/ps5.toolchain.cmake -DCMAKE_BUILD_TYPE=Release
 ninja -C build-ps5
-tools/ps5/link.sh build-ps5       # final link of the app executable
+tools/ps5/link.sh build-ps5       # final link of eboot.bin
 tools/ps5/package.sh build-ps5    # app folder in build-ps5/pkg/PPSA99809
 ```
-
-`tools/ps5/selftest.sh` and `tools/ps5/dev.sh` deploy and run the build on a console (`PS5_HOST=<console ip>`).
-Host-side checks: `tools/tests/run_selftest_quick.sh` (standalone self-test) and `tools/tests/run_gameplay_checks.sh`.
 
 The original PS4 build is still described in [docs/BUILD_PS4.md](docs/BUILD_PS4.md).
 

@@ -1,11 +1,12 @@
 # WoWPS5 PS5 0.1.0-alpha
 
-The first public development build of the PS5 port of WoWPS 2.12. **This is
-an alpha:** expect bugs, missing features and save-format changes between
-builds. Back up your saves.
+The first public development version of the PS5 port of WoWPS 2.12,
+**released as source code only**. **This is an alpha:** expect bugs, missing
+features and save-format changes between builds. Back up your saves.
 
-Installation: [INSTALL_PS5.md](INSTALL_PS5.md). You need your own WotLK 3.3.5a
-(12340) client data; no Blizzard files are included.
+Build: [BUILD_PS5.md](BUILD_PS5.md). Installation: [INSTALL_PS5.md](INSTALL_PS5.md).
+You need your own WotLK 3.3.5a (12340) client data; no Blizzard files are
+included.
 
 ## What is in it
 
@@ -59,13 +60,18 @@ Installation: [INSTALL_PS5.md](INSTALL_PS5.md). You need your own WotLK 3.3.5a
 ## Licensing
 
 WoWPS5 is under the project's [LICENSE](../LICENSE) (MIT with an additional
-non-commercial restriction). The PS5 binary also contains third-party runtime
-components with their own licenses:
+non-commercial restriction). A PS5 binary built from it also contains
+third-party runtime components with their own licenses:
 - GPL-3.0-or-later: the application start-up/allocation runtime and sandbox
   elevation client from ps5-native-app-boilerplate (BlackBearReloaded), and
   the `libc.prx` module;
 - MIT: Mesa RADV and its PS5 winsys.
 
+GPL-3.0 does not allow the extra non-commercial restriction on a combined
+work, so **no prebuilt binary is distributed** until that is resolved: either
+those components are replaced with permissively licensed code or their authors
+grant a linking exception. Building the app for your own console is not
+affected.
+
 The local-world data are conversions of AzerothCore tables (GPL-2.0; see
-`assets/local_realm/NOTICE.txt`). Source code for this build is the `PS5`
-branch of this repository at the release tag.
+`assets/local_realm/NOTICE.txt`).

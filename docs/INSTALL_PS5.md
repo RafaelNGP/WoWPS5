@@ -16,7 +16,9 @@ No PC, web server or other payload is needed while playing.
 
 ## Files
 
-A release archive contains one folder, `PPSA99809/`:
+No prebuilt package is published: build the app folder yourself as described in
+[BUILD_PS5.md](BUILD_PS5.md). The build produces one folder,
+`build-ps5/pkg/PPSA99809/`:
 
 ```text
 PPSA99809/
@@ -68,8 +70,9 @@ Controller bindings are in the main [README](../README.md#controller).
 
 ## Updating
 
-Back up `/data/wow_ps/saves/`, then replace the contents of
-`/data/homebrew/PPSA99809/` with the new release, keeping your `Data` directory.
+Back up `/data/wow_ps/saves/`, build the new version, then replace the contents
+of `/data/homebrew/PPSA99809/` with the new app folder, keeping your `Data`
+directory.
 
 ## Troubleshooting
 
