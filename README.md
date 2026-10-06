@@ -1,21 +1,51 @@
 <p align="center">
-  <img src="ps4/sce_sys/icon0.png" alt="WoWPS" width="160">
+  <img src="ps5/sce_sys/icon0.png" alt="WoWPS5" width="160">
 </p>
 
-<h1 align="center">WoWPS</h1>
-<p align="center"><em>World of Warcraft, running natively on PlayStation 4.</em></p>
+<h1 align="center">WoWPS5</h1>
+<p align="center"><em>World of Warcraft, running natively on PlayStation 5 — work in progress.</em></p>
 <p align="center">
-  <img alt="Release" src="https://img.shields.io/badge/release-2.12-blue">
-  <img alt="Platform" src="https://img.shields.io/badge/platform-PS4%20homebrew-003791">
+  <img alt="Status" src="https://img.shields.io/badge/status-in%20development-orange">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-PS5%20homebrew-003791">
   <img alt="Client" src="https://img.shields.io/badge/client-WotLK%203.3.5a%20build%2012340-c8a04a">
-  <img alt="Renderer" src="https://img.shields.io/badge/renderer-Vulkan%201.0%20over%20GNM-a41e22">
+  <img alt="Renderer" src="https://img.shields.io/badge/renderer-Vulkan%20(RADV)-a41e22">
 </p>
 
-> \[!IMPORTANT]
-> Supply your own legally obtained \*\*WotLK 3.3.5a, build 12340\*\* client data.
-> Original Blizzard MPQ/DBC files are not included. WoWPS is not affiliated with or endorsed by Blizzard Entertainment.
+> [!WARNING]
+> **This is a development version for the PS5.** It is not a release: builds can break, saves may need
+> to be discarded between versions, and many features below are partial. Back up anything you care about.
 
-## About
+> [!IMPORTANT]
+> Supply your own legally obtained **WotLK 3.3.5a, build 12340** client data.
+> Original Blizzard MPQ/DBC files are not included. WoWPS5 is not affiliated with or endorsed by Blizzard Entertainment.
+
+## About this fork
+
+WoWPS5 is a port of [WoWPS](https://github.com/01cedric/WoWPS) 2.12 (PS4) to the **PlayStation 5** as a native homebrew
+application. The PS4 code base is kept and shared (the PS5 build defines both `WOWEE_PS5` and `WOWEE_PS4`); what changes
+is the platform layer:
+
+- a native PS5 app built with the PS5 payload SDK (title ID **PPSA99809**), instead of an OpenOrbis PS4 PKG;
+- Vulkan through the open-source **Mesa RADV** driver on the console GPU, instead of the PS4 GNM-backed implementation;
+- 4K VideoOut with the world rendered at 1080p by default, larger streaming radius and memory budgets;
+- a growing **standalone (single-player / LAN) world**: many more class abilities, professions, bags, quests on
+  game objects and gamepad UI work, verified by an automated self-test that runs on the console.
+
+Development happens on the `PS5` branch. The original PS4 2.12 text below is kept where it still applies; where it
+says "PS4", read it as the platform the feature was first written for.
+
+### Development status (PS5)
+
+|Status|Area|Notes|
+|:-:|-|-|
+|✅|Boot, login screen, character creation, world entry|Runs at 60 FPS on the login screen with original MPQs; world rendering via RADV.|
+|✅|Console self-test|Every integration runs the standalone self-test (class abilities, quests, items, professions) on the PS5 itself.|
+|⚠️|Standalone classes|Most baseline abilities of all ten classes are implemented from AzerothCore's rules; talents, procs and some class mechanics are still partial.|
+|⚠️|Text input|The system IME dialog cannot be used from a homebrew app yet; an on-screen keyboard is used.|
+|⚠️|Performance and stability|Not yet profiled across zones; long sessions are not certified.|
+|❌|Release packaging|No installable release yet: the app is deployed as a development build.|
+
+## About (from WoWPS 2.12)
 
 WoWPS is a native C++ client built for a homebrew-enabled PS4 with the OpenOrbis toolchain. It is not a stream of the PC game and does not run the Windows client in an emulator. Its Vulkan 1.0 implementation uses GNM and VideoOut on the console.
 
@@ -51,7 +81,7 @@ Character creation waits for the server character list.
 |⚠️|Race introductions|Camera/narration, scene readiness, lookahead and loading prewarm are implemented; race-by-race smoothness and visual fidelity remain unverified.|
 |⚠️|Streaming and memory|Resumable uploads, bounded CPU direct-memory pools, cached placement/visibility and safe deferred cleanup. Long travel and repeated character changes can still expose faults.|
 |⚠️|Performance and stability|Rendering and submission costs have been reduced in specific paths. Sustained 30+ FPS, crash-free long sessions and all-zone visual correctness are **not** established.|
-|❌|Expansions after WotLK|Not a supported release target. PS5 compatibility and upstream Vanilla/TBC paths are not verified PS4 features.|
+|❌|Expansions after WotLK|Not a supported target. Upstream Vanilla/TBC paths are not verified.|
 
 ### Standalone world, combat and progression
 
@@ -93,7 +123,23 @@ The auction board is bounded at 256 listings, with up to 224 shared by simulated
 
 The client contains login, realm/character selection, movement, combat, quest, inventory, vendor, trainer, mail, auction, chat, party and travel paths for compatible servers. Their presence is not proof of complete end-to-end PS4 compatibility with every server implementation. Server scripts remain server-owned; standalone limitations do not describe what an external server implements. Battlegrounds and arenas remain unverified on the console.
 
-## Install and upgrade
+## Install (PS5 development build)
+
+1. A PS5 with homebrew enabled (a kernel exploit with an ELF/payload loader) is required.
+2. Build the app (see below) and copy the app folder to `/data/homebrew/PPSA99809/` on the console; it is a
+   directory title, mounted by a homebrew launcher such as ShadowMountPlus.
+3. Copy your original WotLK client `Data` directory to `/data/homebrew/PPSA99809/Data/`, keeping locale
+   subdirectories and the MPQ layout.
+4. Saves, settings and logs live under `/data/wow_ps/` (logs in `/data/wow_ps/wowps/logs/`). **Back up your saves**
+   (`/data/wow_ps/saves/local_realm/`) before every update: development builds change the save and LAN formats
+   (currently Save48 and LAN113), and all LAN peers need the same build and content.
+
+For solo play choose **Single Player**; for LAN, one console chooses **Host LAN**, the others **Join LAN**.
+External AzerothCore realms work as described in [connection setup and troubleshooting](docs/CONNECTING.md).
+
+<details>
+<summary>Original PS4 2.12 install notes</summary>
+
 
 1. **Back up your saves first:** `/data/wow_ps/saves/local_realm/`. Keep the complete directory, including identity and backup files; retain your configuration/action-bar files as well.
 2. Install the **WoWPS 2.12** PKG on a compatible homebrew-enabled PS4. The title remains **WoWPS**, title ID **WOWE00001**.
@@ -116,6 +162,8 @@ must also be reachable from the PS4. See [connection setup and troubleshooting](
 **Optional collision data:** the local line-of-sight rule supports collision data extracted from your own MPQs. No extracted collision pack is supplied. Without one, that visibility query defaults to visible and cannot prevent casting through walls. A host and its guests must use matching collision content.
 
 Runtime logs are written below `/data/wow_ps/wowps/logs/`. Keep `boot`, `wowps` and `vulkan\_icd` logs together when reporting a fault.
+
+</details>
 
 ## Controller
 
@@ -150,22 +198,28 @@ Sun/moon shafts use geometric shadowing, not screen-space radial blur. Height fo
 
 Local and locally hosted day/night lighting follows PS4 Date and Time changes during gameplay. Cooldowns, transports and network timers retain their own timing; LAN guests follow the host and connected realms follow their server.
 
-## Build
+## Build (PS5)
 
-See [**docs/BUILD_PS4.md**](docs/BUILD_PS4.md). On Linux, with the OpenOrbis toolchain installed:
+The PS5 build cross-compiles with Clang and the PS5 payload SDK, and links Mesa RADV as the Vulkan driver.
+These external dependencies (SDK, Mesa build, toolchain) are not vendored in this repository.
 
 ```bash
-export OO_PS4_TOOLCHAIN=/path/to/OpenOrbis-PS4-Toolchain
-./tools/ps4/build_ps4_pkg.sh --jobs 3
+cmake -S . -B build-ps5 -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/ps5.toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+ninja -C build-ps5
+tools/ps5/link.sh build-ps5       # final link of the app executable
+tools/ps5/package.sh build-ps5    # app folder in build-ps5/pkg/PPSA99809
 ```
 
-`BUILD\_VERSION` is the shared source of client/package identity. Update 2.12 contains `02.12`. The source includes the required vendored PS4 rendering components and checked shader binaries, but not original client data or the external toolchain.
+`tools/ps5/selftest.sh` and `tools/ps5/dev.sh` deploy and run the build on a console (`PS5_HOST=<console ip>`).
+Host-side checks: `tools/tests/run_selftest_quick.sh` (standalone self-test) and `tools/tests/run_gameplay_checks.sh`.
+
+The original PS4 build is still described in [docs/BUILD_PS4.md](docs/BUILD_PS4.md).
 
 ## Credits and licenses
 
-**WoWee — Kelsi Davis and contributors** provides the technical foundation: the C++ client, Vulkan renderer, MPQ/DBC/M2/WMO pipeline, FrameXML host and protocol implementations. WoWPS adapts that work to the console.
+**WoWPS** (01cedric) is the PS4 port this fork is based on. **WoWee — Kelsi Davis and contributors** provides the technical foundation: the C++ client, Vulkan renderer, MPQ/DBC/M2/WMO pipeline, FrameXML host and protocol implementations. WoWPS adapts that work to the console.
 
-**OpenOrbis PS4 Toolchain**, **OpenGNM**, **opengnm-psbc** and **vulkan-ps4** provide the console tools and rendering foundations. **AzerothCore**, **TrinityCore**, **MaNGOS** and **wowdev.wiki** are credited for their server/protocol and format work; imported local data retains its notices and pinned provenance.
+**Mesa (RADV)** and the **PS5 payload SDK** power the PS5 build. **OpenOrbis PS4 Toolchain**, **OpenGNM**, **opengnm-psbc** and **vulkan-ps4** provide the console tools and rendering foundations. **AzerothCore**, **TrinityCore**, **MaNGOS** and **wowdev.wiki** are credited for their server/protocol and format work; imported local data retains its notices and pinned provenance.
 
 Vendored dependencies include StormLib, Dear ImGui, Lua 5.1, glm, vk-bootstrap, Vulkan Memory Allocator, miniaudio, nlohmann/json, stb, Catch2 and SDL2. Their respective license/author notices remain with their sources.
 
