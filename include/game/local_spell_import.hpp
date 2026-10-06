@@ -1747,9 +1747,11 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         // creature, the hunter's creature aura; one creature per hunter
         // (SPELL_ATTR5_SINGLE_TARGET_SPELL).
         if(!creatureCaster&&d.spellFamily==9&&type==6&&u(86+effect)==6&&!u(89+effect)&&!u(116+effect)&&
-           (u(95+effect)==68||u(95+effect)==127)&&u(74+effect)<=1&&f(77+effect)==0&&d.durationMs&&d.durationMs<=600000&&!u(spell335::ProcFlags)) {
+           (u(95+effect)==68||u(95+effect)==127||(u(95+effect)==54&&i(80+effect)+int32_t(u(74+effect))<0&&i(80+effect)+int32_t(u(74+effect))>-100))&&
+           u(74+effect)<=1&&f(77+effect)==0&&d.durationMs&&d.durationMs<=600000&&!u(spell335::ProcFlags)) {
             const int32_t amount=i(80+effect)+int32_t(u(74+effect));
             if(u(95+effect)==127&&amount>0&&amount<=100000)d.targetDebuffRangedAttackerAp=amount;
+            if(u(95+effect)==54)d.targetDebuffHitChancePct=int8_t(amount); // Scorpid Sting
             d.targetDebuffEffectMask|=uint8_t(1u<<effect);d.controlSingleTarget=(u(9)&0x20u)!=0;harm=true;continue;
         }
         // Demoralizing Shout / Roar: area attack-power debuff on enemies around caster

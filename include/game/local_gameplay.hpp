@@ -1604,6 +1604,9 @@ struct LocalSpellDefinition {
     // Prayer of Healing: TARGET_UNIT_LASTTARGET_AREA_PARTY, the heal on its
     // target and each party member of the target's within this radius of it.
     float partyHealRadius = 0;
+    // Scorpid Sting: SPELL_AURA_MOD_HIT_CHANCE (54) down on the creature, as
+    // the hunter's creature aura (its melee misses that much more often).
+    int8_t targetDebuffHitChancePct = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.
