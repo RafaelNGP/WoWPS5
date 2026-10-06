@@ -1618,6 +1618,9 @@ struct LocalSpellDefinition {
     int16_t classBuffResistance = 0;
     uint8_t classBuffResistanceSchool = 0;
     bool classBuffResistanceExclusive = false;
+    // Righteous Defense (spell_pal_righteous_defense): up to three creatures
+    // attacking the friendly target are taunted by the paladin (31790).
+    bool righteousDefense = false;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.

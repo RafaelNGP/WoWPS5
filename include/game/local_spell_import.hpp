@@ -1974,6 +1974,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 else unavailable("Unreviewed Cloak of Shadows amount");}
             continue;
         }
+        if(!creatureCaster&&d.spellFamily==10&&u(71)==3&&u(86)==21&&u(72)==64&&u(87)==1&&u(117)==31980&&!u(73)) {
+            if(effect==0){d.righteousDefense=true;harm=true;}
+            continue; // the dummy and its server-side target selection (31980): the script's
+        }
         if(fanOfKnives&&effect==0) {
             const int32_t percent=i(80)+1; // CalcValue: base + 1 (one die side)
             if(percent<=0||percent>1000||u(74)>1||f(77)!=0)unavailable("Invalid weapon percentage");
