@@ -1542,6 +1542,9 @@ struct LocalSpellDefinition {
     // aura's charges (spell_proc 1719, PROC_ATTR_REQ_SPELLMOD).
     uint8_t classBuffSpecialCritPct = 0;
     std::array<uint32_t,2> classBuffSpecialCritMask{};
+    // A shaman weapon imbue (localWeaponImbue): held as the shaman's aura on
+    // its main-hand weapon. 1 Rockbiter, 2 Flametongue, 3 Windfury, 4 Frostbrand.
+    uint8_t imbueKind = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.
@@ -1610,6 +1613,18 @@ inline bool localPaladinBlessing(const LocalSpellDefinition& d) {
 // spell_group 1062 "AP Debuffs": Demoralizing Shout and Demoralizing Roar, by first rank.
 inline bool localDemoralizingDebuff(const LocalSpellDefinition& d) {
     const auto first=d.firstRankSpell?d.firstRankSpell:d.id;return first==1160u||first==99u;
+}
+// The shaman weapon imbues (tools/local_realm/import_weapon_imbues.py): a
+// rank's kind, its amount (Rockbiter damage per second of weapon speed,
+// Flametongue's passive base points, Windfury's proc chance, Frostbrand's
+// procs per minute), the spell it uses, Windfury's bonus and its duration.
+struct LocalWeaponImbue { uint32_t spell; uint8_t kind; uint32_t amount, useSpell, bonus, seconds; };
+inline constexpr LocalWeaponImbue kLocalWeaponImbues[]={
+#include "game/local_weapon_imbues_generated.inc"
+};
+inline const LocalWeaponImbue* localWeaponImbue(uint32_t spell) {
+    for(const auto& w:kLocalWeaponImbues)if(w.spell==spell)return &w;
+    return nullptr;
 }
 // The charges an aura starts with: its proc's, or a class buff's hit charges.
 inline uint8_t localAuraChargeCap(const LocalSpellDefinition& d) { return d.proc.charges ? d.proc.charges : d.classBuffHitCharges; }

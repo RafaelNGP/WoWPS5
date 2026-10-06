@@ -2039,6 +2039,40 @@ struct LocalGameplay::Impl {
         else return;
         LOG_INFO("[LOCAL_CONTROL] area control npc=",n.guid," kind=",int(a.kind)," spell=",d.id," durationMs=",a.remainingMs," cap=",a.damageLeft);
     }
+    // A landed main-hand swing of a shaman holding a weapon imbue.
+    // Flametongue (spell_sha_flametongue_weapon): base points / 100 x the
+    // weapon speed, held between base / 77 and base / 25, as 10444's fire hit.
+    // Windfury (spell_sha_windfury_weapon, spell_proc 33757: 3 s cooldown): at
+    // the enchant's chance, two 25504 weapon strikes, each with 8232's effect 1
+    // x the weapon speed on top.
+    void weaponImbueHit(LocalRealmPlayer& p,LocalRealmNpc& n,const std::vector<LocalRealmPlayer*>& players) {
+        for(auto& a:p.statAuras) {
+            if(!a.remainingMs||a.mapId!=p.mapId||a.instanceId!=p.instanceId||n.dead)continue;
+            const auto* d=content->spell(a.spellId);
+            const auto* w=d&&d->imbueKind?localWeaponImbue(d->id):nullptr;
+            if(!w)continue;
+            const auto weapon=localWeaponAmounts(p,*content,false);
+            if(w->kind==2) {
+                const float base=float(w->amount);
+                const float fire=std::clamp(base/100.f*weapon.seconds,base/77.f,base/25.f);
+                const auto* attack=content->spell(10444);
+                const auto outcome=attack?playerSpellHitOutcome(p,n,*attack):LocalMeleeOutcome::Hit;
+                damageNpc(n,p,localOutcomeNullifiesDamage(outcome)?0:uint32_t(fire),players,false,10444,false,0,attack,outcome);
+                LOG_INFO("[LOCAL_IMBUE] flametongue player=",p.guid," npc=",n.guid," damage=",uint32_t(fire)," outcome=",int(outcome));
+            } else if(w->kind==3&&!a.procCooldownMs&&meleeRoll(99)<w->amount) {
+                a.procCooldownMs=3000;
+                const float bonus=float(w->bonus)*weapon.seconds;
+                const auto ms=localMeleeStats(p,*content);
+                for(int strike=0;strike<2&&!n.dead;++strike) {
+                    const auto outcome=localRollPlayerMelee(p,n,ms,true,meleeRoll(),meleeRoll());
+                    const auto damage=uint32_t((weapon.low+(weapon.high-weapon.low)*meleeRoll()/9999.f+bonus)*(outcome==LocalMeleeOutcome::Critical?2.f:1.f));
+                    damageNpc(n,p,localMeleeAvoided(outcome)?0:damage,players,true,25504,false,0,content->spell(25504),outcome,false,
+                              outcome==LocalMeleeOutcome::Block?localCreatureBlockValue(n):0);
+                    LOG_INFO("[LOCAL_IMBUE] windfury player=",p.guid," npc=",n.guid," damage=",damage," outcome=",int(outcome));
+                }
+            }
+        }
+    }
     // A creature's melee hit landing on `p` (spell_proc -168 / -588 HitMask:
     // normal, critical or absorbed): Frost Armor chills the creature, and
     // each Inner Fire held loses a charge, the last ending it.
@@ -3187,6 +3221,16 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         a.spellFamily=10;a.durationMs=20000;
         synthesized.push_back(std::move(a));
     }
+    // The strikes a weapon imbue makes (Flametongue Attack, Windfury Attack):
+    // triggered only, carrying the school their damage needs.
+    if(std::any_of(sorted.begin(),sorted.end(),[](const auto& d){return d.imbueKind;}))
+        for(const auto& [id,school,damageClass,name]:{std::tuple{10444u,4u,1u,"Flametongue Attack"},std::tuple{25504u,1u,2u,"Windfury Attack"}})
+            if(!std::any_of(sorted.begin(),sorted.end(),[&](const auto& o){return o.id==id;})&&
+               !std::any_of(synthesized.begin(),synthesized.end(),[&](const auto& o){return o.id==id;})) {
+                LocalSpellDefinition a;a.id=id;a.clientSpell=true;a.allowableClasses=64;a.triggeredOnly=true;a.maxAuraStacks=1;
+                a.name=name;a.spellFamily=11;a.schoolMask=school;a.sourceDamageClass=uint8_t(damageClass);
+                synthesized.push_back(std::move(a));
+            }
     for(auto& a:synthesized)sorted.push_back(std::move(a));
     std::sort(sorted.begin(),sorted.end(),[](const auto& a,const auto& b){return a.id<b.id;});
     hash(0x42313153);hash(uint32_t(sorted.size()));
@@ -3258,7 +3302,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(uint32_t(d.classBuffStatPct));hash(uint32_t(d.areaRoot));hash(uint32_t(d.healthCostBasePct)|uint32_t(d.energizeRage)<<8|uint32_t(d.periodicRage)<<16);hash(d.periodicRageMs);hash(uint32_t(d.innervatePct));hash(d.innervateIntervalMs);hash(uint32_t(d.vanish));hash(d.threatReduction);{uint32_t tr;std::memcpy(&tr,&d.threatReductionPerLevel,4);hash(tr);}{uint32_t fr;std::memcpy(&fr,&d.areaFearRadius,4);hash(fr);}hash(uint32_t(d.areaMaxTargets)|uint32_t(d.areaFearStunsTarget)<<8);{uint32_t tr;std::memcpy(&tr,&d.areaTauntRadius,4);hash(tr);std::memcpy(&tr,&d.areaConeDegrees,4);hash(tr);}hash(uint32_t(d.areaSnarePercent));hash(d.classBuffThreatReduction);hash(uint32_t(d.classBuffReflectPct));hash(d.classBuffRetaliationSpell);hash(uint32_t(d.classBuffSpecialCritPct));hash(d.classBuffSpecialCritMask[0]);hash(d.classBuffSpecialCritMask[1]);hash(uint32_t(d.armorDebuffStackMax)|uint32_t(d.armorDebuffMinor)<<8);hash(uint32_t(d.classBuffHitCharges)|uint32_t(uint8_t(d.chillHastePct))<<8|uint32_t(uint8_t(d.chillSpeedPct))<<16);hash(d.chillSpell);hash(d.chillDurationMs);hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(uint32_t(d.classBuffStatPct));hash(uint32_t(d.areaRoot));hash(uint32_t(d.healthCostBasePct)|uint32_t(d.energizeRage)<<8|uint32_t(d.periodicRage)<<16);hash(d.periodicRageMs);hash(uint32_t(d.innervatePct));hash(d.innervateIntervalMs);hash(uint32_t(d.vanish));hash(d.threatReduction);{uint32_t tr;std::memcpy(&tr,&d.threatReductionPerLevel,4);hash(tr);}{uint32_t fr;std::memcpy(&fr,&d.areaFearRadius,4);hash(fr);}hash(uint32_t(d.areaMaxTargets)|uint32_t(d.areaFearStunsTarget)<<8);{uint32_t tr;std::memcpy(&tr,&d.areaTauntRadius,4);hash(tr);std::memcpy(&tr,&d.areaConeDegrees,4);hash(tr);}hash(uint32_t(d.areaSnarePercent));hash(d.classBuffThreatReduction);hash(uint32_t(d.classBuffReflectPct));hash(d.classBuffRetaliationSpell);hash(uint32_t(d.classBuffSpecialCritPct));hash(d.classBuffSpecialCritMask[0]);hash(d.classBuffSpecialCritMask[1]);hash(uint32_t(d.imbueKind));hash(uint32_t(d.armorDebuffStackMax)|uint32_t(d.armorDebuffMinor)<<8);hash(uint32_t(d.classBuffHitCharges)|uint32_t(uint8_t(d.chillHastePct))<<8|uint32_t(uint8_t(d.chillSpeedPct))<<16);hash(d.chillSpell);hash(d.chillDurationMs);hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -7077,6 +7121,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     }
     if(d->lifeTapAmount&&p.health<=scaledSpellAmount(p,*d,d->lifeTapAmount,d->lifeTapAmount,d->lifeTapPerLevel))return reject("Not enough health");
     if(d->healthCostBasePct&&p.health<=localResourcePools(p,c).baseHealth*d->healthCostBasePct/100)return reject("Not enough health");
+    if(d->imbueKind){const auto* weapon=worn(p,c,15);if(!weapon||weapon->itemClass!=2)return reject("You need a weapon to imbue");}
     if(d->createItemUnique&&totalItem(p,d->createItemId))return reject("You have too many of that item already");
     if(d->createItemId){auto probe=p;for(size_t r=0;r<d->reagentItems.size();++r)if(d->reagentItems[r])removeItem(probe,d->reagentItems[r],d->reagentCounts[r]);
         if(!c.item(d->createItemId)||!addItem(probe,c,d->createItemId,d->createItemCount))return reject("Inventory is full");}
@@ -8061,6 +8106,9 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // the buff nor a new marker; the cast itself still happens.
     const bool skipHeld=healed&&std::any_of(d->skipIfHoldsAuras.begin(),d->skipIfHoldsAuras.end(),[&](uint32_t id){return id&&localHoldsStatAura(*healed,id);});
     if(buff&&!skipHeld){
+        // One temporary enchant on the weapon: another imbue replaces it.
+        if(d->imbueKind)std::erase_if(healed->statAuras,[&](const auto& a){
+            const auto* od=c.spell(a.spellId);return a.spellId!=d->id&&od&&od->imbueKind;});
         // A paladin's other blessing on this target goes (spell_group 1010).
         if(localPaladinBlessing(*d))std::erase_if(healed->statAuras,[&](const auto& a){
             const auto* od=c.spell(a.spellId);
@@ -9112,6 +9160,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                     const auto damage=uint32_t((w.low+(w.high-w.low)*g.meleeRoll()/9999.f)*multiplier);
                     const auto magic=uint32_t((w.magicLow+(w.magicHigh-w.magicLow)*g.meleeRoll()/9999.f)*multiplier);
                     g.damageNpc(*n,*p,damage,players,true,0,false,0,nullptr,outcome,hand!=0,outcome==LocalMeleeOutcome::Block?localCreatureBlockValue(*n):0,magic);
+                    if(!hand&&!localMeleeAvoided(outcome)&&!n->dead)g.weaponImbueHit(*p,*n,players);
                     // resetAttackTimer follows the source hit/proc handling:
                     // consuming the last charge starts the next normal-speed
                     // interval unless a critical hit refreshed Flurry.

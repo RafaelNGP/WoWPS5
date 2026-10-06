@@ -538,6 +538,11 @@ LocalWeaponAmounts localWeaponAmounts(const LocalRealmPlayer& p,const LocalWorld
         a.apSeconds=normalized?(item->inventoryType==17?3.3f:item->subclass==15?1.7f:2.4f):a.seconds;
     }else a.apSeconds=normalized?2.4f:a.seconds;
     a.low+=s.attackPower/14*a.apSeconds;a.high+=s.attackPower/14*a.apSeconds;
+    // Rockbiter Weapon (ITEM_ENCHANTMENT_TYPE_TOTEM): the main hand's damage
+    // gains the imbue's amount per second of the weapon's speed.
+    if(!off&&item&&item->itemClass==2&&item->delay)for(const auto& st:p.statAuras)
+        if(st.remainingMs)if(const auto* d=c.spell(st.spellId);d&&d->imbueKind==1)if(const auto* w=localWeaponImbue(d->id)) {
+            const float bonus=float(w->amount)*item->delay/1000.f;a.low+=bonus;a.high+=bonus;}
     if(off){const float factor=.5f*offhandTalentMultiplier(p,c);a.low*=factor;a.high*=factor;a.magicLow*=factor;a.magicHigh*=factor;}
     if(applyDamageModifiers){
         const float weaponFactor=!feral&&!(form&&form->form==16)&&item&&item->itemClass==2?

@@ -1843,6 +1843,14 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         // A heal at TARGET_UNIT_TARGET_CHAINHEAL_ALLY with no chain targets
         // (Healing Wave ranks 1-10) heals one ally, as TARGET_UNIT_TARGET_ALLY.
         const auto target=(u(86+effect)==45&&!chainHeal&&type==10&&u(104+effect)<=1&&!secondary)?21u:u(86+effect);
+        // A shaman weapon imbue: its ENCHANT_ITEM_TEMPORARY becomes the shaman's
+        // own aura on the main-hand weapon for the enchant's duration.
+        if(!creatureCaster&&d.spellFamily==11)if(const auto* imbue=localWeaponImbue(d.id)) {
+            if(imbue->kind==4)unavailable("Frostbrand Attack is not implemented");
+            else if(type==54){d.imbueKind=imbue->kind;d.durationMs=imbue->seconds*1000;d.classBuff=true;buff=true;buffTarget=1;}
+            else if(type)unavailable("Unreviewed weapon imbue effect");
+            continue;
+        }
         if(vanishSpell) {
             if(effect==2){d.vanish=true;buff=true;buffTarget=1;}
             continue;
