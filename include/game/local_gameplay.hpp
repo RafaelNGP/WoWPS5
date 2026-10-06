@@ -1537,6 +1537,11 @@ struct LocalSpellDefinition {
     // from in front of the warrior, while not stunned, is answered with 20240's
     // weapon strike, spending one of the aura's charges (classBuffHitCharges).
     uint32_t classBuffRetaliationSpell = 0;
+    // Recklessness: SPELLMOD_CRITICAL_CHANCE (aura 107, misc 7) on the warrior
+    // specials its class mask names; each of them cast spends one of the
+    // aura's charges (spell_proc 1719, PROC_ATTR_REQ_SPELLMOD).
+    uint8_t classBuffSpecialCritPct = 0;
+    std::array<uint32_t,2> classBuffSpecialCritMask{};
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.

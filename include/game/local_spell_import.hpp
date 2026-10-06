@@ -1285,7 +1285,12 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(child<0)return false;
             const auto cu=[&](uint32_t col){return t.spells->getUInt32(uint32_t(child),col);};
             return cu(71)==58&&cu(86)==6&&!cu(80)&&!cu(72)&&!cu(73);}();
-    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!rootControl&&!incinerate&&!innerFire&&!chillArmor&&!frostNova&&!areaFear&&!intimidatingShout&&!vanishSpell&&!spellReflection&&!retaliation&&d.id!=1784&&d.id!=21084&&d.id!=20154&&
+    // Recklessness: a critical-chance spell modifier on warrior specials, 20%
+    // more damage taken and fear immunity; its charges are spent by the
+    // specials it modifies (spell_proc 1719), not by a proc of its own.
+    const bool recklessness=!creatureCaster&&d.id==1719&&u(71)==6&&u(95)==107&&u(110)==7&&u(86)==1&&u(72)==6&&u(96)==87&&u(111)==127&&
+        u(73)==6&&u(97)==77&&u(112)==5&&u(spell335::ProcCharges)&&u(spell335::ProcCharges)<=10&&(u(122)||u(123));
+    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!rootControl&&!incinerate&&!innerFire&&!chillArmor&&!frostNova&&!areaFear&&!intimidatingShout&&!vanishSpell&&!spellReflection&&!retaliation&&!recklessness&&d.id!=1784&&d.id!=21084&&d.id!=20154&&
        !(d.id==6346&&u(spell335::ProcCharges)==1)&&!(d.id==22812&&!u(spell335::ProcChance))) // Fear Ward's immunity charge, Barkskin's inert proc (classBuff) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
     // Spell.dbc column 38 is BaseLevel and column 39 is SpellLevel
@@ -1555,12 +1560,13 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 else if(au==103&&u(86+e)==1&&!misc&&amount<0)percentage=true; // Fade
                 else if(au==28&&spellReflection)percentage=true; // Spell Reflection
                 else if(au==4&&retaliation&&!amount)percentage=true; // Retaliation
+                else if(au==107&&recklessness&&misc==7&&amount>0&&amount<=100)percentage=true; // Recklessness
                 else if(au==24&&!misc&&d.spellFamily==7&&amount>0&&amount<=1000&&u(98+e)>=1000&&u(98+e)<=d.durationMs)percentage=true; // Innervate
                 else modelled=false;
             }
             any=percentage&&modelled;
         }
-        classBuffSpell=any&&shape&&((!u(spell335::ProcFlags)&&!u(spell335::ProcCharges))||untilCancelled||inertProc||immunityCharge||innerFire||chillArmor||spellReflection||retaliation);
+        classBuffSpell=any&&shape&&((!u(spell335::ProcFlags)&&!u(spell335::ProcCharges))||untilCancelled||inertProc||immunityCharge||innerFire||chillArmor||spellReflection||retaliation||recklessness);
         if(classBuffSpell&&immunityCharge)d.classBuffImmunityCharge=true;
     }
     // A ground area: SPELL_EFFECT_PERSISTENT_AREA_AURA (27) at the destination
@@ -1813,6 +1819,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(au==103&&tg==1&&!misc&&amount<0)d.classBuffThreatReduction=uint32_t(std::min<int64_t>(-int64_t(amount),1000000000)); // Fade
             if(au==28&&spellReflection&&amount>0&&amount<=100)d.classBuffReflectPct=uint8_t(amount); // Spell Reflection
             if(au==4&&retaliation){d.classBuffRetaliationSpell=20240;d.classBuffHitCharges=uint8_t(u(spell335::ProcCharges));} // Retaliation
+            if(recklessness&&au==107&&misc==7&&amount>0&&amount<=100){d.classBuffSpecialCritPct=uint8_t(amount);d.classBuffSpecialCritMask={u(122),u(123)};d.classBuffHitCharges=uint8_t(u(spell335::ProcCharges));}
+            if(recklessness&&au==87&&misc==127&&amount>0&&amount<=100)d.classBuffDamageTakenPct+=amount; // Recklessness
             if(au==24&&!misc&&d.spellFamily==7&&amount>0&&amount<=1000&&u(98+effect)>=1000){d.innervatePct=uint16_t(amount);d.innervateIntervalMs=u(98+effect);} // Innervate
             if(amount>0&&amount<=100000) {
                 if(au==29){for(int k=0;k<5;++k)if(misc==-1||misc==k)d.classBuffStats[size_t(k)]+=amount;}

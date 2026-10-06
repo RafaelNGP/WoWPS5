@@ -471,7 +471,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
-            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39}, {1, 8, "Polymorph", 40}, {4, 11, "Entangling Roots", 41}, {1, 6, "Icy Touch", 42}, {1, 6, "Plague Strike", 42}, {1, 6, "Blood Boil", 0}, {1, 6, "Death Coil", 0}, {1, 6, "Death Grip", 43}, {1, 6, "Pestilence", 44}, {1, 6, "Anti-Magic Shell", 45}, {1, 6, "Raise Dead", 46}, {1, 6, "Empower Rune Weapon", 47}, {1, 6, "Strangulate", 1}, {3, 3, "Steady Shot", 0}, {3, 3, "Hunter's Mark", 48}, {2, 7, "Bloodlust", 49}, {3, 3, "Rapid Fire", 50}, {2, 7, "Windfury Totem", 51}, {3, 3, "Feign Death", 52}, {2, 7, "Fire Nova", 53}, {1, 2, "Judgement of Light", 54}, {3, 3, "Distracting Shot", 1}, {2, 7, "Wind Shear", 1}, {1, 2, "Blessing of Kings", 55}, {1, 2, "Blessing of Wisdom", 55}, {1, 8, "Frost Armor", 56}, {1, 5, "Inner Fire", 56}, {1, 8, "Frost Nova", 57}, {1, 1, "Sunder Armor", 58}, {1, 5, "Psychic Scream", 59}, {1, 9, "Howl of Terror", 59}, {1, 1, "Bloodrage", 60}, {1, 2, "Divine Plea", 61}, {1, 1, "Intimidating Shout", 62}, {4, 11, "Faerie Fire", 63}, {4, 11, "Innervate", 64}, {1, 4, "Vanish", 65}, {1, 4, "Feint", 66}, {4, 11, "Demoralizing Roar", 67}, {1, 1, "Challenging Shout", 68}, {1, 8, "Cone of Cold", 69}, {1, 5, "Fade", 70}, {1, 1, "Spell Reflection", 71}, {1, 1, "Retaliation", 56},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39}, {1, 8, "Polymorph", 40}, {4, 11, "Entangling Roots", 41}, {1, 6, "Icy Touch", 42}, {1, 6, "Plague Strike", 42}, {1, 6, "Blood Boil", 0}, {1, 6, "Death Coil", 0}, {1, 6, "Death Grip", 43}, {1, 6, "Pestilence", 44}, {1, 6, "Anti-Magic Shell", 45}, {1, 6, "Raise Dead", 46}, {1, 6, "Empower Rune Weapon", 47}, {1, 6, "Strangulate", 1}, {3, 3, "Steady Shot", 0}, {3, 3, "Hunter's Mark", 48}, {2, 7, "Bloodlust", 49}, {3, 3, "Rapid Fire", 50}, {2, 7, "Windfury Totem", 51}, {3, 3, "Feign Death", 52}, {2, 7, "Fire Nova", 53}, {1, 2, "Judgement of Light", 54}, {3, 3, "Distracting Shot", 1}, {2, 7, "Wind Shear", 1}, {1, 2, "Blessing of Kings", 55}, {1, 2, "Blessing of Wisdom", 55}, {1, 8, "Frost Armor", 56}, {1, 5, "Inner Fire", 56}, {1, 8, "Frost Nova", 57}, {1, 1, "Sunder Armor", 58}, {1, 5, "Psychic Scream", 59}, {1, 9, "Howl of Terror", 59}, {1, 1, "Bloodrage", 60}, {1, 2, "Divine Plea", 61}, {1, 1, "Intimidating Shout", 62}, {4, 11, "Faerie Fire", 63}, {4, 11, "Innervate", 64}, {1, 4, "Vanish", 65}, {1, 4, "Feint", 66}, {4, 11, "Demoralizing Roar", 67}, {1, 1, "Challenging Shout", 68}, {1, 8, "Cone of Cold", 69}, {1, 5, "Fade", 70}, {1, 1, "Spell Reflection", 71}, {1, 1, "Retaliation", 56}, {1, 1, "Recklessness", 73},
         };
         size_t passed = 0;
         // Incinerate carries the Immolate bonus (a quarter more on an Immolated target).
@@ -531,7 +531,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             }
             const uint32_t reagentBefore = [&] { const auto* sd = content.spell(spellId); uint32_t n = 0;
                 for (const auto& st : p.inventory) if (sd && st.itemId == sd->reagentItems[0]) n += st.count; return n; }();
-            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || (a.kind >= 12 && a.kind <= 14) || a.kind == 16 || a.kind == 20 || (a.kind >= 28 && a.kind <= 30) || (a.kind >= 32 && a.kind <= 39) || a.kind == 45 || a.kind == 46 || a.kind == 47 || a.kind == 49 || a.kind == 50 || a.kind == 51 || a.kind == 55 || a.kind == 56 || a.kind == 57 || a.kind == 59 || a.kind == 60 || a.kind == 61 || a.kind == 64 || a.kind == 67 || a.kind == 68 || a.kind == 69 || a.kind == 71) {
+            if ((a.kind >= 2 && a.kind <= 5) || (a.kind >= 8 && a.kind <= 10) || (a.kind >= 12 && a.kind <= 14) || a.kind == 16 || a.kind == 20 || (a.kind >= 28 && a.kind <= 30) || (a.kind >= 32 && a.kind <= 39) || a.kind == 45 || a.kind == 46 || a.kind == 47 || a.kind == 49 || a.kind == 50 || a.kind == 51 || a.kind == 55 || a.kind == 56 || a.kind == 57 || a.kind == 59 || a.kind == 60 || a.kind == 61 || a.kind == 64 || a.kind == 67 || a.kind == 68 || a.kind == 69 || a.kind == 71 || a.kind == 73) {
                 const auto meleeBefore = localMeleeStats(p, content); const auto healthBefore = p.maxHealth; const auto items = p.inventory.size();
                 const auto armorBefore = localMeleeArmor(p, content);
                 const auto* autoShot = content.spell(75);
@@ -571,6 +571,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     }
                 }
                 if (a.kind == 56 && a.cls == 1) for (auto id : p.knownSpells) if (const auto* f = content.spell(id); f && f->name == "Battle Stance" && f->unsupportedReason.empty()) {
+                    arena.execute(p, {LocalAction::CastSpell, p.guid, id}, players, result); arena.tick(0.05f, players); p.globalCooldownMs = 0; p.mana = p.maxMana; }
+                if (a.kind == 73) for (auto id : p.knownSpells) if (const auto* f = content.spell(id); f && f->name == "Berserker Stance" && f->unsupportedReason.empty()) {
                     arena.execute(p, {LocalAction::CastSpell, p.guid, id}, players, result); arena.tick(0.05f, players); p.globalCooldownMs = 0; p.mana = p.maxMana; }
                 if (a.kind == 71) p.mana = p.maxMana; // rage after the stance change
                 const auto tapHealth = p.health;
@@ -671,6 +673,25 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     ok = ok && sd && held && paid > 0 && paid == localResourcePools(p, content).baseHealth * sd->healthCostBasePct / 100 &&
                          p.mana >= 19 && sd->energizeRage == 20 && sd->periodicRage == 1 && sd->periodicRageMs == 1000 && sd->durationMs == 10000;
                     if (!ok) result = "held " + std::to_string(held) + " paid " + std::to_string(paid) + " rage " + std::to_string(p.mana) + " (" + result + ")";
+                }
+                if (a.kind == 73) {
+                    // Recklessness: 3 charges, +20 % damage taken, fear immunity; a Mortal Strike spends one.
+                    const auto* sd = content.spell(spellId);
+                    const auto charges = [&] { for (const auto& st : p.statAuras) if (st.spellId == spellId && st.remainingMs) return int(st.procCharges); return -1; };
+                    const int before = charges();
+                    uint32_t strike = 0; for (auto k : p.knownSpells) if (const auto* kd = content.spell(k); kd && kd->name == "Mortal Strike" && kd->unsupportedReason.empty()) strike = k;
+                    LocalRealmNpc* foe = nullptr; float best = 1e9f;
+                    for (const auto& m : arena.npcs()) if (m.hostile && !m.dead && m.health && m.mapId == p.mapId && m.instanceId == p.instanceId)
+                        if (const float dist = std::hypot(m.x - p.x, m.y - p.y); dist < best) { best = dist; foe = const_cast<LocalRealmNpc*>(&m); }
+                    std::string struck;
+                    if (foe && strike) {
+                        foe->x = foe->homeX = p.x + 1.5f; foe->y = foe->homeY = p.y; foe->z = foe->homeZ = p.z; foe->maxHealth = foe->health = 1000000;
+                        p.orientation = 0; p.globalCooldownMs = 0; p.mana = p.maxMana; p.cooldowns.clear();
+                        arena.execute(p, {LocalAction::CastSpell, foe->guid, strike}, players, struck); arena.tick(0.05f, players);
+                    }
+                    ok = ok && sd && sd->classBuffSpecialCritPct == 100 && sd->classBuffDamageTakenPct == 20 && (sd->classBuffMechanicImmunity & (1u << 5)) &&
+                         before == 3 && charges() == 2;
+                    if (!ok) result = "charges " + std::to_string(before) + " -> " + std::to_string(charges()) + " strike " + struck + " (" + result + ")";
                 }
                 if (a.kind == 71) {
                     // Spell Reflection: held, the next reflectable spell at its full chance.
