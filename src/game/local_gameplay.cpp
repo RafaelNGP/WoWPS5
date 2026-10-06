@@ -6736,6 +6736,8 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
                 if(use->category != 11196) return reject("This item can only be used on yourself");
                 recipient = g.player(cmd.target, players);
                 if(!recipient || recipient->dead || !recipient->health) return reject("Choose a living player");
+                if(recipient->flight.active) return reject("Target is in flight");
+                if(recipient->vehicleGuid) return reject("Target is in a vehicle");
                 if(recipient->mapId != p.mapId || recipient->instanceId != p.instanceId)
                     return reject("Target is too far away");
                 const float dx = recipient->x - p.x, dy = recipient->y - p.y, dz = recipient->z - p.z;
@@ -6752,6 +6754,9 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
                     [](const auto& cd){ return cd.category == 11196 && cd.remainingMs; }) ||
                     localHoldsStatAura(*recipient, 11196);
                 if(recently) return reject("Recently Bandaged");
+                if(p.castingSpellId) return reject("A spell is already being cast");
+                if(std::any_of(p.consumableRegens.begin(), p.consumableRegens.end(), [](const auto& r){ return r.category == 11196; }))
+                    return reject("A spell is already being cast");
             }
             const auto ready=std::find_if(recipient->categoryCooldowns.begin(),recipient->categoryCooldowns.end(),[&](const auto& cd){
                 return cd.family==kLocalItemCooldownFamily&&cd.category==use->category&&cd.remainingMs;});
@@ -6791,9 +6796,25 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
                 LocalConsumableRegen r;r.spellId=use->spellId;r.itemId=use->itemId;r.category=use->category;r.durationMs=use->durationMs;
                 r.health=use->regenHealth;r.mana=mana?use->regenMana:0;r.lastHealth=candidate.health;
                 r.x=candidate.x;r.y=candidate.y;r.cancelOnMove=use->cancelOnMove;r.cancelOnDamage=use->cancelOnDamage;
+                r.casterGuid=p.guid;r.targetGuid=recipient->guid;
                 candidate.consumableRegens.push_back(r);
+                if(use->category == 11196 && recipient != &p) {
+                    std::erase_if(p.consumableRegens, [&](const auto& cr){ return cr.category == 11196; });
+                    if(p.consumableRegens.size() >= kLocalMaxConsumableRegens) p.consumableRegens.erase(p.consumableRegens.begin());
+                    LocalConsumableRegen rCaster;
+                    rCaster.spellId = use->spellId; rCaster.itemId = use->itemId; rCaster.category = use->category;
+                    rCaster.durationMs = use->durationMs; rCaster.health = 0; rCaster.mana = 0;
+                    rCaster.lastHealth = p.health; rCaster.x = p.x; rCaster.y = p.y;
+                    rCaster.cancelOnMove = true; rCaster.cancelOnDamage = true;
+                    rCaster.casterGuid = p.guid; rCaster.targetGuid = recipient->guid;
+                    p.consumableRegens.push_back(rCaster);
+                }
             }
             if(immediateBuff)applyLocalConsumableBuff(candidate,*use);
+            if(use->category == 11196) {
+                p.globalCooldownMs = 1500;
+                candidate.globalCooldownMs = (recipient == &p ? 1500 : candidate.globalCooldownMs);
+            }
             if(recipient == &p) {
                 removeItem(candidate,cmd.id,1);
                 stats(candidate,c,false);
@@ -10177,6 +10198,56 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
     // area iterators above no longer retain LocalRealmNpc references.
     changed=g.tickNpcPeriodic(elapsedMs,players)||changed;
     changed=settlePendingScriptKills(players)||changed;
+    // Despawn temporary Basic Campfires whose creator's aura expired or whose creator is gone
+    const size_t goCountBefore = g.content->gameObjects.size();
+    std::erase_if(g.content->gameObjects, [&](const auto& obj) {
+        if (obj.entry == 29784 && obj.id >= 991000) {
+            return std::none_of(players.begin(), players.end(), [&](const auto* p) {
+                return p && (obj.id == 991000 + uint32_t(p->guid & 0xFFFF)) &&
+                       std::any_of(p->statAuras.begin(), p->statAuras.end(), [](const auto& a) {
+                           return a.spellId == 818 && a.remainingMs > 0;
+                       });
+            });
+        }
+        return false;
+    });
+    if (g.content->gameObjects.size() != goCountBefore) changed = true;
+
+    // Cross-player bandage channeling synchronization
+    for (auto* p : players) if (p) {
+        for (const auto& r : p->consumableRegens) {
+            if (r.category == 11196 && r.casterGuid && r.targetGuid && r.casterGuid != r.targetGuid) {
+                if (p->guid == r.targetGuid) {
+                    const auto* caster = g.player(r.casterGuid, players);
+                    const bool inRange = caster && caster->mapId == p->mapId && caster->instanceId == p->instanceId &&
+                        distance2(caster->x, caster->y, caster->z, p->x, p->y, p->z) <= 15.0f * 15.0f;
+                    const bool active = inRange && !caster->dead && caster->health &&
+                        std::any_of(caster->consumableRegens.begin(), caster->consumableRegens.end(), [&](const auto& cr){
+                            return cr.category == 11196 && cr.targetGuid == r.targetGuid;
+                        });
+                    if (!active) {
+                        std::erase_if(p->consumableRegens, [&](const auto& x){ return x.category == 11196 && x.targetGuid == r.targetGuid; });
+                        changed = true;
+                        break;
+                    }
+                } else if (p->guid == r.casterGuid) {
+                    const auto* target = g.player(r.targetGuid, players);
+                    const bool inRange = target && target->mapId == p->mapId && target->instanceId == p->instanceId &&
+                        distance2(p->x, p->y, p->z, target->x, target->y, target->z) <= 15.0f * 15.0f;
+                    const bool active = inRange && !target->dead && target->health &&
+                        std::any_of(target->consumableRegens.begin(), target->consumableRegens.end(), [&](const auto& tr){
+                            return tr.category == 11196 && tr.casterGuid == r.casterGuid;
+                        });
+                    if (!active) {
+                        std::erase_if(p->consumableRegens, [&](const auto& x){ return x.category == 11196 && x.casterGuid == r.casterGuid; });
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     g.refreshHealingViews(players);
     return changed;
 }

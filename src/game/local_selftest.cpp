@@ -2551,9 +2551,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         SELFTEST_CHECK(world.execute(p, {LocalAction::CraftItem, 1, 2539}, players, res));
         SELFTEST_CHECK(hasItem(2680) == 1);
 
-        // Distance check: move far from campfire (clear cooldown/statAura to test GO proximity)
-        p.cooldowns.clear();
-        p.statAuras.clear();
+        // Distance check: move far from campfire (natural proximity check without clearing cooldowns/statAuras)
         p.x += 50.0f;
         SELFTEST_CHECK(!localPlayerNearSpellFocus(world.content(), p, 4));
         SELFTEST_CHECK(!world.execute(p, {LocalAction::CraftItem, 1, 2538}, players, res));
@@ -2579,6 +2577,13 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         for (int i = 0; i < 110; ++i) world.tick(0.1f, players);
         const auto wellFed = std::find_if(p.consumableBuffs.begin(), p.consumableBuffs.end(), [](const auto& b){ return b.spellId == 19705; });
         SELFTEST_CHECK(wellFed != p.consumableBuffs.end());
+
+        // Basic Campfire despawns when creator aura expires (after 5 minutes)
+        std::erase_if(p.statAuras, [](const auto& a){ return a.spellId == 818; });
+        world.tick(0.1f, players);
+        SELFTEST_CHECK(!localPlayerNearSpellFocus(world.content(), p, 4));
+        SELFTEST_CHECK(!world.execute(p, {LocalAction::CraftItem, 1, 2538}, players, res));
+        SELFTEST_CHECK(res == "Requires a cooking fire");
 
         // 8f. First Aid: Learn First Aid from trainer
         LocalRealmCommand learnFaCmd{LocalAction::LearnProfession, 0, 129};
@@ -2707,11 +2712,24 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         SELFTEST_CHECK(res == "Choose a living player");
         ally.dead = false;
 
+        // Negative check: cannot bandage ally in flight
+        ally.flight.active = true;
+        SELFTEST_CHECK(!world.execute(p, {LocalAction::UseItem, ally.guid, 1251}, players, res));
+        SELFTEST_CHECK(res == "Target is in flight");
+        ally.flight.active = false;
+
+        // Negative check: cannot bandage while caster is casting
+        p.castingSpellId = 133;
+        SELFTEST_CHECK(!world.execute(p, {LocalAction::UseItem, ally.guid, 1251}, players, res));
+        SELFTEST_CHECK(res == "A spell is already being cast");
+        p.castingSpellId = 0;
+
         const uint32_t bandagesBefore = hasItem(1251);
         // Bandaging injured ally succeeds!
         SELFTEST_CHECK(world.execute(p, {LocalAction::UseItem, ally.guid, 1251}, players, res));
         SELFTEST_CHECK(hasItem(1251) == bandagesBefore - 1); // 1 consumed from caster
         SELFTEST_CHECK(!ally.consumableRegens.empty()); // ally has regen
+        SELFTEST_CHECK(!p.consumableRegens.empty()); // caster has channel tracker
         const auto allyBandagedCd = std::find_if(ally.categoryCooldowns.begin(), ally.categoryCooldowns.end(), [](const auto& cd){ return cd.category == 11196 && cd.remainingMs > 0; });
         SELFTEST_CHECK(allyBandagedCd != ally.categoryCooldowns.end()); // ally has Recently Bandaged
         // Tick world so ally's harmfulAuras rebuilds
@@ -2722,6 +2740,12 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         // Ally cannot be re-bandaged while debuffed
         SELFTEST_CHECK(!world.execute(p, {LocalAction::UseItem, ally.guid, 1251}, players, res));
         SELFTEST_CHECK(res == "Recently Bandaged");
+
+        // Caster moving cancels both caster channel and ally's healing
+        p.x += 2.0f;
+        world.tick(0.2f, players);
+        SELFTEST_CHECK(p.consumableRegens.empty());
+        SELFTEST_CHECK(ally.consumableRegens.empty());
 
         out << "PASS secondary professions (Cooking & First Aid): learn professions, recipes from trainer, fire proximity gating, Basic Campfire, food craft & regen, Well Fed buff, bandage craft & use on self and target, Recently Bandaged debuff, movement and damage interrupts\n";
     }

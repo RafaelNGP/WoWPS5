@@ -298,6 +298,7 @@ struct LocalConsumableRegen {
     float x=0,y=0;
     bool cancelOnMove=false,cancelOnDamage=false;
     uint32_t visualAccumulatedHealth=0;
+    uint64_t casterGuid=0,targetGuid=0;
 };
 enum class LocalCastStatus : uint8_t { None = 0, Casting, Finished, Interrupted, Failed };
 enum class LocalQuestStatus : uint8_t { Active = 0, Complete = 1, Rewarded = 2 };
@@ -2593,12 +2594,6 @@ const LocalVehicleAbility* localVehicleCastAbility(const LocalVehicleCast& cast,
 bool validLocalVehicleCastView(const LocalVehicleCast& cast,const LocalWorldContent& content);
 inline bool localPlayerNearSpellFocus(const LocalWorldContent& content, const LocalRealmPlayer& player, uint32_t focus) {
     if (!focus) return true;
-    if (focus == 4 || focus == 9 || focus == 1613) {
-        if (std::any_of(player.statAuras.begin(), player.statAuras.end(), [](const auto& a) { return a.spellId == 818 && a.remainingMs > 0; }) ||
-            std::any_of(player.cooldowns.begin(), player.cooldowns.end(), [](const auto& cd) { return cd.spellId == 818 && cd.remainingMs > 0; })) {
-            return true;
-        }
-    }
     for (const auto& obj : content.gameObjects) {
         if (obj.mapId != player.mapId) continue;
         const float dx = obj.x - player.x, dy = obj.y - player.y, dz = obj.z - player.z;
