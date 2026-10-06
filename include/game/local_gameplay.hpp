@@ -2593,6 +2593,12 @@ const LocalVehicleAbility* localVehicleCastAbility(const LocalVehicleCast& cast,
 bool validLocalVehicleCastView(const LocalVehicleCast& cast,const LocalWorldContent& content);
 inline bool localPlayerNearSpellFocus(const LocalWorldContent& content, const LocalRealmPlayer& player, uint32_t focus) {
     if (!focus) return true;
+    if (focus == 4 || focus == 9 || focus == 1613) {
+        if (std::any_of(player.statAuras.begin(), player.statAuras.end(), [](const auto& a) { return a.spellId == 818 && a.remainingMs > 0; }) ||
+            std::any_of(player.cooldowns.begin(), player.cooldowns.end(), [](const auto& cd) { return cd.spellId == 818 && cd.remainingMs > 0; })) {
+            return true;
+        }
+    }
     for (const auto& obj : content.gameObjects) {
         if (obj.mapId != player.mapId) continue;
         const float dx = obj.x - player.x, dy = obj.y - player.y, dz = obj.z - player.z;
@@ -2606,6 +2612,17 @@ inline bool localPlayerNearSpellFocus(const LocalWorldContent& content, const Lo
         } else if (focus == 3) { // Forge
             if (obj.entry == 4090 || obj.id == 4090 ||
                 obj.name.find("Forge") != std::string::npos || obj.name.find("forge") != std::string::npos) {
+                return true;
+            }
+        } else if (focus == 4 || focus == 9 || focus == 1613) { // Cooking Fire / Tribal Fire / Ghostly Cooking Fire
+            if (obj.entry == 29784 || obj.entry == 2561 || obj.entry == 3684 || obj.entry == 186720 ||
+                obj.id == 29784 || obj.id == 2561 || obj.id == 3684 || obj.id == 186720 ||
+                obj.name.find("Campfire") != std::string::npos || obj.name.find("campfire") != std::string::npos ||
+                obj.name.find("Cooking Fire") != std::string::npos || obj.name.find("cooking fire") != std::string::npos ||
+                obj.name.find("Fire") != std::string::npos || obj.name.find("fire") != std::string::npos ||
+                obj.name.find("Stove") != std::string::npos || obj.name.find("stove") != std::string::npos ||
+                obj.name.find("Bonfire") != std::string::npos || obj.name.find("bonfire") != std::string::npos ||
+                obj.name.find("Brazier") != std::string::npos || obj.name.find("brazier") != std::string::npos) {
                 return true;
             }
         }

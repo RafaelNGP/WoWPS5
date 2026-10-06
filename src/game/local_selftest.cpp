@@ -2346,6 +2346,385 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
 
         out << "PASS gameobject quests (G2/G3): questgiver poster, interaction objective, quest item loot, turn-in at gameobject\n";
     }
+
+    // 8. Secondary Professions (Option 3): Cooking and First Aid
+    {
+        LocalGameplay world;
+        if (!world.loadContent(worldPath, error)) { out << error << "\n"; return false; }
+        if (clientSpells) SELFTEST_CHECK(world.setStarterSpells(*clientSpells, "selftest", error));
+        world.useContent(world.sharedContent());
+        std::vector<LocalRealmPlayer*> players;
+        std::string res;
+
+        LocalRealmPlayer p;
+        p.guid = 103;
+        p.race = 1; // Human
+        p.classId = 1; // Warrior
+        p.level = 20;
+        p.money = 100000;
+        world.initializePlayer(p, true);
+        players.push_back(&p);
+
+        const auto pushItem = [&](uint32_t id, uint16_t count) {
+            p.inventory.push_back({id, count});
+        };
+        const auto hasItem = [&](uint32_t id) {
+            uint32_t n = 0;
+            for (const auto& s : p.inventory) if (s.itemId == id) n += s.count;
+            return n;
+        };
+
+        auto contentPtr = std::make_shared<LocalWorldContent>(world.content());
+
+        // Setup Cooking recipes in contentPtr
+        LocalRecipe charredWolf;
+        charredWolf.spellId = 2538;
+        charredWolf.skillId = 185;
+        charredWolf.name = "Charred Wolf Meat";
+        charredWolf.createdItemId = 2679;
+        charredWolf.createdCount = 1;
+        charredWolf.reagents = {{2672, 1}}; // Stringy Wolf Meat
+        charredWolf.requiresSpellFocus = 4; // Cooking Fire
+        charredWolf.requiredSkill = 1;
+        contentPtr->recipes.push_back(charredWolf);
+
+        LocalRecipe roastedBoar;
+        roastedBoar.spellId = 2540;
+        roastedBoar.skillId = 185;
+        roastedBoar.name = "Roasted Boar Meat";
+        roastedBoar.createdItemId = 2681;
+        roastedBoar.createdCount = 1;
+        roastedBoar.reagents = {{769, 1}}; // Chunk of Boar Meat
+        roastedBoar.requiresSpellFocus = 4;
+        roastedBoar.requiredSkill = 1;
+        contentPtr->recipes.push_back(roastedBoar);
+
+        LocalRecipe bakedEggs;
+        bakedEggs.spellId = 8604;
+        bakedEggs.skillId = 185;
+        bakedEggs.name = "Herb Baked Eggs";
+        bakedEggs.createdItemId = 6888;
+        bakedEggs.createdCount = 1;
+        bakedEggs.reagents = {{6889, 1}}; // Small Egg
+        bakedEggs.requiresSpellFocus = 4;
+        bakedEggs.requiredSkill = 1;
+        contentPtr->recipes.push_back(bakedEggs);
+
+        LocalRecipe spicedWolf;
+        spicedWolf.spellId = 2539;
+        spicedWolf.skillId = 185;
+        spicedWolf.name = "Spiced Wolf Meat";
+        spicedWolf.createdItemId = 2680;
+        spicedWolf.createdCount = 1;
+        spicedWolf.reagents = {{2672, 1}};
+        spicedWolf.requiresSpellFocus = 4;
+        spicedWolf.requiredSkill = 1;
+        contentPtr->recipes.push_back(spicedWolf);
+
+        // Setup First Aid recipes in contentPtr
+        LocalRecipe linenBandage;
+        linenBandage.spellId = 3275;
+        linenBandage.skillId = 129;
+        linenBandage.name = "Linen Bandage";
+        linenBandage.createdItemId = 1251;
+        linenBandage.createdCount = 1;
+        linenBandage.reagents = {{2589, 1}}; // Linen Cloth
+        linenBandage.requiredSkill = 1;
+        contentPtr->recipes.push_back(linenBandage);
+
+        LocalRecipe heavyLinen;
+        heavyLinen.spellId = 3276;
+        heavyLinen.skillId = 129;
+        heavyLinen.name = "Heavy Linen Bandage";
+        heavyLinen.createdItemId = 2581;
+        heavyLinen.createdCount = 1;
+        heavyLinen.reagents = {{2589, 2}};
+        heavyLinen.requiredSkill = 20;
+        contentPtr->recipes.push_back(heavyLinen);
+
+        LocalRecipe woolBandage;
+        woolBandage.spellId = 3277;
+        woolBandage.skillId = 129;
+        woolBandage.name = "Wool Bandage";
+        woolBandage.createdItemId = 3530;
+        woolBandage.createdCount = 1;
+        woolBandage.reagents = {{2592, 1}}; // Wool Cloth
+        woolBandage.requiredSkill = 50;
+        contentPtr->recipes.push_back(woolBandage);
+
+        LocalRecipe silkBandage;
+        silkBandage.spellId = 7928;
+        silkBandage.skillId = 129;
+        silkBandage.name = "Silk Bandage";
+        silkBandage.createdItemId = 6450;
+        silkBandage.createdCount = 1;
+        silkBandage.reagents = {{4306, 1}}; // Silk Cloth
+        silkBandage.requiredSkill = 100;
+        contentPtr->recipes.push_back(silkBandage);
+
+        std::sort(contentPtr->recipes.begin(), contentPtr->recipes.end(), [](const auto& a, const auto& b) { return a.spellId < b.spellId; });
+        world.useContent(contentPtr);
+
+        // Setup Cooking trainer (entry 1355, Cook Ghilm, skill 185)
+        LocalRealmNpc cookTrainer;
+        cookTrainer.guid = 8881;
+        cookTrainer.entry = 1355;
+        cookTrainer.name = "Cooking Trainer";
+        cookTrainer.mapId = p.mapId;
+        cookTrainer.x = p.x + 1.0f;
+        cookTrainer.y = p.y;
+        cookTrainer.z = p.z;
+        cookTrainer.professionTrainer = true;
+        cookTrainer.trainerSkill = 185;
+        cookTrainer.hostile = false;
+
+        // Setup First Aid trainer (entry 2327, Shaina Fuller, skill 129)
+        LocalRealmNpc faTrainer;
+        faTrainer.guid = 8882;
+        faTrainer.entry = 2327;
+        faTrainer.name = "First Aid Trainer";
+        faTrainer.mapId = p.mapId;
+        faTrainer.x = p.x + 1.0f;
+        faTrainer.y = p.y + 1.0f;
+        faTrainer.z = p.z;
+        faTrainer.professionTrainer = true;
+        faTrainer.trainerSkill = 129;
+        faTrainer.hostile = false;
+
+        world.setRemoteNpcs({cookTrainer, faTrainer});
+
+        // 8a. Cooking: Learn Cooking from trainer
+        LocalRealmCommand learnCookCmd{LocalAction::LearnProfession, 0, 185};
+        learnCookCmd.serviceNpcGuid = cookTrainer.guid;
+        SELFTEST_CHECK(world.execute(p, learnCookCmd, players, res));
+        const auto cookingProf = std::find_if(p.professions.begin(), p.professions.end(), [](const auto& s){ return s.skillId == 185; });
+        SELFTEST_CHECK(cookingProf != p.professions.end());
+        // Basic Campfire (spell 818) granted automatically upon learning Cooking
+        SELFTEST_CHECK(std::find(p.knownSpells.begin(), p.knownSpells.end(), 818) != p.knownSpells.end());
+
+        // 8b. Cooking: Learn recipes from trainer
+        LocalRealmCommand recipeCmd{LocalAction::LearnRecipe, 0, 2538};
+        recipeCmd.serviceNpcGuid = cookTrainer.guid;
+        SELFTEST_CHECK(world.execute(p, recipeCmd, players, res));
+        SELFTEST_CHECK(std::binary_search(p.knownRecipes.begin(), p.knownRecipes.end(), 2538));
+
+        recipeCmd.id = 2540;
+        SELFTEST_CHECK(world.execute(p, recipeCmd, players, res));
+        SELFTEST_CHECK(std::binary_search(p.knownRecipes.begin(), p.knownRecipes.end(), 2540));
+
+        recipeCmd.id = 8604;
+        SELFTEST_CHECK(world.execute(p, recipeCmd, players, res));
+        SELFTEST_CHECK(std::binary_search(p.knownRecipes.begin(), p.knownRecipes.end(), 8604));
+
+        recipeCmd.id = 2539;
+        SELFTEST_CHECK(world.execute(p, recipeCmd, players, res));
+        SELFTEST_CHECK(std::binary_search(p.knownRecipes.begin(), p.knownRecipes.end(), 2539));
+
+        // 8c. Proximity to fire: crafting without cooking fire fails
+        pushItem(2672, 5); // Stringy Wolf Meat
+        pushItem(769, 5);  // Chunk of Boar Meat
+        pushItem(6889, 5); // Small Egg
+        SELFTEST_CHECK(!world.execute(p, {LocalAction::CraftItem, 1, 2538}, players, res));
+        SELFTEST_CHECK(res == "Requires a cooking fire");
+
+        // 8d. Cast Basic Campfire (spell 818) -> creates campfire and allows cooking
+        SELFTEST_CHECK(world.execute(p, {LocalAction::CastSpell, 0, 818}, players, res));
+        SELFTEST_CHECK(localPlayerNearSpellFocus(world.content(), p, 4));
+        SELFTEST_CHECK(hasItem(2679) == 0);
+
+        // Craft Charred Wolf Meat near campfire -> succeeds
+        SELFTEST_CHECK(world.execute(p, {LocalAction::CraftItem, 1, 2538}, players, res));
+        SELFTEST_CHECK(hasItem(2679) == 1);
+        SELFTEST_CHECK(hasItem(2672) == 4);
+
+        // Craft Roasted Boar Meat -> succeeds
+        SELFTEST_CHECK(world.execute(p, {LocalAction::CraftItem, 1, 2540}, players, res));
+        SELFTEST_CHECK(hasItem(2681) == 1);
+        SELFTEST_CHECK(hasItem(769) == 4);
+
+        // Craft Herb Baked Eggs -> succeeds
+        SELFTEST_CHECK(world.execute(p, {LocalAction::CraftItem, 1, 8604}, players, res));
+        SELFTEST_CHECK(hasItem(6888) == 1);
+        SELFTEST_CHECK(hasItem(6889) == 4);
+
+        // Craft Spiced Wolf Meat -> succeeds
+        SELFTEST_CHECK(world.execute(p, {LocalAction::CraftItem, 1, 2539}, players, res));
+        SELFTEST_CHECK(hasItem(2680) == 1);
+
+        // Distance check: move far from campfire (clear cooldown/statAura to test GO proximity)
+        p.cooldowns.clear();
+        p.statAuras.clear();
+        p.x += 50.0f;
+        SELFTEST_CHECK(!localPlayerNearSpellFocus(world.content(), p, 4));
+        SELFTEST_CHECK(!world.execute(p, {LocalAction::CraftItem, 1, 2538}, players, res));
+        SELFTEST_CHECK(res == "Requires a cooking fire");
+        p.x -= 50.0f; // return to campfire
+        SELFTEST_CHECK(localPlayerNearSpellFocus(world.content(), p, 4));
+
+        // 8e. Consumable food regen and Well Fed buff
+        p.health = 50;
+        SELFTEST_CHECK(world.execute(p, {LocalAction::UseItem, 0, 2679}, players, res));
+        SELFTEST_CHECK(hasItem(2679) == 0);
+        SELFTEST_CHECK(!p.consumableRegens.empty());
+        // Tick world to advance food regen (tick clamps dt to 0.25s)
+        for (int i = 0; i < 20; ++i) world.tick(0.1f, players);
+        SELFTEST_CHECK(p.health > 50);
+
+        // Test Well Fed buff on Spiced Wolf Meat (item 2680)
+        p.health = 50;
+        p.consumableRegens.clear();
+        SELFTEST_CHECK(world.execute(p, {LocalAction::UseItem, 0, 2680}, players, res));
+        SELFTEST_CHECK(hasItem(2680) == 0);
+        // Advance 11 seconds to trigger Well Fed (buffDelayMs = 10000)
+        for (int i = 0; i < 110; ++i) world.tick(0.1f, players);
+        const auto wellFed = std::find_if(p.consumableBuffs.begin(), p.consumableBuffs.end(), [](const auto& b){ return b.spellId == 19705; });
+        SELFTEST_CHECK(wellFed != p.consumableBuffs.end());
+
+        // 8f. First Aid: Learn First Aid from trainer
+        LocalRealmCommand learnFaCmd{LocalAction::LearnProfession, 0, 129};
+        learnFaCmd.serviceNpcGuid = faTrainer.guid;
+        SELFTEST_CHECK(world.execute(p, learnFaCmd, players, res));
+        auto faProf = std::find_if(p.professions.begin(), p.professions.end(), [](const auto& s){ return s.skillId == 129; });
+        SELFTEST_CHECK(faProf != p.professions.end());
+        // Linen Bandage (3275) learned automatically
+        SELFTEST_CHECK(std::binary_search(p.knownRecipes.begin(), p.knownRecipes.end(), 3275));
+
+        // Train higher bandage recipes
+        faProf->current = 100;
+        faProf->max = 150;
+        LocalRealmCommand faRecipeCmd{LocalAction::LearnRecipe, 0, 3276};
+        faRecipeCmd.serviceNpcGuid = faTrainer.guid;
+        SELFTEST_CHECK(world.execute(p, faRecipeCmd, players, res));
+        SELFTEST_CHECK(std::binary_search(p.knownRecipes.begin(), p.knownRecipes.end(), 3276));
+
+        faRecipeCmd.id = 3277;
+        SELFTEST_CHECK(world.execute(p, faRecipeCmd, players, res));
+        SELFTEST_CHECK(std::binary_search(p.knownRecipes.begin(), p.knownRecipes.end(), 3277));
+
+        faRecipeCmd.id = 7928;
+        SELFTEST_CHECK(world.execute(p, faRecipeCmd, players, res));
+        SELFTEST_CHECK(std::binary_search(p.knownRecipes.begin(), p.knownRecipes.end(), 7928));
+
+        // Craft bandages from cloth
+        pushItem(2589, 10); // Linen Cloth
+        pushItem(2592, 5);  // Wool Cloth
+        pushItem(4306, 5);  // Silk Cloth
+
+        SELFTEST_CHECK(world.execute(p, {LocalAction::CraftItem, 1, 3275}, players, res));
+        SELFTEST_CHECK(hasItem(1251) == 1); // Linen Bandage
+        SELFTEST_CHECK(hasItem(2589) == 9);
+
+        SELFTEST_CHECK(world.execute(p, {LocalAction::CraftItem, 1, 3276}, players, res));
+        SELFTEST_CHECK(hasItem(2581) == 1); // Heavy Linen Bandage
+        SELFTEST_CHECK(hasItem(2589) == 7);
+
+        SELFTEST_CHECK(world.execute(p, {LocalAction::CraftItem, 1, 3277}, players, res));
+        SELFTEST_CHECK(hasItem(3530) == 1); // Wool Bandage
+        SELFTEST_CHECK(hasItem(2592) == 4);
+
+        SELFTEST_CHECK(world.execute(p, {LocalAction::CraftItem, 1, 7928}, players, res));
+        SELFTEST_CHECK(hasItem(6450) == 1); // Silk Bandage
+        SELFTEST_CHECK(hasItem(4306) == 4);
+
+        // 8g. Use bandage on self: applies Recently Bandaged (11196) and channeled regen
+        p.health = 50;
+        p.consumableRegens.clear();
+        p.categoryCooldowns.clear();
+        p.statAuras.clear();
+        p.harmfulAuras.clear();
+
+        SELFTEST_CHECK(world.execute(p, {LocalAction::UseItem, 0, 1251}, players, res));
+        SELFTEST_CHECK(hasItem(1251) == 0);
+        SELFTEST_CHECK(!p.consumableRegens.empty());
+        // Verify 11196 category cooldown
+        const auto bandagedCd = std::find_if(p.categoryCooldowns.begin(), p.categoryCooldowns.end(), [](const auto& cd){ return cd.category == 11196 && cd.remainingMs > 0; });
+        SELFTEST_CHECK(bandagedCd != p.categoryCooldowns.end());
+        // Tick world to rebuild aura views
+        world.tick(0.1f, players);
+        // Verify 11196 debuff is present in harmfulAuras
+        const auto bandagedDebuff = std::find_if(p.harmfulAuras.begin(), p.harmfulAuras.end(), [](const auto& h){ return h.spellId == 11196; });
+        SELFTEST_CHECK(bandagedDebuff != p.harmfulAuras.end());
+
+        // Re-use while Recently Bandaged is rejected
+        pushItem(1251, 1);
+        p.health = 50;
+        SELFTEST_CHECK(!world.execute(p, {LocalAction::UseItem, 0, 1251}, players, res));
+        SELFTEST_CHECK(res == "Recently Bandaged");
+
+        // 8h. Interruption by movement: movement cancels bandaging regen but keeps debuff
+        p.x += 2.0f;
+        world.tick(0.2f, players);
+        SELFTEST_CHECK(p.consumableRegens.empty());
+        // Debuff still blocks re-use
+        SELFTEST_CHECK(!world.execute(p, {LocalAction::UseItem, 0, 1251}, players, res));
+        SELFTEST_CHECK(res == "Recently Bandaged");
+
+        // Interruption by damage: clear cooldown to simulate 60s passed
+        p.categoryCooldowns.clear();
+        p.statAuras.clear();
+        p.harmfulAuras.clear();
+        SELFTEST_CHECK(world.execute(p, {LocalAction::UseItem, 0, 1251}, players, res));
+        SELFTEST_CHECK(!p.consumableRegens.empty());
+        p.health -= 10; // take damage
+        world.tick(0.2f, players);
+        SELFTEST_CHECK(p.consumableRegens.empty()); // cancelled on damage
+        pushItem(1251, 1);
+        SELFTEST_CHECK(!world.execute(p, {LocalAction::UseItem, 0, 1251}, players, res));
+        SELFTEST_CHECK(res == "Recently Bandaged");
+
+        // 8i. Using bandage on friendly target player
+        LocalRealmPlayer ally;
+        ally.guid = 0x2001;
+        ally.mapId = p.mapId;
+        ally.race = p.race;
+        ally.health = 50;
+        ally.maxHealth = 100;
+        ally.x = p.x + 2.0f;
+        ally.y = p.y;
+        ally.z = p.z;
+        world.initializePlayer(ally, true);
+        players.push_back(&ally);
+
+        p.categoryCooldowns.clear();
+        p.statAuras.clear();
+        pushItem(1251, 2);
+
+        // Negative check: cannot bandage full-health ally
+        ally.health = ally.maxHealth;
+        SELFTEST_CHECK(!world.execute(p, {LocalAction::UseItem, ally.guid, 1251}, players, res));
+        SELFTEST_CHECK(res == "Target is already at full health");
+
+        // Negative check: cannot bandage distant ally (>15 yards)
+        ally.health = 50;
+        ally.x = p.x + 20.0f;
+        SELFTEST_CHECK(!world.execute(p, {LocalAction::UseItem, ally.guid, 1251}, players, res));
+        SELFTEST_CHECK(res == "Target is too far away");
+        ally.x = p.x + 2.0f;
+
+        // Negative check: cannot bandage dead ally
+        ally.dead = true;
+        SELFTEST_CHECK(!world.execute(p, {LocalAction::UseItem, ally.guid, 1251}, players, res));
+        SELFTEST_CHECK(res == "Choose a living player");
+        ally.dead = false;
+
+        const uint32_t bandagesBefore = hasItem(1251);
+        // Bandaging injured ally succeeds!
+        SELFTEST_CHECK(world.execute(p, {LocalAction::UseItem, ally.guid, 1251}, players, res));
+        SELFTEST_CHECK(hasItem(1251) == bandagesBefore - 1); // 1 consumed from caster
+        SELFTEST_CHECK(!ally.consumableRegens.empty()); // ally has regen
+        const auto allyBandagedCd = std::find_if(ally.categoryCooldowns.begin(), ally.categoryCooldowns.end(), [](const auto& cd){ return cd.category == 11196 && cd.remainingMs > 0; });
+        SELFTEST_CHECK(allyBandagedCd != ally.categoryCooldowns.end()); // ally has Recently Bandaged
+        // Tick world so ally's harmfulAuras rebuilds
+        world.tick(0.1f, players);
+        const auto allyBandagedDebuff = std::find_if(ally.harmfulAuras.begin(), ally.harmfulAuras.end(), [](const auto& h){ return h.spellId == 11196; });
+        SELFTEST_CHECK(allyBandagedDebuff != ally.harmfulAuras.end());
+
+        // Ally cannot be re-bandaged while debuffed
+        SELFTEST_CHECK(!world.execute(p, {LocalAction::UseItem, ally.guid, 1251}, players, res));
+        SELFTEST_CHECK(res == "Recently Bandaged");
+
+        out << "PASS secondary professions (Cooking & First Aid): learn professions, recipes from trainer, fire proximity gating, Basic Campfire, food craft & regen, Well Fed buff, bandage craft & use on self and target, Recently Bandaged debuff, movement and damage interrupts\n";
+    }
     return true;
 }
 #undef SELFTEST_CHECK

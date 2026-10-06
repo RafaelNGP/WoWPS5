@@ -87,6 +87,11 @@ bool localFeigningDeath(const LocalRealmPlayer& p,const LocalWorldContent& c){
     return false;
 }
 bool localHoldsStatAura(const LocalRealmPlayer& p,uint32_t spellId){
+    if (spellId == 11196) {
+        if (std::any_of(p.categoryCooldowns.begin(), p.categoryCooldowns.end(),
+            [](const auto& cd){ return cd.category == 11196 && cd.remainingMs; }))
+            return true;
+    }
     return std::any_of(p.statAuras.begin(),p.statAuras.end(),[&](const auto& a){return a.spellId==spellId&&a.remainingMs;});
 }
 // SPELL_AURA_MOD_HEALING_DONE_PERCENT on the healer's class buffs (Avenging Wrath).
@@ -918,7 +923,36 @@ const LocalItemDefinition* LocalWorldContent::item(uint32_t id) const {
     LocalItemDefinition d; if (!catalog->item(id, d, catalogError)) return nullptr;
     return &itemCache.emplace(id, std::move(d)).first->second;
 }
-const LocalSpellDefinition* LocalWorldContent::spell(uint32_t id) const { return definition(spells, id); }
+const LocalSpellDefinition* LocalWorldContent::spell(uint32_t id) const {
+    if (const auto* d = definition(spells, id)) return d;
+    if (id == 818) {
+        static const LocalSpellDefinition kBasicCampfire = []{
+            LocalSpellDefinition s;
+            s.id = 818;
+            s.name = "Basic Campfire";
+            s.clientSpell = true;
+            s.classBuff = true;
+            s.durationMs = 300000;
+            s.cooldownMs = 300000;
+            return s;
+        }();
+        return &kBasicCampfire;
+    }
+    if (id == 11196) {
+        static const LocalSpellDefinition kRecentlyBandaged = []{
+            LocalSpellDefinition s;
+            s.id = 11196;
+            s.name = "Recently Bandaged";
+            s.clientSpell = true;
+            s.classBuff = true;
+            s.durationMs = 60000;
+            s.cooldownMs = 60000;
+            return s;
+        }();
+        return &kRecentlyBandaged;
+    }
+    return nullptr;
+}
 namespace {
 // LocalRecipe is keyed on spellId rather than on an `id` member, so it needs a
 // search of its own rather than the shared definition() template.
@@ -1278,6 +1312,12 @@ struct LocalGameplay::Impl {
         for(auto* p:players)if(p)for(const auto& r:p->consumableRegens)
             if(r.spellId&&r.durationMs>r.elapsedMs&&p->healingAuras.size()<kLocalMaxHealingAuraViews)
                 p->healingAuras.push_back({r.spellId,r.durationMs-r.elapsedMs,r.durationMs,p->guid,1});
+        // Recently Bandaged (spell 11196) debuff presentation in harmfulAuras.
+        for(auto* p:players)if(p)for(const auto& cd:p->categoryCooldowns)
+            if(cd.category==11196&&cd.remainingMs&&p->harmfulAuras.size()<kLocalMaxHealingAuraViews) {
+                if(std::none_of(p->harmfulAuras.begin(),p->harmfulAuras.end(),[](const auto& h){return h.spellId==11196;}))
+                    p->harmfulAuras.push_back({11196,cd.remainingMs,60000,p->guid,1});
+            }
     }
     std::unordered_map<std::string,std::vector<size_t>> grid;
     std::unordered_map<uint64_t,double> respawnAt;
@@ -6435,7 +6475,7 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         if(!localRecipeAllows(*recipe,p))return reject(recipe->unsupportedReason.empty()?"This recipe is not available to your race or class":recipe->unsupportedReason);
         if(!localRecipeHasTools(*recipe,p))return reject("You need the required crafting tools in your inventory");
         if(recipe->requiresSpellFocus && !localPlayerNearSpellFocus(c,p,recipe->requiresSpellFocus)) {
-            return reject(recipe->requiresSpellFocus == 1 ? "Requires an Anvil" : (recipe->requiresSpellFocus == 3 ? "Requires a Forge" : "Requires a spell focus"));
+            return reject(recipe->requiresSpellFocus == 1 ? "Requires an Anvil" : (recipe->requiresSpellFocus == 3 ? "Requires a Forge" : ((recipe->requiresSpellFocus == 4 || recipe->requiresSpellFocus == 9 || recipe->requiresSpellFocus == 1613) ? "Requires a cooking fire" : "Requires a spell focus")));
         }
         auto skill = std::find_if(p.professions.begin(), p.professions.end(),
             [&](const LocalProfessionSkill& s) { return s.skillId == recipe->skillId; });
@@ -6507,6 +6547,17 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
             auto candidate=p;
             candidate.professions.push_back({uint16_t(cmd.id), 1, ranks.front().cap});
             candidate.money -= ranks.front().cost;
+            if (cmd.id == 185) { // Cooking
+                if (std::find(candidate.knownSpells.begin(), candidate.knownSpells.end(), 818) == candidate.knownSpells.end()) {
+                    candidate.knownSpells.push_back(818);
+                    std::sort(candidate.knownSpells.begin(), candidate.knownSpells.end());
+                }
+            } else if (cmd.id == 129) { // First Aid
+                if (std::find(candidate.knownRecipes.begin(), candidate.knownRecipes.end(), 3275) == candidate.knownRecipes.end()) {
+                    candidate.knownRecipes.push_back(3275);
+                    std::sort(candidate.knownRecipes.begin(), candidate.knownRecipes.end());
+                }
+            }
             p=std::move(candidate);
             result = "Learned " + line->name + " (" + ranks.front().name + ")";
             return true;
@@ -6680,27 +6731,56 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
             if(p.level<use->requiredLevel)return reject("You must reach level "+std::to_string(use->requiredLevel)+" to use that item");
             if(use->noCombat&&inCombat())return reject("You can't do that while in combat");
             if(p.flight.active)return reject("You can't do that while flying");
-            const auto ready=std::find_if(p.categoryCooldowns.begin(),p.categoryCooldowns.end(),[&](const auto& cd){
+            LocalRealmPlayer* recipient = &p;
+            if(cmd.target && cmd.target != p.guid) {
+                if(use->category != 11196) return reject("This item can only be used on yourself");
+                recipient = g.player(cmd.target, players);
+                if(!recipient || recipient->dead || !recipient->health) return reject("Choose a living player");
+                if(recipient->mapId != p.mapId || recipient->instanceId != p.instanceId)
+                    return reject("Target is too far away");
+                const float dx = recipient->x - p.x, dy = recipient->y - p.y, dz = recipient->z - p.z;
+                if(dx * dx + dy * dy + dz * dz > 15.0f * 15.0f)
+                    return reject("Target is too far away");
+                const auto* casterFaction = p.race < g.raceFactions.size() ? definition(g.factions, g.raceFactions[p.race]) : nullptr;
+                const auto* targetFaction = recipient->race < g.raceFactions.size() ? definition(g.factions, g.raceFactions[recipient->race]) : nullptr;
+                if(casterFaction && targetFaction &&
+                   (factionRelation(*casterFaction, *targetFaction) > 0 || factionRelation(*targetFaction, *casterFaction) > 0))
+                    return reject("Choose a friendly player");
+            }
+            if(use->category == 11196) {
+                const bool recently = std::any_of(recipient->categoryCooldowns.begin(), recipient->categoryCooldowns.end(),
+                    [](const auto& cd){ return cd.category == 11196 && cd.remainingMs; }) ||
+                    localHoldsStatAura(*recipient, 11196);
+                if(recently) return reject("Recently Bandaged");
+            }
+            const auto ready=std::find_if(recipient->categoryCooldowns.begin(),recipient->categoryCooldowns.end(),[&](const auto& cd){
                 return cd.family==kLocalItemCooldownFamily&&cd.category==use->category&&cd.remainingMs;});
-            if(use->category&&ready!=p.categoryCooldowns.end())return reject("Item is not ready yet");
-            const bool mana=p.resourceType==LocalResourceType::Mana;
-            const bool wantsHealth=(use->instantHealth||use->regenHealth)&&p.health<p.maxHealth;
-            const bool wantsMana=mana&&(use->instantMana||use->regenMana)&&p.mana<p.maxMana;
+            if(use->category&&ready!=recipient->categoryCooldowns.end())return reject("Item is not ready yet");
+            const bool mana=recipient->resourceType==LocalResourceType::Mana;
+            const bool wantsHealth=(use->instantHealth||use->regenHealth)&&recipient->health<recipient->maxHealth;
+            const bool wantsMana=mana&&(use->instantMana||use->regenMana)&&recipient->mana<recipient->maxMana;
             const bool immediateBuff=use->buffSpellId&&!use->buffDelayMs;
-            if(!wantsHealth&&!wantsMana&&!immediateBuff)return reject("Health/resource are already full");
+            if(!wantsHealth&&!wantsMana&&!immediateBuff)
+                return reject(recipient == &p ? "Health/resource are already full" : "Target is already at full health");
             const uint32_t cooldown=std::max(use->cooldownMs,use->categoryCooldownMs);
-            auto candidate=p;
+            auto candidate=*recipient;
             if(use->category&&cooldown) {
                 std::erase_if(candidate.categoryCooldowns,[&](const auto& cd){return !cd.remainingMs||(cd.family==kLocalItemCooldownFamily&&cd.category==use->category);});
                 if(candidate.categoryCooldowns.size()>=kLocalMaxCategoryCooldowns)return reject("Too many cooldowns are running");
                 candidate.categoryCooldowns.push_back({use->category,kLocalItemCooldownFamily,cooldown});
+            }
+            if(use->category == 11196) {
+                std::erase_if(candidate.statAuras, [](const auto& a){ return a.spellId == 11196; });
+                if(candidate.statAuras.size() < kLocalMaxStatAuras) {
+                    candidate.statAuras.push_back({11196, cooldown, candidate.mapId, candidate.instanceId, p.guid});
+                }
             }
             const auto oldHealth = candidate.health;
             candidate.health=uint32_t(std::min<uint64_t>(candidate.maxHealth,uint64_t(candidate.health)+use->instantHealth));
             const auto instantHealed = candidate.health - oldHealth;
             if(instantHealed > 0) {
                 const uint32_t healSpell = use->spellId ? use->spellId : 439;
-                pushLocalMeleeView(candidate, healSpell, instantHealed, 0, candidate.guid, candidate.guid,
+                pushLocalMeleeView(candidate, healSpell, instantHealed, 0, p.guid, candidate.guid,
                                    LocalMeleeOutcome::Hit, false, true, 0);
             }
             if(mana)candidate.mana=uint32_t(std::min<uint64_t>(candidate.maxMana,uint64_t(candidate.mana)+use->instantMana));
@@ -6714,12 +6794,22 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
                 candidate.consumableRegens.push_back(r);
             }
             if(immediateBuff)applyLocalConsumableBuff(candidate,*use);
-            removeItem(candidate,cmd.id,1);stats(candidate,c,false);questStatus(candidate,c);
-            p=std::move(candidate);
-            LOG_INFO("[LOCAL_CONSUMABLE] player=",p.guid," item=",cmd.id," instant=",use->instantHealth,"/",use->instantMana,
-                     " regen=",use->regenHealth,"/",use->regenMana," over=",use->durationMs,"ms health=",p.health,"/",p.maxHealth," mana=",p.mana,"/",p.maxMana);
+            if(recipient == &p) {
+                removeItem(candidate,cmd.id,1);
+                stats(candidate,c,false);
+                questStatus(candidate,c);
+                p=std::move(candidate);
+            } else {
+                stats(candidate,c,false);
+                *recipient=std::move(candidate);
+                removeItem(p,cmd.id,1);
+                questStatus(p,c);
+            }
+            LOG_INFO("[LOCAL_CONSUMABLE] player=",p.guid," recipient=",recipient->guid," item=",cmd.id," instant=",use->instantHealth,"/",use->instantMana,
+                     " regen=",use->regenHealth,"/",use->regenMana," over=",use->durationMs,"ms health=",recipient->health,"/",recipient->maxHealth," mana=",recipient->mana,"/",recipient->maxMana);
             result="Used "+def->name;return true;
         }
+        if(cmd.target && cmd.target != p.guid) return reject("This item can only be used on yourself");
         const auto* def=c.item(cmd.id);if(!def||!totalItem(p,cmd.id)||(!def->heal&&!def->mana))return reject("Item cannot be used");
         const uint32_t restoredMana=p.resourceType==LocalResourceType::Mana?def->mana:0;
         if((!def->heal||p.health==p.maxHealth)&&(!restoredMana||p.mana==p.maxMana))return reject("Health/resource are already full");
@@ -7075,6 +7165,50 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(d&&d->formId&&p.formSpellId==d->id)return reject("This form or stance is already active");
     // A channel's effect was applied when it began; its natural end is quiet.
     if(finishing&&d&&d->channel&&p.castingSpellId==d->id){clearCast(p,LocalCastStatus::Finished);result="Channel ended";return true;}
+    if(cmd.id == 818) {
+        if(std::find(p.knownSpells.begin(),p.knownSpells.end(),818)==p.knownSpells.end())
+            return reject("Spell is not learned");
+        if(p.dead||p.ghost) return reject("Cannot cast while dead");
+        if(p.castingSpellId) return reject("A spell is already being cast");
+        if(p.globalCooldownMs) return reject("Not ready yet");
+        if(localCombatActive(p, g.npcs)) return reject("You can't do that while in combat");
+        if(std::any_of(p.cooldowns.begin(), p.cooldowns.end(), [](const auto& cd){ return cd.spellId == 818 && cd.remainingMs > 0; }))
+            return reject("Spell is on cooldown");
+
+        std::erase_if(p.cooldowns, [](const auto& cd){ return cd.spellId == 818; });
+        if(p.cooldowns.size() < LocalGameplay::MaxCooldowns) {
+            p.cooldowns.push_back({818, 300000});
+        }
+        std::erase_if(p.statAuras, [](const auto& a){ return a.spellId == 818; });
+        if(p.statAuras.size() < kLocalMaxStatAuras) {
+            p.statAuras.push_back({818, 300000, p.mapId, p.instanceId, p.guid});
+        }
+        p.globalCooldownMs = 1500;
+        if(!++p.castRevision) ++p.castRevision;
+        p.lastCastSpellId = 818;
+        p.lastCastTarget = p.guid;
+
+        LocalGameObject fire;
+        fire.id = 991000 + uint32_t(p.guid & 0xFFFF);
+        fire.entry = 29784;
+        fire.name = "Basic Campfire";
+        fire.mapId = p.mapId;
+        fire.x = p.x;
+        fire.y = p.y;
+        fire.z = p.z;
+        fire.orientation = p.orientation;
+        fire.useRadius = 10.0f;
+        fire.kind = LocalGameObjectKind::Decorative;
+        std::erase_if(g.content->gameObjects, [&](const auto& obj){
+            return obj.id == fire.id || (obj.entry == 29784 && obj.name == "Basic Campfire" && obj.mapId == p.mapId &&
+                   std::abs(obj.x - p.x) < 0.1f && std::abs(obj.y - p.y) < 0.1f);
+        });
+        g.content->gameObjects.push_back(fire);
+        std::sort(g.content->gameObjects.begin(), g.content->gameObjects.end(), [](const auto& a, const auto& b){ return a.id < b.id; });
+
+        result = "Created Basic Campfire";
+        return true;
+    }
     if(localHunterPetSpell(cmd.id)){std::string why;if(hunterPetSpell(p,cmd,players,result,why,finishing))return true;return reject(why);}
     if(const auto* mend=c.mendPetRank(cmd.id)) {
         // Mend Pet: SPELL_AURA_PERIODIC_HEAL on the hunter's beast.
