@@ -1321,7 +1321,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // returns before adding one), so its category metadata is not checked.
     // A category recovery without a category (Anti-Magic Shell) is never
     // applied by the reference (Spell::SendSpellCooldown keys it by category).
-    if(!creatureCaster&&d.id==48707&&d.categoryCooldownMs&&!d.cooldownCategory)d.categoryCooldownMs=0;
+    if(!creatureCaster&&(d.id==48707||(d.spellFamily==7&&u(71)==6&&u(95)==13&&u(110)==1&&!u(72)))&&d.categoryCooldownMs&&!d.cooldownCategory)d.categoryCooldownMs=0; // Anti-Magic Shell, Tiger's Fury
     if(d.cooldownCategory>100000||d.spellFamily>1000||(!creatureCaster&&d.categoryCooldownMs&&!d.cooldownCategory))unavailable("Invalid spell cooldown category metadata");
     if(d.resourceType==1||d.resourceType==6) d.mana=(d.mana+9)/10; // displayed rage/runic units
     // Life Tap: POWER_HEALTH with no cost, one DUMMY effect on the caster and
@@ -1382,9 +1382,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // Stealth's and Vanish's CasterAuraStateNot 12 (Faerie Fire) never holds here: no
     // creature in this realm casts it on a player.
     else if((u(20)&&!(u(20)==5&&d.spellFamily==10&&(d.id==20271||d.id==53408||d.id==53407)))||u(21)||(u(22)&&!((d.id==1784||d.id==kLocalProwlSpell||vanishSpell)&&u(22)==12))||u(23)||u(24)||u(25)||
-            (u(26)&&!localRealmMarkerAura(u(26)))||(u(27)&&!chargeSpell&&!localRealmMarkerAura(u(27)))) unavailable("Aura requirements are not implemented");
+            (u(26)&&!localRealmMarkerAura(u(26))&&!(u(26)==50334&&d.spellFamily==7))||(u(27)&&!chargeSpell&&!localRealmMarkerAura(u(27)))) unavailable("Aura requirements are not implemented");
     // The exclusion markers the realm itself applies (Forbearance family).
     if(!creatureCaster&&localRealmMarkerAura(u(26)))d.excludeCasterAuraSpell=u(26);
+    if(!creatureCaster&&u(26)==50334&&d.spellFamily==7)d.excludeCasterAuraSpell=50334; // Tiger's Fury: not while Berserk
     if(!creatureCaster&&localRealmMarkerAura(u(27)))d.excludeTargetAuraSpell=u(27);
     // spell_pal_immunities (498 Divine Protection, 642 Divine Shield, 1022 Hand
     // of Protection and its ranks): the Forbearance check and the three auras
@@ -1404,6 +1405,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         const uint32_t pre=d.excludeTargetAuraSpell?d.excludeTargetAuraSpell:d.excludeCasterAuraSpell;
         if(pre)d.afterHitAuras={pre,pre==61987?61988u:0u,0};
     }
+    if(d.excludeCasterAuraSpell==50334)d.afterHitAuras={0,0,0}; // Berserk is a talent's, never added by Tiger's Fury
     // SPELL_ATTR0_ONLY_STEALTHED: the rogue openers also require Stealth's
     // form; Prowl (a cat-form aura) is not implemented, so Ravage and Pounce wait.
     if(!creatureCaster&&(u(4)&0x20000u)&&!(u(12)&(1u<<29)))d.onlyStealthed=true; // Ravage, Pounce: under Prowl
@@ -1576,6 +1578,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 // Flash of Light, Holy Shock: its class mask), as healing done.
                 else if(au==108&&d.id==54428&&u(86+e)==1&&!misc&&amount<0&&amount>-100)percentage=true;
                 else if(au==103&&u(86+e)==1&&!misc&&amount<0)percentage=true; // Fade
+                else if(au==13&&u(86+e)==1&&misc==1&&amount>0&&amount<=10000&&d.spellFamily==7)percentage=true; // Tiger's Fury
                 else if(au==10&&u(86+e)==1&&misc>0&&misc<=127&&amount>0&&amount<=1000)percentage=true; // Righteous Fury: school threat
                 else if(au==28&&spellReflection)percentage=true; // Spell Reflection
                 else if(au==4&&retaliation&&!amount)percentage=true; // Retaliation
@@ -1843,6 +1846,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(!presenceSpell&&tg==1&&misc==127&&amount<0&&amount>-100){if(au==79)d.classBuffDamagePct+=amount;else if(au==87)d.classBuffDamageTakenPct+=amount;}
             if(au==136&&tg==1&&misc==127&&amount>0&&amount<=1000)d.classBuffHealingDonePct+=amount; // Avenging Wrath
             if(au==108&&d.id==54428&&tg==1&&!misc&&amount<0&&amount>-100)d.classBuffHealingDonePct+=amount; // Divine Plea
+            if(au==13&&tg==1&&misc==1&&amount>0&&amount<=10000&&d.spellFamily==7)d.classBuffWeaponDamageFlat=amount; // Tiger's Fury
             if(au==103&&tg==1&&!misc&&amount<0)d.classBuffThreatReduction=uint32_t(std::min<int64_t>(-int64_t(amount),1000000000)); // Fade
             if(au==10&&tg==1&&misc>0&&misc<=127&&amount>0&&amount<=1000){d.classBuffThreatPct=int16_t(amount);d.classBuffThreatSchool=uint8_t(misc);} // Righteous Fury
             if(au==28&&spellReflection&&amount>0&&amount<=100)d.classBuffReflectPct=uint8_t(amount); // Spell Reflection

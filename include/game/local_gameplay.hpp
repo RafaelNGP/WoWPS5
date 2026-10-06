@@ -1591,6 +1591,9 @@ struct LocalSpellDefinition {
     // seal at its spell_proc PPM (10, 12, 5): a heal of 0.15 AP, 4% of the
     // paladin's maximum mana, a 2 s stun (20170). Righteousness is its own flag.
     uint8_t sealKind = 0;
+    // Tiger's Fury: SPELL_AURA_MOD_DAMAGE_DONE on physical as a class buff, a
+    // flat amount added to the weapon damage (Player::UpdateDamagePhysical).
+    int32_t classBuffWeaponDamageFlat = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.
