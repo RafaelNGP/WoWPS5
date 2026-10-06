@@ -3325,7 +3325,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(uint32_t(d.classBuffStatPct));hash(uint32_t(d.areaRoot));hash(uint32_t(d.healthCostBasePct)|uint32_t(d.energizeRage)<<8|uint32_t(d.periodicRage)<<16);hash(d.periodicRageMs);hash(uint32_t(d.innervatePct));hash(d.innervateIntervalMs);hash(uint32_t(d.vanish));hash(d.threatReduction);{uint32_t tr;std::memcpy(&tr,&d.threatReductionPerLevel,4);hash(tr);}{uint32_t fr;std::memcpy(&fr,&d.areaFearRadius,4);hash(fr);}hash(uint32_t(d.areaMaxTargets)|uint32_t(d.areaFearStunsTarget)<<8);{uint32_t tr;std::memcpy(&tr,&d.areaTauntRadius,4);hash(tr);std::memcpy(&tr,&d.areaConeDegrees,4);hash(tr);}hash(uint32_t(d.areaSnarePercent));hash(d.classBuffThreatReduction);hash(uint32_t(d.classBuffReflectPct));hash(d.classBuffRetaliationSpell);hash(uint32_t(d.classBuffSpecialCritPct));hash(d.classBuffSpecialCritMask[0]);hash(d.classBuffSpecialCritMask[1]);hash(uint32_t(d.imbueKind));hash(uint32_t(d.armorDebuffStackMax)|uint32_t(d.armorDebuffMinor)<<8);hash(uint32_t(d.classBuffHitCharges)|uint32_t(uint8_t(d.chillHastePct))<<8|uint32_t(uint8_t(d.chillSpeedPct))<<16);hash(d.chillSpell);hash(d.chillDurationMs);hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(uint32_t(d.classBuffStatPct));hash(uint32_t(d.areaRoot));hash(uint32_t(d.healthCostBasePct)|uint32_t(d.energizeRage)<<8|uint32_t(d.periodicRage)<<16);hash(d.periodicRageMs);hash(uint32_t(d.innervatePct));hash(d.innervateIntervalMs);hash(uint32_t(d.vanish));hash(d.threatReduction);{uint32_t tr;std::memcpy(&tr,&d.threatReductionPerLevel,4);hash(tr);}{uint32_t fr;std::memcpy(&fr,&d.areaFearRadius,4);hash(fr);}hash(uint32_t(d.areaMaxTargets)|uint32_t(d.areaFearStunsTarget)<<8);{uint32_t tr;std::memcpy(&tr,&d.areaTauntRadius,4);hash(tr);std::memcpy(&tr,&d.areaConeDegrees,4);hash(tr);}hash(uint32_t(d.areaSnarePercent));hash(d.classBuffThreatReduction);hash(uint32_t(d.classBuffReflectPct));hash(d.classBuffRetaliationSpell);hash(uint32_t(d.classBuffSpecialCritPct));hash(d.classBuffSpecialCritMask[0]);hash(d.classBuffSpecialCritMask[1]);hash(uint32_t(d.imbueKind)|uint32_t(d.layOnHands)<<8|uint32_t(d.classBuffEnrage)<<9);hash(d.energizeMana);hash(uint32_t(d.armorDebuffStackMax)|uint32_t(d.armorDebuffMinor)<<8);hash(uint32_t(d.classBuffHitCharges)|uint32_t(uint8_t(d.chillHastePct))<<8|uint32_t(uint8_t(d.chillSpeedPct))<<16);hash(d.chillSpell);hash(d.chillDurationMs);hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -7135,11 +7135,13 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
             return reject("Missing reagent: "+(reagent?reagent->name:std::string("Corpse Dust")));
         }
     }
-    if(d->forbearanceCheck||d->excludeTargetAuraSpell) {
+    if(d->forbearanceCheck||d->excludeTargetAuraSpell||d->layOnHands) {
         const LocalRealmPlayer* target=&p;
         if(!d->buffSelfOnly)for(const auto* q:players)if(q&&q->guid==cmd.target)target=q;
         // spell_pal_immunities::CheckCast (SPELL_FAILED_TARGET_AURASTATE).
         if(d->forbearanceCheck&&(localHoldsStatAura(*target,25771)||localHoldsStatAura(*target,61987)))return reject("Target is affected by Forbearance");
+        // spell_pal_lay_on_hands::CheckCast: on the paladin itself only.
+        if(d->layOnHands&&target==&p&&(localHoldsStatAura(p,25771)||localHoldsStatAura(p,61987)||localHoldsStatAura(p,61988)))return reject("Target is affected by Forbearance");
         if(d->excludeTargetAuraSpell&&localHoldsStatAura(*target,d->excludeTargetAuraSpell))return reject("You can't do that yet");
     }
     if(d->lifeTapAmount&&p.health<=scaledSpellAmount(p,*d,d->lifeTapAmount,d->lifeTapAmount,d->lifeTapPerLevel))return reject("Not enough health");
@@ -7315,7 +7317,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
        std::none_of(p.statAuras.begin(),p.statAuras.end(),[&](const auto& a){return a.spellId==triggeredAura->id;}))
         return reject("Too many active stat buffs");
     const bool buff=localHasTimedAura(*d);
-    if(d->heal||d->periodicHeal||buff||d->dispelMask) {
+    if(d->heal||d->periodicHeal||buff||d->dispelMask||d->layOnHands) {
         if(((buff&&d->buffSelfOnly)||(!buff&&d->healingSelfOnly))&&cmd.target&&cmd.target!=p.guid)return reject("This spell only heals its caster");
         healed=cmd.target?g.player(cmd.target,players):&p;if(!healed&&d->damage)healed=&p;
         if(!healed||healed->dead||!healed->health)return reject("Choose a living player");
@@ -8129,6 +8131,16 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // the buff nor a new marker; the cast itself still happens.
     const bool skipHeld=healed&&std::any_of(d->skipIfHoldsAuras.begin(),d->skipIfHoldsAuras.end(),[&](uint32_t id){return id&&localHoldsStatAura(*healed,id);});
     if(buff&&!skipHeld){
+        // A mechanic immunity takes off what it is immune to (Unit::ApplySpellImmune
+        // removes those auras): Hand of Freedom's roots (7) and snares (11).
+        if(d->classBuff&&(d->classBuffMechanicImmunity&((1u<<7)|(1u<<11)))) {
+            std::vector<uint32_t> purged;
+            std::erase_if(g.npcPeriodic,[&](const auto& a){
+                const bool gone=a.target==healed->guid&&(((d->classBuffMechanicImmunity>>7)&1u)&&a.control==2||((d->classBuffMechanicImmunity>>11)&1u)&&a.slowPercent);
+                if(gone){g.npcControlEnded(a,healed);purged.push_back(a.spell);}
+                return gone;});
+            std::erase_if(healed->harmfulAuras,[&](const auto& a){return std::find(purged.begin(),purged.end(),a.spellId)!=purged.end();});
+        }
         // One temporary enchant on the weapon: another imbue replaces it.
         if(d->imbueKind)std::erase_if(healed->statAuras,[&](const auto& a){
             const auto* od=c.spell(a.spellId);return a.spellId!=d->id&&od&&od->imbueKind;});
@@ -8284,12 +8296,24 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
                 LOG_INFO("[LOCAL_DISPEL] caster=",p.guid," target=",healed->guid," spell=",d->id," removed=",a.spell);a.remaining=0;break;}
         g.refreshHealingViews(players);stats(*healed,c,false);
     }
-    if(d->healthCostBasePct) {
-        // Spell::TakePower for POWER_HEALTH: the percent of base health, then
-        // the ENERGIZE of rage; the rage over time is the aura's own.
-        p.health-=std::min(p.health-1,localResourcePools(p,c).baseHealth*d->healthCostBasePct/100);
-        if(p.resourceType==LocalResourceType::Rage)p.mana=std::min(p.maxMana,p.mana+d->energizeRage);
-        LOG_INFO("[LOCAL_BLOODRAGE] player=",p.guid," spell=",d->id," health=",p.health," rage=",p.mana);
+    // Spell::TakePower for POWER_HEALTH (Bloodrage): the percent of base health.
+    if(d->healthCostBasePct)p.health-=std::min(p.health-1,localResourcePools(p,c).baseHealth*d->healthCostBasePct/100);
+    // An ENERGIZE of rage (Bloodrage, Enrage); the rage over time is the aura's own.
+    if(d->energizeRage&&p.resourceType==LocalResourceType::Rage) {
+        p.mana=std::min(p.maxMana,p.mana+d->energizeRage);
+        LOG_INFO("[LOCAL_RAGE] player=",p.guid," spell=",d->id," health=",p.health," rage=",p.mana);
+    }
+    if(d->layOnHands&&healed&&!healed->dead) {
+        const auto before=healed->health;
+        healed->health=uint32_t(std::min<uint64_t>(healed->maxHealth,uint64_t(healed->health)+localHealingTakenWithBuffs(c,*healed,p.maxHealth)));
+        if(d->energizeMana&&healed->resourceType==LocalResourceType::Mana)healed->mana=std::min(healed->maxMana,healed->mana+d->energizeMana);
+        g.emitCombatEvent({0,p.guid,healed->guid,d->id,p.mapId,p.instanceId,p.maxHealth,healed->health-before,0,LocalCombatEventKind::DirectHeal},players);
+        if(healed==&p)for(uint32_t id:{25771u,61987u,61988u})if(const auto* m=c.spell(id)) {
+            auto it=std::find_if(p.statAuras.begin(),p.statAuras.end(),[&](const auto& a){return a.spellId==id;});
+            LocalStatAura a{id,m->durationMs,p.mapId,p.instanceId,p.guid,0};
+            if(it!=p.statAuras.end())*it=a;else p.statAuras.push_back(a);
+        }
+        LOG_INFO("[LOCAL_LAY_ON_HANDS] player=",p.guid," target=",healed->guid," healed=",healed->health-before);
     }
     if(d->lifeTapAmount) {
         // spell_warl_life_tap::HandleDummy: ModifyHealth(-value), then the

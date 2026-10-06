@@ -455,9 +455,10 @@
             LOG_INFO("[LOCAL_NPC_AURA] immune (school aura) npc=",n.guid," spell=",d.id," target=",target.guid);
             return LocalMeleeOutcome::Immune;
         }
-        if(d.npcPlayerControl&&d.mechanic&&d.mechanic<32) {
+        if((d.npcPlayerControl||d.npcSlowPercent)&&d.mechanic&&d.mechanic<32) {
             // Unit::IsImmunedToSpellEffect: a class buff's mechanic immunity
-            // (Fear Ward). A one-charge immunity is spent by the immune hit.
+            // (Fear Ward; Hand of Freedom's roots and snares). A one-charge
+            // immunity is spent by the immune hit.
             bool immune=false;
             for(auto& a:target.statAuras)if(a.remainingMs&&a.mapId==target.mapId&&a.instanceId==target.instanceId)
                 if(const auto* bd=content->spell(a.spellId);bd&&bd->classBuff&&(bd->classBuffMechanicImmunity&(1u<<d.mechanic))) {

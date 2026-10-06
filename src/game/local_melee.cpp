@@ -162,7 +162,12 @@ static uint32_t armorFromAttributes(const LocalRealmPlayer& p,const LocalWorldCo
     // Bear form and Thick Hide multiply only the equipment BASE_VALUE, before
     // agility, flat equipment armor and Mark of the Wild are added.
     const auto* form=localActiveForm(p);
-    const float formMultiplier=form?float(form->armorPercent)/100.f:1.f;
+    // Enrage: spell_dru_bear_form_passive lowers the bear forms' base armor
+    // percentage by 48 (Bear Form) or 59 (Dire Bear Form) points while it lasts.
+    int32_t enrageArmor=0;
+    if(form&&(form->spell==5487||form->spell==9634))for(const auto& a:p.statAuras)
+        if(a.remainingMs)if(const auto* d=c.spell(a.spellId);d&&d->classBuffEnrage)enrageArmor=form->spell==5487?-48:-59;
+    const float formMultiplier=form?float(int32_t(form->armorPercent)+enrageArmor)/100.f:1.f;
     // Frost Presence: aura 142 on the equipment BASE_VALUE, like a form.
     float presenceMultiplier=1.f;
     for(const auto& a:p.statAuras)if(a.remainingMs&&a.mapId==p.mapId&&a.instanceId==p.instanceId)

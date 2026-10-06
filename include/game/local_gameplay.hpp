@@ -1545,6 +1545,15 @@ struct LocalSpellDefinition {
     // A shaman weapon imbue (localWeaponImbue): held as the shaman's aura on
     // its main-hand weapon. 1 Rockbiter, 2 Flametongue, 3 Windfury, 4 Frostbrand.
     uint8_t imbueKind = 0;
+    // Lay on Hands (spell_pal_lay_on_hands): HEAL_MAX_HEALTH, the caster's
+    // maximum health through the target's healing taken, and its rank's mana
+    // (ENERGIZE); on the paladin itself it is refused under Forbearance and
+    // adds Forbearance with the two markers.
+    bool layOnHands = false;
+    uint32_t energizeMana = 0;
+    // Enrage (spell_dru_enrage): the bear forms' armor multiplier lowered
+    // (Bear Form Passive -48, Dire Bear Form Passive -59 points) while held.
+    bool classBuffEnrage = false;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.

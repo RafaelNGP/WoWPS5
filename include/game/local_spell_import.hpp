@@ -1290,6 +1290,14 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // specials it modifies (spell_proc 1719), not by a proc of its own.
     const bool recklessness=!creatureCaster&&d.id==1719&&u(71)==6&&u(95)==107&&u(110)==7&&u(86)==1&&u(72)==6&&u(96)==87&&u(111)==127&&
         u(73)==6&&u(97)==77&&u(112)==5&&u(spell335::ProcCharges)&&u(spell335::ProcCharges)<=10&&(u(122)||u(123));
+    // Lay on Hands: HEAL_MAX_HEALTH on a friendly target, and from rank 2 an
+    // ENERGIZE of mana on it.
+    const bool layOnHands=!creatureCaster&&d.spellFamily==10&&u(71)==67&&u(86)==21&&!u(89)&&!u(73)&&
+        (!u(72)||(u(72)==30&&u(87)==21&&!u(90)&&!u(111)&&i(81)>=0&&i(81)<100000));
+    // Enrage: PERIODIC_ENERGIZE of rage on the druid, an ENERGIZE of rage and
+    // an empty INTERRUPT_REGEN, in a bear form.
+    const bool druidEnrage=!creatureCaster&&d.id==5229&&u(71)==6&&u(95)==24&&u(86)==1&&u(110)==1&&u(98)>=1000&&
+        u(72)==30&&u(87)==1&&u(111)==1&&u(73)==6&&u(97)==94&&u(88)==1&&!i(82);
     if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!rootControl&&!incinerate&&!innerFire&&!chillArmor&&!frostNova&&!areaFear&&!intimidatingShout&&!vanishSpell&&!spellReflection&&!retaliation&&!recklessness&&d.id!=1784&&d.id!=21084&&d.id!=20154&&
        !(d.id==6346&&u(spell335::ProcCharges)==1)&&!(d.id==22812&&!u(spell335::ProcChance))) // Fear Ward's immunity charge, Barkskin's inert proc (classBuff) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
@@ -1542,6 +1550,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 else if(au==108&&!amount){} // Avenging Wrath's empty spell modifier
                 else if(au==12&&u(86+e)==1&&d.id==kLocalIceBlockSpell){} // Ice Block's own stun (localPlayerControl)
                 else if(au==77&&localControlMechanic(misc))percentage=true; // Fear Ward: mechanic immunity
+                else if(au==77&&misc==11&&d.spellFamily==10)percentage=true; // Hand of Freedom: snares
                 else if(au==149&&u(86+e)==1&&misc==127&&amount>0&&amount<=100)percentage=true; // Barkskin: no pushback
                 else if(au==42&&inertProc){} // Barkskin's proc: chance 0, no spell_proc row
                 else if(au==4&&!amount&&d.id==48792){} // Icebound Fortitude's empty dummy
@@ -1800,6 +1809,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(presenceSpell&&au==87&&tg==1&&misc==127&&amount<0&&amount>-100)d.classBuffDamageTakenPct+=amount; // Frost Presence
             if(au==39&&misc>0&&misc<=127)d.classBuffSchoolImmunity|=uint8_t(misc); // Divine Shield, Hand of Protection
             if(au==77&&localControlMechanic(misc))d.classBuffMechanicImmunity|=1u<<misc; // Fear Ward
+            if(au==77&&misc==11&&d.spellFamily==10)d.classBuffMechanicImmunity|=1u<<11; // Hand of Freedom
             if(au==149&&tg==1&&misc==127&&amount>0&&amount<=100)d.classBuffPushbackPct=uint8_t(amount); // Barkskin
             if((d.id==2825||d.id==32182)&&amount>0&&amount<=100){if(au==192)d.classBuffMeleeRangedHastePct=amount;else if(au==65)d.classBuffCastSpeedPct=amount;}
             if(au==140&&tg==1&&!misc&&amount>0&&amount<=100)d.classBuffRangedHastePct=amount; // Rapid Fire
@@ -1848,6 +1858,16 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         if(!creatureCaster&&d.spellFamily==11)if(const auto* imbue=localWeaponImbue(d.id)) {
             if(type==54){d.imbueKind=imbue->kind;d.durationMs=imbue->seconds*1000;d.classBuff=true;buff=true;buffTarget=1;}
             else if(type)unavailable("Unreviewed weapon imbue effect");
+            continue;
+        }
+        if(layOnHands) {
+            if(effect==0){d.layOnHands=true;healing=true;}
+            else d.energizeMana=uint32_t(i(81)+1);
+            continue;
+        }
+        if(druidEnrage) {
+            if(effect==0){d.periodicRage=uint8_t((i(80)+1)/10);d.periodicRageMs=u(98);d.classBuff=true;d.classBuffEnrage=true;buff=true;buffTarget=1;}
+            else if(effect==1)d.energizeRage=uint8_t((i(81)+1)/10);
             continue;
         }
         if(vanishSpell) {
@@ -1947,8 +1967,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             }
             harm=true;continue;
         }
-        // Feint: SPELL_EFFECT_THREAT with a negative amount on its target.
-        if(!creatureCaster&&d.spellFamily==8&&type==63&&target==6&&!secondary&&effect==0&&u(74)==1&&i(80)<-1&&i(80)>-100000&&
+        // Feint, Cower: SPELL_EFFECT_THREAT with a negative amount on its target.
+        if(!creatureCaster&&(d.spellFamily==8||d.spellFamily==7)&&type==63&&target==6&&!secondary&&effect==0&&u(74)==1&&i(80)<-1&&i(80)>-100000&&
            std::isfinite(f(77))&&f(77)<=0&&f(77)>=-100&&!u(72)&&!u(73)&&!d.durationMs){
             d.threatReduction=uint32_t(-(i(80)+1));d.threatReductionPerLevel=-f(77);harm=true;continue;}
         const auto base=i(80+effect), dice=i(74+effect);const auto scale=f(77+effect);
@@ -2202,7 +2222,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if(harm&&!d.schoolMask&&(!creatureCaster||d.damage||d.periodicDamage))unavailable("Damaging spell has no school");
     if(buff&&(harm||healing)) unavailable("Mixed stat buffs and other effects are not implemented");
     if(harm&&healing) unavailable("Mixed hostile/friendly spells are not implemented");
-    if(!harm&&!healing&&!buff&&!d.formId&&!formBoost&&!formResource&&!summonPet&&!areaAura&&!d.controlProfile&&!d.createItemId&&!d.teleport&&!d.totemEntry&&!d.dispelMask&&!d.lifeTapAmount&&!d.raiseDeadEntry&&!d.vanish) unavailable("No supported direct or periodic damage/healing effect");
+    if(!harm&&!healing&&!buff&&!d.formId&&!formBoost&&!formResource&&!summonPet&&!areaAura&&!d.controlProfile&&!d.createItemId&&!d.teleport&&!d.totemEntry&&!d.dispelMask&&!d.lifeTapAmount&&!d.raiseDeadEntry&&!d.vanish&&!d.layOnHands) unavailable("No supported direct or periodic damage/healing effect");
     if(d.teleport&&(harm||healing||buff||d.createItemId))unavailable("Teleport beside other effects is not implemented");
     if(d.createItemId&&(harm||healing||buff))unavailable("Item creation beside other effects is not implemented");
     if(!creatureCaster){d.healingSelfOnly=healingTarget==1;d.buffSelfOnly=d.formId!=0||formBoost||formResource||buffTarget==1;}
