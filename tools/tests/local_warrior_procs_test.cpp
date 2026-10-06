@@ -178,7 +178,7 @@ int main(int argc,char** argv){
     // 10. Improved Berserker Rage 2: +20 rage on Berserker Rage, which doubles struck rage.
     {
         World w({{1541,2}},2458);
-        w.p.mana=0;const bool cast=w.cast(kLocalBerserkerRage);
+        w.p.mana=0;const bool cast=w.cast(kLocalBerserkerRage,w.p.guid);
         if(!cast||w.p.mana!=20||!w.aura(kLocalBerserkerRage))std::cerr<<"Berserker Rage: "<<w.message<<" rage="<<w.p.mana<<" aura="<<bool(w.aura(kLocalBerserkerRage))<<'\n';
         check(cast&&w.p.mana==20&&w.aura(kLocalBerserkerRage));
     }
