@@ -1621,6 +1621,11 @@ struct LocalSpellDefinition {
     // Righteous Defense (spell_pal_righteous_defense): up to three creatures
     // attacking the friendly target are taunted by the paladin (31790).
     bool righteousDefense = false;
+    // Hand of Salvation: a PERIODIC_TRIGGER of 53055 (MODIFY_THREAT_PERCENT on
+    // the enemies within 100 yd): each period the holder's threat on them
+    // changes by this percent.
+    int8_t classBuffThreatTickPct = 0;
+    uint32_t classBuffThreatTickMs = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.

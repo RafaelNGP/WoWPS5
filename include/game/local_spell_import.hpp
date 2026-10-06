@@ -1545,6 +1545,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // A proc that can never fire: Spell.dbc ProcChance 0 with no spell_proc
     // row at the pin (Barkskin's 50411 trigger).
     const bool inertProc=!u(spell335::ProcChance)&&!u(spell335::ProcCharges)&&d.id==22812;
+    // Hand of Salvation: its periodic trigger is 53055, MODIFY_THREAT_PERCENT.
+    const bool salvation=!creatureCaster&&d.spellFamily==10&&u(71)==6&&u(95)==227&&u(116)==53055&&u(98)>=1000&&[&]{
+        const auto r=ClientSpellTables::lookup(t.spellIndex,53055);
+        return r>=0&&t.spells->getUInt32(uint32_t(r),71)==125;}();
     // Fear Ward: one charge spent by PROC_HIT_IMMUNE (spell_proc 6346).
     const bool immunityCharge=d.id==6346&&u(spell335::ProcCharges)==1;
     if(!creatureCaster&&(d.durationMs||untilCancelled)) {
@@ -1554,7 +1558,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(untilCancelled&&ty==6&&tg==1&&(au==42||au==87||au==168)&&i(80+e)==-1)continue; // talent proc hook, empty modifier
             if(prowlSpell&&ty==6&&tg==1&&au==33)continue; // its slow
             if(presenceSpell&&ty==6&&tg==1&&(au==10||au==107||au==118))continue; // threat, global cooldown, marker
-            if((ty!=6&&ty!=35&&ty!=65)||u(89+e)||(u(116+e)&&!(inertProc&&au==42)&&!(chillArmor&&e==chillEffect))||(tg!=1&&tg!=21&&tg!=25&&tg!=20&&tg!=22&&tg!=30&&tg!=31&&tg!=56&&tg!=57&&tg!=0))shape=false;
+            if((ty!=6&&ty!=35&&ty!=65)||u(89+e)||(u(116+e)&&!(inertProc&&au==42)&&!(chillArmor&&e==chillEffect)&&!(salvation&&e==0))||(tg!=1&&tg!=21&&tg!=25&&tg!=20&&tg!=22&&tg!=30&&tg!=31&&tg!=56&&tg!=57&&tg!=0))shape=false;
             if((au==29&&i(110+e)>=-1&&i(110+e)<=4)||au==99||(tg==1&&(au==31||au==49||au==124)&&i(80+e)>=0)||(tg==1&&au==22&&(i(110+e)&1)&&i(80+e)>=0)||(trackerSpell&&au==44)||(prowlSpell&&au==16)||(presenceSpell&&(au==79||au==142||au==138))||
                (!creatureCaster&&d.spellFamily==4&&(((d.spellFamilyFlags[0]&0x1000u)&&tg==1&&(au==51||au==150))||((d.spellFamilyFlags[1]&0x80u)&&au==230))))any=true;
         }
@@ -1590,6 +1594,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 // Flash of Light, Holy Shock: its class mask), as healing done.
                 else if(au==108&&d.id==54428&&u(86+e)==1&&!misc&&amount<0&&amount>-100)percentage=true;
                 else if(au==103&&u(86+e)==1&&!misc&&amount<0)percentage=true; // Fade
+                else if(au==227&&salvation)percentage=true; // Hand of Salvation: threat down each second
+                else if(au==87&&salvation&&misc==127&&!amount){} // its empty damage-taken hook (the glyph's)
                 else if(au==134&&u(86+e)==1&&!misc&&amount>0&&amount<=100&&d.spellFamily==3)percentage=true; // Mage Armor: regeneration while casting
                 else if((au==22||au==143)&&misc>0&&misc<=126&&!(misc&1)&&amount>0&&amount<=1000)percentage=true; // resistances (Shadow Protection, Mage Armor)
                 else if(au==13&&u(86+e)==1&&misc==1&&amount>0&&amount<=10000&&d.spellFamily==7)percentage=true; // Tiger's Fury
@@ -1871,6 +1877,9 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(au==108&&d.id==54428&&tg==1&&!misc&&amount<0&&amount>-100)d.classBuffHealingDonePct+=amount; // Divine Plea
             if(au==13&&tg==1&&misc==1&&amount>0&&amount<=10000&&d.spellFamily==7)d.classBuffWeaponDamageFlat=amount; // Tiger's Fury
             if(au==134&&tg==1&&!misc&&amount>0&&amount<=100&&d.spellFamily==3)d.classBuffManaRegenInterruptPct=uint8_t(amount); // Mage Armor
+            if(au==227&&salvation){const auto r=ClientSpellTables::lookup(t.spellIndex,53055);
+                const int32_t pct=t.spells->getInt32(uint32_t(r),80)+int32_t(t.spells->getUInt32(uint32_t(r),74));
+                if(pct<0&&pct>-100){d.classBuffThreatTickPct=int8_t(pct);d.classBuffThreatTickMs=u(98+effect);}}
             if(au==103&&tg==1&&!misc&&amount<0)d.classBuffThreatReduction=uint32_t(std::min<int64_t>(-int64_t(amount),1000000000)); // Fade
             if(au==10&&tg==1&&misc>0&&misc<=127&&amount>0&&amount<=1000){d.classBuffThreatPct=int16_t(amount);d.classBuffThreatSchool=uint8_t(misc);} // Righteous Fury
             if(au==28&&spellReflection&&amount>0&&amount<=100)d.classBuffReflectPct=uint8_t(amount); // Spell Reflection
