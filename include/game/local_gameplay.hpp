@@ -1587,6 +1587,10 @@ struct LocalSpellDefinition {
     // 100 yd dies, and the knight heals this percent of its maximum health
     // (Spell::EffectHeal's death knight case).
     uint8_t deathPactPct = 0;
+    // Seals of Light (2), Wisdom (3) and Justice (4): a melee-hit proc of the
+    // seal at its spell_proc PPM (10, 12, 5): a heal of 0.15 AP, 4% of the
+    // paladin's maximum mana, a 2 s stun (20170). Righteousness is its own flag.
+    uint8_t sealKind = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.

@@ -1300,7 +1300,11 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // an empty INTERRUPT_REGEN, in a bear form.
     const bool druidEnrage=!creatureCaster&&d.id==5229&&u(71)==6&&u(95)==24&&u(86)==1&&u(110)==1&&u(98)>=1000&&
         u(72)==30&&u(87)==1&&u(111)==1&&u(73)==6&&u(97)==94&&u(88)==1&&!i(82);
-    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!rootControl&&!incinerate&&!innerFire&&!chillArmor&&!frostNova&&!areaFear&&!intimidatingShout&&!vanishSpell&&!spellReflection&&!retaliation&&!recklessness&&d.id!=1784&&d.id!=21084&&d.id!=20154&&
+    // Seals of Light, Wisdom and Justice (rank 1 ids; spell_proc 20165, 20166,
+    // 20164): a PROC_TRIGGER_SPELL on the paladin beside an empty modifier.
+    const uint8_t sealKind=creatureCaster||d.spellFamily!=10||u(71)!=6||u(95)!=42||u(86)!=1||u(spell335::ProcFlags)!=0x14u?0:
+        u(116)==20167?2:u(116)==20168?3:u(116)==20170?4:0;
+    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!rootControl&&!incinerate&&!innerFire&&!chillArmor&&!frostNova&&!areaFear&&!intimidatingShout&&!vanishSpell&&!spellReflection&&!retaliation&&!recklessness&&!sealKind&&d.id!=1784&&d.id!=21084&&d.id!=20154&&
        !(d.id==6346&&u(spell335::ProcCharges)==1)&&!(d.id==22812&&!u(spell335::ProcChance))) // Fear Ward's immunity charge, Barkskin's inert proc (classBuff) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
     // Spell.dbc column 38 is BaseLevel and column 39 is SpellLevel
@@ -1638,6 +1642,13 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 d.sealJudgementSpell=20187;d.sealJudgementBase=1;d.sealJudgementApPer100k=20000;}
             if(!d.sealOfRighteousness){d.sealOfRighteousness=true;d.classBuff=true;buff=true;buffTarget=1;
                 if(!d.sealJudgementSpell){d.sealJudgementSpell=54158;d.sealJudgementBase=1;d.sealJudgementApPer100k=16000;}} // the generic judgement: 0.16 AP
+            continue;
+        }
+        if(sealKind) {
+            if(type==6&&u(86+effect)==1&&(u(95+effect)==42||(u(95+effect)==108&&i(80+effect)+int32_t(u(74+effect))==0))){
+                if(!d.sealKind){d.sealKind=sealKind;d.classBuff=true;buff=true;buffTarget=1;
+                    d.sealJudgementSpell=54158;d.sealJudgementBase=1;d.sealJudgementApPer100k=16000;}} // spell_bonus_data 54158: 0.16 AP
+            else unavailable("Unreviewed seal row");
             continue;
         }
         // A judgement: its script effect is spell_pal_judgement's.
