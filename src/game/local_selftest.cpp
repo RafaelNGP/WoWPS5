@@ -492,6 +492,10 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         if (const auto maim = std::find_if(clientSpells->begin(), clientSpells->end(), [](const auto& d) { return d.id == 22570; });
             maim == clientSpells->end() || !maim->unsupportedReason.empty() || !maim->weaponDamage || maim->controlProfile != 1 || !maim->comboFinisher) {
             out << "FAIL class ability Maim: " << (maim == clientSpells->end() ? std::string("missing") : maim->unsupportedReason) << "\n"; return false; }
+        // Banish: a stun beside total immunity, on demons and elementals only.
+        if (const auto banish = std::find_if(clientSpells->begin(), clientSpells->end(), [](const auto& d) { return d.id == 710; });
+            banish == clientSpells->end() || !banish->unsupportedReason.empty() || !banish->controlImmune || banish->controlProfile != 1 || banish->targetCreatureType != 0xc) {
+            out << "FAIL class ability Banish: " << (banish == clientSpells->end() ? std::string("missing") : banish->unsupportedReason) << "\n"; return false; }
         // Cower: the druid's Feint (a negative threat effect, scaled with level).
         if (const auto cower = std::find_if(clientSpells->begin(), clientSpells->end(), [](const auto& d) { return d.id == 8998; });
             cower == clientSpells->end() || !cower->unsupportedReason.empty() || cower->threatReduction != 240 || cower->threatReductionPerLevel != 1.f) {

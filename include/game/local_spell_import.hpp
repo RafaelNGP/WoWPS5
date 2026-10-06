@@ -1903,6 +1903,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         }
         // Pounce: its bleed is the triggered spell's own DoT (see riderOk).
         if(!creatureCaster&&d.spellFamily==7&&effect==1&&type==64&&u(86+1)==6&&!u(89+1)&&u(117)&&u(71)==6&&u(95)==12&&u(86)==6){d.triggerDotSpell=u(117);harm=true;continue;}
+        if(d.controlImmune&&effect>0&&type==6&&(u(95+effect)==39||u(95+effect)==118))continue; // Banish's immunity (riderOk)
         if(fanOfKnives&&effect==0) {
             const int32_t percent=i(80)+1; // CalcValue: base + 1 (one die side)
             if(percent<=0||percent>1000||u(74)>1||f(77)!=0)unavailable("Invalid weapon percentage");
@@ -2110,6 +2111,9 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 if(rootControl&&k==1)return true; // Entangling Roots' DoT (its own branch)
                 if(d.id==47476&&type==6&&u(95+k)==4&&!i(80+k)&&!u(74+k))return true; // Strangulate's empty dummy
                 if(d.spellFamily==7&&k==1&&type==64&&u(86+k)==6&&!u(89+k)&&u(116+k))return true; // Pounce's bleed (triggerDotSpell)
+                // Banish: total school immunity and no healing taken on the banished creature.
+                if(d.spellFamily==5&&effect==0&&type==6&&u(86+k)==6&&!u(89+k)&&i(110+k)==127&&
+                   ((k==1&&u(95+k)==39)||(k==2&&u(95+k)==118&&i(80+k)+int32_t(u(74+k))==-100))){d.controlImmune=true;return true;}
                 if(d.comboFinisher&&type==3&&u(86+k)==1)return true;
                 return d.comboFinisher&&type==6&&u(95+k)==87&&u(86+k)==6&&!i(80+k)&&!u(74+k);
             };

@@ -1576,6 +1576,9 @@ struct LocalSpellDefinition {
     // Pounce: the TRIGGER_SPELL beside its stun (Pounce Bleed), a DoT of its
     // own definition and duration, applied when the stun lands.
     uint32_t triggerDotSpell = 0;
+    // Banish: beside its stun, SCHOOL_IMMUNITY (all schools) and healing
+    // taken -100% on the creature: while it holds, nothing harms it.
+    bool controlImmune = false;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.
