@@ -1916,6 +1916,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             }
             continue;
         }
+        if(!creatureCaster&&d.id==48743&&u(71)==3&&u(86)==1&&u(72)==1&&u(87)==18&&u(90)==31&&u(73)==10&&u(88)==1) {
+            if(effect==2&&i(82)>=0&&i(82)<100)d.deathPactPct=uint8_t(i(82)+1);
+            healing=true;continue; // the dummy, the pet's instakill and the heal: spell_dk_death_pact
+        }
         if(fanOfKnives&&effect==0) {
             const int32_t percent=i(80)+1; // CalcValue: base + 1 (one die side)
             if(percent<=0||percent>1000||u(74)>1||f(77)!=0)unavailable("Invalid weapon percentage");
@@ -2264,7 +2268,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if(harm&&!d.schoolMask&&(!creatureCaster||d.damage||d.periodicDamage))unavailable("Damaging spell has no school");
     if(buff&&(harm||healing)) unavailable("Mixed stat buffs and other effects are not implemented");
     if(harm&&healing) unavailable("Mixed hostile/friendly spells are not implemented");
-    if(!harm&&!healing&&!buff&&!d.formId&&!formBoost&&!formResource&&!summonPet&&!areaAura&&!d.controlProfile&&!d.createItemId&&!d.teleport&&!d.totemEntry&&!d.dispelMask&&!d.lifeTapAmount&&!d.raiseDeadEntry&&!d.vanish&&!d.layOnHands&&!d.guardianEntry) unavailable("No supported direct or periodic damage/healing effect");
+    if(!harm&&!healing&&!buff&&!d.formId&&!formBoost&&!formResource&&!summonPet&&!areaAura&&!d.controlProfile&&!d.createItemId&&!d.teleport&&!d.totemEntry&&!d.dispelMask&&!d.lifeTapAmount&&!d.raiseDeadEntry&&!d.vanish&&!d.layOnHands&&!d.guardianEntry&&!d.deathPactPct) unavailable("No supported direct or periodic damage/healing effect");
     if(d.teleport&&(harm||healing||buff||d.createItemId))unavailable("Teleport beside other effects is not implemented");
     if(d.createItemId&&(harm||healing||buff))unavailable("Item creation beside other effects is not implemented");
     if(!creatureCaster){d.healingSelfOnly=healingTarget==1;d.buffSelfOnly=d.formId!=0||formBoost||formResource||buffTarget==1;}

@@ -1583,6 +1583,10 @@ struct LocalSpellDefinition {
     // hits restore this percent of the owner's maximum mana (34650, Mana Leech).
     uint32_t guardianEntry = 0, guardianDurationMs = 0;
     uint8_t guardianManaPct = 0;
+    // Death Pact (spell_dk_death_pact): the knight's undead summon within
+    // 100 yd dies, and the knight heals this percent of its maximum health
+    // (Spell::EffectHeal's death knight case).
+    uint8_t deathPactPct = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.
