@@ -1772,6 +1772,13 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             }
             if(effect>0&&(u(95+effect)==87||u(95+effect)==278))continue;
         }
+        // Dismantle: the rogue's Disarm, its off-hand and ranged disarms beside it
+        // (a creature's swing is its main hand's).
+        if(!creatureCaster&&d.spellFamily==8&&type==6&&u(86+effect)==6&&!u(89+effect)&&!u(116+effect)&&
+           (u(95+effect)==67||u(95+effect)==254||u(95+effect)==278)&&u(95)==278&&u(96)==254&&u(97)==67) {
+            if(u(95+effect)==67){d.disarm=true;harm=true;}
+            continue;
+        }
         // Shield Block: 100% block chance + 100% block value self buff
         if(!creatureCaster&&d.spellFamily==4&&(d.spellFamilyFlags[0]&0x1000u)&&type==6&&u(86+effect)==1&&!u(89+effect)&&
            (u(95+effect)==51||u(95+effect)==150)) {
