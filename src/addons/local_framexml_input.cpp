@@ -504,9 +504,7 @@ bool LocalFrameXml::cyclePadTab(int delta) {
         "    for idx, tabId in ipairs(tabs) do\n"
         "        if tabId == current then curIdx = idx; break end\n"
         "    end\n"
-        "    local nextIdx = curIdx + delta\n"
-        "    if nextIdx > #tabs then nextIdx = 1 end\n"
-        "    if nextIdx < 1 then nextIdx = #tabs end\n"
+        "    local nextIdx = ((curIdx - 1 + delta) % #tabs) + 1\n"
         "    local target = tabs[nextIdx]\n"
         "    if onSelect then onSelect(target); return true end\n"
         "    return false\n"
@@ -526,6 +524,10 @@ bool LocalFrameXml::cyclePadTab(int delta) {
         "            if SpellBookSkillLineTab_OnClick and SpellBookFrame and SpellBookFrame.selectedSkillLine ~= target then\n"
         "                SpellBookSkillLineTab_OnClick(btn, target)\n"
         "            end\n"
+        "            if SpellBookFrame and SpellBookFrame.selectedSkillLine ~= target then\n"
+        "                SpellBookFrame.selectedSkillLine = target\n"
+        "                if SpellBookFrame_Update then SpellBookFrame_Update() end\n"
+        "            end\n"
         "        end\n"
         "    end)\n"
         "elseif panel == \"CharacterFrame\" then\n"
@@ -542,10 +544,12 @@ bool LocalFrameXml::cyclePadTab(int delta) {
         "        if btn then\n"
         "            if btn.Click then btn:Click() end\n"
         "            if CharacterFrameTab_OnClick and CharacterFrame and CharacterFrame.selectedTab ~= target then\n"
-        "                CharacterFrameTab_OnClick(btn, target)\n"
-        "            elseif PanelTemplates_SetTab and CharacterFrame and CharacterFrame.selectedTab ~= target then\n"
-        "                PanelTemplates_SetTab(CharacterFrame, target)\n"
-        "                if CharacterFrame_ShowSubFrame then CharacterFrame_ShowSubFrame(target) end\n"
+        "                CharacterFrameTab_OnClick(btn, \"LeftButton\")\n"
+        "            end\n"
+        "            if CharacterFrame and CharacterFrame.selectedTab ~= target then\n"
+        "                if PanelTemplates_SetTab then PanelTemplates_SetTab(CharacterFrame, target) end\n"
+        "                local subName = (CHARACTERFRAME_SUBFRAMES and CHARACTERFRAME_SUBFRAMES[target]) or target\n"
+        "                if CharacterFrame_ShowSubFrame then CharacterFrame_ShowSubFrame(subName) end\n"
         "            end\n"
         "        end\n"
         "    end)\n"
@@ -553,7 +557,8 @@ bool LocalFrameXml::cyclePadTab(int delta) {
         "    local prefix = (PlayerTalentFrame and PlayerTalentFrame.IsShown and PlayerTalentFrame:IsShown()) and \"PlayerTalentFrame\" or \"TalentFrame\"\n"
         "    local frame = _G[prefix]\n"
         "    local tabs = {}\n"
-        "    for i = 1, 3 do\n"
+        "    local maxTabs = (frame and frame.numTabs) or 5\n"
+        "    for i = 1, maxTabs do\n"
         "        local t = _G[prefix .. \"Tab\" .. i]\n"
         "        if t and t.IsShown and t:IsShown() then table.insert(tabs, i) end\n"
         "    end\n"
@@ -566,8 +571,9 @@ bool LocalFrameXml::cyclePadTab(int delta) {
         "            local onClick = _G[prefix .. \"Tab_OnClick\"]\n"
         "            if onClick and frame and frame.selectedTab ~= target then\n"
         "                onClick(btn, target)\n"
-        "            elseif PanelTemplates_SetTab and frame and frame.selectedTab ~= target then\n"
-        "                PanelTemplates_SetTab(frame, target)\n"
+        "            end\n"
+        "            if frame and frame.selectedTab ~= target then\n"
+        "                if PanelTemplates_SetTab then PanelTemplates_SetTab(frame, target) end\n"
         "                local refresh = _G[prefix .. \"_Refresh\"] or _G[prefix .. \"_Update\"]\n"
         "                if refresh then refresh() end\n"
         "            end\n"
@@ -599,8 +605,9 @@ bool LocalFrameXml::cyclePadTab(int delta) {
         "                local onClick = _G[panel .. \"Tab_OnClick\"]\n"
         "                if onClick and frame and frame.selectedTab ~= target then\n"
         "                    onClick(btn, target)\n"
-        "                elseif PanelTemplates_SetTab and frame and frame.selectedTab ~= target then\n"
-        "                    PanelTemplates_SetTab(frame, target)\n"
+        "                end\n"
+        "                if frame and frame.selectedTab ~= target then\n"
+        "                    if PanelTemplates_SetTab then PanelTemplates_SetTab(frame, target) end\n"
         "                end\n"
         "            end\n"
         "        end)\n"
@@ -814,25 +821,27 @@ bool LocalFrameXml::navigate() {
 #endif
     if(shoulderL1 || shoulderR1) {
         const int tabDelta = (shoulderR1 ? 1 : 0) - (shoulderL1 ? 1 : 0);
-        if(tabDelta != 0 && cyclePadTab(tabDelta)) {
-            ui::noteInterfaceConsumedKey(ImGuiKey_GamepadL1);
-            ui::noteInterfaceConsumedKey(ImGuiKey_GamepadR1);
-            focus_ = 0;
-            engine_->dispatchMouse(-1, -1, io.DisplaySize.y, {false, false, false});
-            engine_->releaseMouseHover();
-            return true;
-        }
-        if(focused) {
-            const auto focusedId = focused->id;
-            const auto point = controlPoint(focused);
-            if(!point) return true;
-            engine_->dispatchMouseWheel(point->x * tree.uiScale(), point->y * tree.uiScale(),
-                                        tabDelta < 0 ? 1 : -1);
-            ui::noteInterfaceConsumedKey(ImGuiKey_GamepadL1);
-            ui::noteInterfaceConsumedKey(ImGuiKey_GamepadR1);
-            if(!ready()) return true;
-            focused = tree.get(focusedId);
-            if(!eligible(focused)) { focus_ = 0; return true; }
+        if(tabDelta != 0) {
+            if(cyclePadTab(tabDelta)) {
+                ui::noteInterfaceConsumedKey(ImGuiKey_GamepadL1);
+                ui::noteInterfaceConsumedKey(ImGuiKey_GamepadR1);
+                focus_ = 0;
+                engine_->dispatchMouse(-1, -1, io.DisplaySize.y, {false, false, false});
+                engine_->releaseMouseHover();
+                return true;
+            }
+            if(focused) {
+                const auto focusedId = focused->id;
+                const auto point = controlPoint(focused);
+                if(!point) return true;
+                engine_->dispatchMouseWheel(point->x * tree.uiScale(), point->y * tree.uiScale(),
+                                            tabDelta < 0 ? 1 : -1);
+                ui::noteInterfaceConsumedKey(ImGuiKey_GamepadL1);
+                ui::noteInterfaceConsumedKey(ImGuiKey_GamepadR1);
+                if(!ready()) return true;
+                focused = tree.get(focusedId);
+                if(!eligible(focused)) { focus_ = 0; return true; }
+            }
         }
     }
     if(!focused)return false;

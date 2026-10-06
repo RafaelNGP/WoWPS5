@@ -265,5 +265,139 @@ print("PASS")
 """
         self.assertIn("PASS", run_lua_test(setup))
 
+    def test_character_frame_fallback_with_subframes_table(self):
+        setup = """
+CharacterFrame = { selectedTab = 1, numTabs = 5 }
+CHARACTERFRAME_SUBFRAMES = { "PaperDollFrame", "PetPaperDollFrame", "ReputationFrame", "SkillFrame", "TokenFrame" }
+function PanelTemplates_GetSelectedTab(f) return f.selectedTab end
+function PanelTemplates_SetTab(f, n) f.selectedTab = n end
+local lastShownSubframe = nil
+function CharacterFrame_ShowSubFrame(name)
+    lastShownSubframe = name
+end
+-- Tabs exist with Click that does NOT change selectedTab directly
+for i = 1, 5 do
+    _G["CharacterFrameTab" .. i] = {
+        id = i,
+        shown = true,
+        IsShown = function(self) return self.shown end,
+        Click = function(self) end
+    }
+end
+
+-- R1 from tab 1 to tab 2 (PetPaperDollFrame)
+assert(runCycle("CharacterFrame", 1) == true)
+assert(CharacterFrame.selectedTab == 2)
+assert(lastShownSubframe == "PetPaperDollFrame")
+
+-- R1 again to tab 3 (ReputationFrame)
+assert(runCycle("CharacterFrame", 1) == true)
+assert(CharacterFrame.selectedTab == 3)
+assert(lastShownSubframe == "ReputationFrame")
+
+-- L1 from tab 3 back to tab 2
+assert(runCycle("CharacterFrame", -1) == true)
+assert(CharacterFrame.selectedTab == 2)
+assert(lastShownSubframe == "PetPaperDollFrame")
+print("PASS")
+"""
+        self.assertIn("PASS", run_lua_test(setup))
+
+    def test_player_talent_frame_with_glyph_and_pet_tabs(self):
+        setup = """
+PlayerTalentFrame = { selectedTab = 1, numTabs = 5, shown = true, IsShown = function(self) return self.shown end }
+function PanelTemplates_GetSelectedTab(f) return f.selectedTab end
+function PanelTemplates_SetTab(f, n) f.selectedTab = n end
+for i = 1, 5 do
+    _G["PlayerTalentFrameTab" .. i] = {
+        id = i,
+        shown = true,
+        IsShown = function(self) return self.shown end,
+        Click = function(self) PlayerTalentFrame.selectedTab = self.id end
+    }
+end
+
+-- Cycle 1 -> 2 -> 3 -> 4 (Glyphs) -> 5 (Pet) -> 1
+assert(runCycle("PlayerTalentFrame", 1) == true)
+assert(PlayerTalentFrame.selectedTab == 2)
+assert(runCycle("PlayerTalentFrame", 1) == true)
+assert(PlayerTalentFrame.selectedTab == 3)
+assert(runCycle("PlayerTalentFrame", 1) == true)
+assert(PlayerTalentFrame.selectedTab == 4)
+assert(runCycle("PlayerTalentFrame", 1) == true)
+assert(PlayerTalentFrame.selectedTab == 5)
+assert(runCycle("PlayerTalentFrame", 1) == true)
+assert(PlayerTalentFrame.selectedTab == 1)
+
+-- Reverse L1 wrap: 1 -> 5 -> 4 -> 3
+assert(runCycle("PlayerTalentFrame", -1) == true)
+assert(PlayerTalentFrame.selectedTab == 5)
+assert(runCycle("PlayerTalentFrame", -1) == true)
+assert(PlayerTalentFrame.selectedTab == 4)
+print("PASS")
+"""
+        self.assertIn("PASS", run_lua_test(setup))
+
+    def test_spellbook_fallback_updates_selected_skill_line(self):
+        setup = """
+SpellBookFrame = { selectedSkillLine = 1 }
+MAX_SKILLLINE_TABS = 8
+local updateCalled = false
+function SpellBookFrame_Update() updateCalled = true end
+for i = 1, 3 do
+    _G["SpellBookSkillLineTab" .. i] = {
+        id = i,
+        shown = true,
+        IsShown = function(self) return self.shown end,
+        Click = function(self) end -- no-op Click
+    }
+end
+
+-- R1 switches to tab 2 via fallback
+assert(runCycle("SpellBookFrame", 1) == true)
+assert(SpellBookFrame.selectedSkillLine == 2)
+assert(updateCalled == true)
+print("PASS")
+"""
+        self.assertIn("PASS", run_lua_test(setup))
+
+    def test_mail_and_auction_frame_tab_cycling(self):
+        setup = """
+MailFrame = { selectedTab = 1, numTabs = 2 }
+function PanelTemplates_GetSelectedTab(f) return f.selectedTab end
+function PanelTemplates_SetTab(f, n) f.selectedTab = n end
+for i = 1, 2 do
+    _G["MailFrameTab" .. i] = {
+        id = i,
+        shown = true,
+        IsShown = function(self) return self.shown end,
+        Click = function(self) MailFrame.selectedTab = self.id end
+    }
+end
+assert(runCycle("MailFrame", 1) == true)
+assert(MailFrame.selectedTab == 2)
+assert(runCycle("MailFrame", 1) == true)
+assert(MailFrame.selectedTab == 1)
+
+AuctionFrame = { selectedTab = 1, numTabs = 3 }
+for i = 1, 3 do
+    _G["AuctionFrameTab" .. i] = {
+        id = i,
+        shown = true,
+        IsShown = function(self) return self.shown end,
+        Click = function(self) AuctionFrame.selectedTab = self.id end
+    }
+end
+assert(runCycle("AuctionFrame", 1) == true)
+assert(AuctionFrame.selectedTab == 2)
+assert(runCycle("AuctionFrame", 1) == true)
+assert(AuctionFrame.selectedTab == 3)
+assert(runCycle("AuctionFrame", 1) == true)
+assert(AuctionFrame.selectedTab == 1)
+print("PASS")
+"""
+        self.assertIn("PASS", run_lua_test(setup))
+
 if __name__ == '__main__':
     unittest.main()
+
