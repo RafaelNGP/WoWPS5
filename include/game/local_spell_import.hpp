@@ -1729,6 +1729,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 harm=true;continue;
             }
         }
+        // Faerie Fire: an empty MOD_ATTACKER_SPELL_AND_WEAPON_CRIT_CHANCE (186),
+        // the Improved Faerie Fire talent's hook, beside its armor reduction.
+        if(!creatureCaster&&d.spellFamily==7&&type==6&&u(95+effect)==186&&u(86+effect)==6&&!u(89+effect)&&i(80+effect)+int32_t(u(74+effect))==0&&
+           u(71)==6&&u(95)==101&&u(110)==1&&u(86)==6){d.armorDebuffMinor=true;continue;}
         // SPELL_AURA_MOD_RESISTANCE_PCT on the armor of one hostile target
         // (Expose Armor): a fixed percentage for the aura's duration, which a
         // finisher draws from its combo points.

@@ -72,9 +72,12 @@ inline bool localNpcSilenced(const LocalRealmNpc& n) {
 inline uint32_t localNpcArmorAfterDebuffs(uint32_t armor,const LocalRealmNpc& n) {
     // spell_group 1015 "Major Armor Debuffs" (Sunder Armor, Expose Armor),
     // SPELL_GROUP_STACK_RULE_EXCLUSIVE_HIGHEST: only the strongest counts.
-    uint32_t major=0;
-    for(const auto& a:n.armorDebuffs)if(a.remainingMs)major=std::max<uint32_t>(major,a.percent);
-    if(major)armor=uint32_t(uint64_t(armor)*(100u-std::min<uint32_t>(99,major))/100u);
+    // Faerie Fire is spell_group 1019 "Minor Armor Debuffs" (with its own
+    // group 1016 over both Faerie Fires), the same rule apart.
+    uint32_t major=0,minor=0;
+    for(const auto& a:n.armorDebuffs)if(a.remainingMs){
+        auto& slot=a.minor?minor:major;slot=std::max<uint32_t>(slot,a.percent);}
+    for(const auto pct:{major,minor})if(pct)armor=uint32_t(uint64_t(armor)*(100u-std::min<uint32_t>(99,pct))/100u);
     // Curse of Weakness: the same armor term from a warlock's creature aura.
     for(const auto& b:n.npcBuffs)if((b.remainingMs||b.indefinite)&&b.armorPct)armor=uint32_t(uint64_t(armor)*(100u-std::min<uint32_t>(99,b.armorPct))/100u);
     return armor;

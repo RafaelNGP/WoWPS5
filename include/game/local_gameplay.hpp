@@ -1391,6 +1391,9 @@ struct LocalSpellDefinition {
     // Sunder Armor: armorDebuffPct is one application's share, stacking up to
     // this many on the creature (StackAmount of 58567); each cast adds one.
     uint8_t armorDebuffStackMax = 0;
+    // Faerie Fire: spell_group 1019 "Minor Armor Debuffs", apart from the
+    // major ones (1015): the strongest of each group reduces armor.
+    bool armorDebuffMinor = false;
     // A curse's stat auras on one hostile creature (Curse of Weakness, of the
     // Elements, of Tongues), landed as one LocalNpcBuff of the caster's:
     // attack power and resistance (negative), damage taken (positive, on
@@ -1879,6 +1882,7 @@ struct LocalNpcArmorDebuff {
     uint32_t spellId=0, remainingMs=0, durationMs=0;
     uint64_t casterGuid=0;
     uint8_t percent=0;
+    bool minor=false; // spell_group 1019 (Faerie Fire), else 1015 (Sunder, Expose Armor)
 };
 inline constexpr size_t kLocalMaxNpcArmorDebuffs = 4;
 struct LocalNpcThreatView {
