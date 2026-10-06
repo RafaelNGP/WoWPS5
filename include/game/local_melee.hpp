@@ -21,6 +21,10 @@ struct LocalMeleeStats {
     // P06  aura 280, Unit::CalcArmorReducedDamage's bonusPct
     // (Unit.cpp:2239-2267). Battle Stance carries +10% on the form spell itself.
     uint32_t armorPenetrationPct=0;
+    // Aura 248 misc 2 (Weapon Mastery): the target's dodge chance lowered by
+    // this percentage, outside expertise (Unit::GetUnitDodgeChance's
+    // MOD_COMBAT_RESULT_CHANCE term reads the attacker's auras).
+    float targetDodgeReduction=0;
 };
 struct LocalSpellCritStats {
     bool sourceStats=false;

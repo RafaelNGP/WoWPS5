@@ -40,7 +40,7 @@ says "PS4", read it as the platform the feature was first written for.
 |:-:|-|-|
 |✅|Boot, login screen, character creation, world entry|Runs at 60 FPS on the login screen with original MPQs; world rendering via RADV.|
 |✅|Console self-test|Every integration runs the standalone self-test (class abilities, quests, items, professions) on the PS5 itself.|
-|⚠️|Standalone classes|Most baseline abilities of all ten classes are implemented from AzerothCore's rules; talents, procs and some class mechanics are still partial.|
+|⚠️|Standalone classes|Most baseline abilities of all ten classes are implemented from AzerothCore's rules; talents, procs and some class mechanics are still partial. Warrior: [ability and talent status](docs/WARRIOR_STATUS.md).|
 |⚠️|Text input|The system IME dialog cannot be used from a homebrew app yet; an on-screen keyboard is used.|
 |⚠️|Performance and stability|Not yet profiled across zones; long sessions are not certified.|
 |❌|Prebuilt packages|Source only for now (licensing of third-party PS5 runtime components); build it yourself.|

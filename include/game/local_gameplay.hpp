@@ -719,6 +719,11 @@ struct LocalRealmPlayer {
     uint32_t overpowerWindowMs = 0;
     uint32_t revengeWindowMs = 0;
     uint32_t victoryRushWindowMs = 0;
+    // SPELL_ATTR0_ON_NEXT_SWING (Heroic Strike, Cleave): the strike that will
+    // replace the next main-hand swing at this creature (session-only, like
+    // Unit::m_currentSpells[CURRENT_MELEE_SPELL]).
+    uint32_t nextSwingSpellId = 0;
+    uint64_t nextSwingTarget = 0;
 };
 
 inline uint8_t localItemContainerSlots(uint32_t itemId) {
@@ -1003,6 +1008,16 @@ struct LocalSpellDefinition {
     uint8_t passiveOffhandDamagePct=0,passiveWeaponHitPct=0;
     uint8_t passivePhysicalDamagePct=0;
     uint8_t passiveEquipmentArmorPct=0,passiveFeralCritPct=0,passiveFeralDodgePct=0,passiveCatRunPct=0;
+    // Reviewed Warrior talents: aura 49/47 (dodge/parry percent), aura 240
+    // (expertise points), aura 248 misc 2 (the target's dodge chance lowered),
+    // aura 280 weapon-qualified armor penetration (the requiredItem* fields).
+    uint8_t passiveDodgePct=0,passiveParryPct=0,passiveExpertise=0,passiveTargetDodgeReductionPct=0;
+    uint8_t passiveWeaponArmorPenetrationPct=0;
+    // Aura 232 SPELL_AURA_MECHANIC_DURATION_MOD (adds up) and 234 ..._NOT_STACK
+    // (only the strongest counts): a bit per Mechanic and a negative percent.
+    std::array<uint32_t,2> passiveMechanicDurationMask{};
+    std::array<int8_t,2> passiveMechanicDurationPct{};
+    std::array<bool,2> passiveMechanicDurationNotStack{};
     uint8_t directEffectSlot=255,periodicEffectSlot=255; // Exact DBC slot; 255 denotes unknown/aggregate.
     uint8_t stormstrikeProfile=0,stormstrikeManaChancePct=0;
     uint8_t passiveIntellectAttackPowerPct=0,passiveDualWieldHitPct=0;
@@ -1051,6 +1066,7 @@ struct LocalSpellDefinition {
     bool sourceCantCrit=false,procCanCrit=false;
     uint8_t spiritCritRatingPct=0,incomingCritReductionPct=0,mageArmorGroup=0;
     uint8_t meleeSpecialProfile=0; // 1: reviewed Bloodthirst AP-based melee special.
+    bool nextSwing=false; // A warrior's ON_NEXT_SWING weapon strike (Heroic Strike, Cleave).
     uint32_t triggeredAuraSpellId=0; // Scripted self aura, resolved and admitted before cast commit.
     bool triggeredOnly=false; // Internal chain child: never learned, trained or directly cast.
     uint8_t meleeHastePct=0; // Reviewed temporary aura 138: both melee hands, never ranged.
@@ -1401,6 +1417,9 @@ struct LocalSpellDefinition {
     // its schools), cast speed (negative, ApplyCastTimePercentMod's sign),
     // armor percentage off, and the effect slots (bit k = column 71+k).
     int32_t targetDebuffAttackPower = 0, targetDebuffResistance = 0, targetDebuffDamageTakenPct = 0, targetDebuffCastSpeedPct = 0;
+    // Thunder Clap: SPELL_AURA_MOD_MELEE_HASTE (138, negative) on every creature
+    // its area hits; targetDebuffMeleeHasteSlot is the effect the amount sits in.
+    int8_t targetDebuffMeleeHastePct = 0;uint8_t targetDebuffMeleeHasteSlot = 255;
     uint8_t targetDebuffResistanceSchool = 0, targetDebuffDamageTakenSchool = 0, targetDebuffArmorPct = 0, targetDebuffEffectMask = 0;
     // A control broken by accumulated damage rather than by the first point
     // (Fear: proc flags without AURA_INTERRUPT_FLAG_TAKE_DAMAGE): the share of

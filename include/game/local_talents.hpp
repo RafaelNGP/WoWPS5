@@ -52,6 +52,24 @@ inline uint32_t localTalentWeaponCritPct(const LocalRealmPlayer& p,const LocalWo
     }
     return percent;
 }
+// Unit::ModSpellDuration on a harmful aura: the summed MECHANIC_DURATION_MOD
+// (aura 232) and the strongest MECHANIC_DURATION_MOD_NOT_STACK (aura 234) for
+// the aura's mechanic; the stronger (more negative) of the two applies.
+inline int32_t localTalentMechanicDurationPct(const LocalRealmPlayer& p,const LocalWorldContent& c,uint32_t mechanic) {
+    if(!mechanic||mechanic>=32||p.dead||p.classId<1||p.classId>11||!validLocalTalents(p))return 0;
+    int32_t always=0,notStack=0;
+    for(auto [id,rank]:p.talents) {
+        const auto* s=localTalentSpell(c,id,rank);
+        if(!s||!s->passive||!s->unsupportedReason.empty()||!(s->allowableClasses&(1u<<(p.classId-1)))||
+           !localTalentPrerequisitesReady(p,c,*s))continue;
+        for(size_t k=0;k<s->passiveMechanicDurationMask.size();++k)
+            if((s->passiveMechanicDurationMask[k]&(1u<<mechanic))&&s->passiveMechanicDurationPct[k]<0) {
+                if(s->passiveMechanicDurationNotStack[k])notStack=std::min<int32_t>(notStack,s->passiveMechanicDurationPct[k]);
+                else always+=s->passiveMechanicDurationPct[k];
+            }
+    }
+    return std::clamp(std::min(always,notStack),-100,0);
+}
 // Total-stat modifiers apply after racial/base and equipped attributes. Base
 // attributes stay available separately for UI and diminishing-return formulas.
 /// The aura-137 multiplier the allocated talents contribute, separately from the
@@ -121,7 +139,7 @@ inline int32_t localTalentCastModifier(const LocalRealmPlayer& p,const LocalWorl
             // caster's hit chance, so its beneficial direction is positive like
             // the others listed here. 0 accepted producers (audit D12).
             ((operation==1)?mod.amount!=0:
-             (operation==0||operation==3||operation==5||operation==7||operation==8||operation==12||operation==16||operation==22||operation==23)?mod.amount>0:mod.amount<0)) {
+             (operation==0||operation==3||operation==5||operation==6||operation==7||operation==8||operation==12||operation==16||operation==22||operation==23)?mod.amount>0:mod.amount<0)) {
             bool match=false;
             for(unsigned k=0;k<3;++k)match=match || (mod.mask[k]&cast.spellFamilyFlags[k]);
             if(match)amount+=mod.amount;
@@ -129,7 +147,7 @@ inline int32_t localTalentCastModifier(const LocalRealmPlayer& p,const LocalWorl
     }
     if(operation==0||operation==3||operation==8||operation==12||operation==22||operation==23)
         return int32_t(std::clamp(amount,int64_t(0),percentage?int64_t(1000):int64_t(1000000)));
-    if(operation==5||operation==7||operation==16)
+    if(operation==5||operation==6||operation==7||operation==16)
         return int32_t(std::clamp(amount,int64_t(0),percentage?int64_t(1000):int64_t(100)));
     if(operation==1)
         return int32_t(std::clamp(amount,percentage?int64_t(-100):int64_t(-600000),percentage?int64_t(1000):int64_t(600000)));

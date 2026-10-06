@@ -18,6 +18,7 @@
 #include "game/local_feral_progression_import.hpp"
 #include "game/local_stormstrike_import.hpp"
 #include "game/local_warrior_progression_import.hpp"
+#include "game/local_warrior_talents_import.hpp"
 #include "game/local_arcane_import.hpp"
 #include "game/local_clearcasting_import.hpp"
 #include "game/local_ghost_wolf_import.hpp"
@@ -1371,7 +1372,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // (Unit::AttackerStateUpdate casts CURRENT_MELEE_SPELL instead).
     // ON_NEXT_SWING (Heroic Strike, Raptor Strike, Cleave, Maul): a player's
     // is struck at once as a weapon attack; the realm has no swing queue.
-    if(u(4)&0x404u){if(creatureCaster)d.npcNextSwing=true;}
+    if(u(4)&0x404u){if(creatureCaster)d.npcNextSwing=true;else if(u(spell335::SpellFamily)==4)d.nextSwing=true;}
     d.sourceNoAttackDodge=(u(11)&0x00800000u)!=0;d.sourceNoAttackParry=(u(11)&0x01000000u)!=0;d.sourceNoAttackMiss=(u(11)&0x02000000u)!=0;
     // A player channel is admitted when its effect is single-target periodic
     // damage or leech (checked after the effects below).
@@ -1763,6 +1764,13 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(u(95+effect)==127&&amount>0&&amount<=100000)d.targetDebuffRangedAttackerAp=amount;
             if(u(95+effect)==54)d.targetDebuffHitChancePct=int8_t(amount); // Scorpid Sting
             d.targetDebuffEffectMask|=uint8_t(1u<<effect);d.controlSingleTarget=(u(9)&0x20u)!=0;harm=true;continue;
+        }
+        // Thunder Clap: its MOD_MELEE_HASTE rider on the creatures its area hit.
+        if(!creatureCaster&&d.spellFamily==4&&(d.spellFamilyFlags[0]&0x80u)&&type==6&&u(95+effect)==138&&
+           u(86+effect)==22&&(u(89+effect)==15||!u(89+effect))&&!u(116+effect)&&u(74+effect)<=1&&
+           i(80+effect)+1<0&&i(80+effect)+1>-100&&d.durationMs&&d.durationMs<=600000&&!d.targetDebuffMeleeHastePct) {
+            d.targetDebuffMeleeHastePct=int8_t(i(80+effect)+1);d.targetDebuffMeleeHasteSlot=uint8_t(effect);
+            d.targetDebuffEffectMask|=uint8_t(1u<<effect);harm=true;continue;
         }
         // Demoralizing Shout / Roar: area attack-power debuff on enemies around caster
         if(!creatureCaster&&((d.spellFamily==4&&(d.spellFamilyFlags[0]&0x20000u))||(d.spellFamily==7&&d.spellFamilyFlags[0]==0x8u&&!d.spellFamilyFlags[1]))&&
@@ -2835,6 +2843,8 @@ inline void importClientTalents(LocalSpellImport& out,const pipeline::DBCFile* t
             if((d.talentId==2250||d.talentId==1581||d.talentId==1657||d.talentId==661||d.talentId==165)&&
                !decodeClientWarriorProgressionTalent(t,uint32_t(source),d))
                 d.unsupportedReason="Unreviewed Warrior progression source profile";
+            if(localWarriorTalentReviewed(d.talentId)&&!decodeClientWarriorTalent(t,uint32_t(source),d))
+                d.unsupportedReason="Unreviewed Warrior talent source profile";
             if(d.talentId==80&&!decodeClientArcaneStability(t,uint32_t(source),d))
                 d.unsupportedReason="Unreviewed Arcane Stability source profile";
             decodeClientClearcastingTalent(t,uint32_t(source),d);
@@ -2987,7 +2997,17 @@ inline void importClientTalents(LocalSpellImport& out,const pipeline::DBCFile* t
                     mod.operation==21?cast.globalCooldownMs!=0:
                     mod.operation==22?(cast.periodicDamage||cast.periodicHeal):
                     mod.operation==23?cast.directEffectSlot==2||cast.periodicEffectSlot==2:false;
-                if(!relevant)continue;
+                // Warrior abilities whose amounts these operations reach through
+                // other consumers: weapon strikes (damage, critical chance, all
+                // effects), Charge and Bloodrage rage, the area debuffs of
+                // Demoralizing Shout and Thunder Clap, and an area's radius.
+                const bool warriorRelevant=talent.spellFamily==4&&(
+                    ((mod.operation==0||mod.operation==7)&&cast.weaponDamage)||
+                    (mod.operation==8&&(cast.weaponDamage||cast.chargeRage||cast.targetDebuffAttackPower<0))||
+                    (mod.operation==3&&cast.energizeRage)||
+                    (mod.operation==6&&cast.areaRadius>0)||
+                    (mod.operation==12&&cast.targetDebuffMeleeHasteSlot==1));
+                if(!relevant&&!warriorRelevant)continue;
                 for(unsigned k=0;k<3;++k)if(cast.spellFamilyFlags[k]&mod.mask[k])return true;
             }
             return false;

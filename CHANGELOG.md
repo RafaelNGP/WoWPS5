@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased (PS5) — Warrior
+
+- **Talents:** 23 more Warrior talents (73 ranks) run in the standalone world, pinned to their exact 12340 records: weapon specializations (One-/Two-Handed, Mace, Weapon Mastery), Toughness, Iron Will, Anticipation, Deflection, Vitality, Strength of Arms, the rage-cost talents (Improved Heroic Strike, Improved Execute, Puncture, Focused Rage), Intensify Rage, and the ability modifiers Improved Charge, Overpower, Thunder Clap, Bloodrage, Cleave, Whirlwind, Demoralizing Shout and Booming Voice. 44 of 85 Warrior talents now run (was 21).
+- **Heroic Strike / Cleave:** queued on the next main-hand swing instead of striking at once; off the global cooldown, rage spent at the swing, a second press cancels.
+- **Thunder Clap:** its −10% attack-speed slow now lands on the creatures it hits.
+- **Mechanic durations:** stun, charm, snare and disarm effects cast on a character are shortened by its talents (auras 232/234), after diminishing returns.
+- **Status page:** [docs/WARRIOR_STATUS.md](docs/WARRIOR_STATUS.md) lists every ability and talent, the formulas, and what remains.
+
 ## 2.12 — quest and memory stability
 
 - Restore server-confirmed quests to the local log without requiring a pending local Accept command; track an already accepted quest when reconciling the quest dialog.

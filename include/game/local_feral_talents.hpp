@@ -10,9 +10,13 @@ inline bool localFeralTalentReady(const LocalRealmPlayer& p,const LocalWorldCont
 inline bool localDruidFeralForm(const LocalRealmPlayer& p) {
     const auto* f=localActiveForm(p);return f&&f->clazz==11&&(f->form==1||f->form==5||f->form==8);
 }
+// Aura 142 misc 1 on the equipment BASE_VALUE: Thick Hide (Druid) and
+// Toughness (Warrior) - any class whose own allocated talent carries it.
 inline float localTalentEquipmentArmorMultiplier(const LocalRealmPlayer& p,const LocalWorldContent& c) {
     float multiplier=1.f;
-    for(auto [id,rank]:p.talents)if(const auto* d=localTalentSpell(c,id,rank);localFeralTalentReady(p,c,d))
+    if(p.dead||p.classId<1||p.classId>11||!validLocalTalents(p))return multiplier;
+    for(auto [id,rank]:p.talents)if(const auto* d=localTalentSpell(c,id,rank);d&&d->passive&&d->unsupportedReason.empty()&&
+        d->passiveEquipmentArmorPct&&(d->allowableClasses&(1u<<(p.classId-1)))&&localTalentPrerequisitesReady(p,c,*d))
         multiplier*=1.f+float(d->passiveEquipmentArmorPct)/100.f;
     return multiplier;
 }

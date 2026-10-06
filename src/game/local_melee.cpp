@@ -194,6 +194,26 @@ static bool activeStatTalent(const LocalRealmPlayer& p,const LocalWorldContent& 
     return d&&d->passive&&d->unsupportedReason.empty()&&!p.dead&&p.classId>=1&&p.classId<=11&&
         validLocalTalents(p)&&(d->allowableClasses&(1u<<(p.classId-1)))&&localTalentPrerequisitesReady(p,c,*d);
 }
+// Sum of an unconditional per-talent amount (dodge, parry, expertise...).
+static uint32_t talentSum(const LocalRealmPlayer& p,const LocalWorldContent& c,uint8_t LocalSpellDefinition::*field){
+    uint32_t amount=0;
+    for(auto [id,rank]:p.talents)if(const auto* d=localTalentSpell(c,id,rank);activeStatTalent(p,c,d))amount+=d->*field;
+    return std::min(100u,amount);
+}
+// Aura 280 restricted to a weapon (Mace Specialization): the main hand decides,
+// like Unit::CalcArmorReducedDamage's HasAuraTypeWithAffectMask on the attack.
+static uint32_t weaponArmorPenetrationTalent(const LocalRealmPlayer& p,const LocalWorldContent& c,const LocalMeleeItem* weapon){
+    if(!weapon||weapon->itemClass!=2)return 0;
+    uint32_t amount=0;
+    for(auto [id,rank]:p.talents){
+        const auto* d=localTalentSpell(c,id,rank);
+        if(!activeStatTalent(p,c,d)||!d->passiveWeaponArmorPenetrationPct)continue;
+        if(d->requiredItemClass>=0&&weapon->itemClass!=uint32_t(d->requiredItemClass))continue;
+        if(d->requiredItemSubclasses&&(weapon->subclass>=32||!(d->requiredItemSubclasses&(1u<<weapon->subclass))))continue;
+        amount+=d->passiveWeaponArmorPenetrationPct;
+    }
+    return std::min(100u,amount);
+}
 static float offhandTalentMultiplier(const LocalRealmPlayer& p,const LocalWorldContent& c){
     float factor=1;
     for(auto [id,rank]:p.talents)if(const auto* d=localTalentSpell(c,id,rank);activeStatTalent(p,c,d)&&d->passiveOffhandDamagePct)
@@ -309,7 +329,7 @@ LocalMeleeStats localMeleeStats(const LocalRealmPlayer& p,const LocalWorldConten
     // Aura54 from Dual Wield Specialization is conditional on an actually
     // usable owned offhand weapon; merely learning the talent is insufficient.
     if(s.offHand)s.talentWeaponHitPct+=std::min(100u,dualHit);
-    s.defense=std::floor(bonus[0]);s.hit=bonus[4]+s.talentWeaponHitPct;s.crit=std::max(0.f,(ratio[0]+agi*ratio[1])*100+bonus[5]);s.haste=bonus[6];s.expertise=std::floor(bonus[7])*.25f;
+    s.defense=std::floor(bonus[0]);s.hit=bonus[4]+s.talentWeaponHitPct;s.crit=std::max(0.f,(ratio[0]+agi*ratio[1])*100+bonus[5]);s.haste=bonus[6];s.expertise=(std::floor(bonus[7])+float(talentSum(p,c,&LocalSpellDefinition::passiveExpertise)))*.25f;
     s.offHandCrit=s.crit;
     s.crit+=!feral && mh && mh->itemClass==2?
         localTalentWeaponCritPct(p,c,mh->itemClass,mh->subclass,mh->inventoryType):
@@ -321,7 +341,8 @@ LocalMeleeStats localMeleeStats(const LocalRealmPlayer& p,const LocalWorldConten
     // hands and to an unarmed form attack. Berserker Stance's 7381 is the only
     // producer among the nine modelled forms: +3%.
     {const auto formCrit=float(localFormBoostCritPct(p,c));s.crit+=formCrit;s.offHandCrit+=formCrit;}
-    s.armorPenetrationPct=localFormArmorPenetrationPct(p,c);
+    s.armorPenetrationPct=std::min(100u,localFormArmorPenetrationPct(p,c)+(feral?0u:weaponArmorPenetrationTalent(p,c,mh)));
+    s.targetDodgeReduction=float(talentSum(p,c,&LocalSpellDefinition::passiveTargetDodgeReductionPct));
     const auto dodgeAgility=100*ratio[1]*dodgeScale[idx]/1.15f;
     // 2.37 creature views on the character: MOD_HIT_CHANCE (aura 54; melee
     // and ranged, m_modMeleeHitChance), MOD_DODGE/PARRY/BLOCK_PERCENT (49/47/51;
@@ -330,8 +351,8 @@ LocalMeleeStats localMeleeStats(const LocalRealmPlayer& p,const LocalWorldConten
     const auto views=localPlayerViewModifiers(p,1);
     const bool disarmed=views.disarmed;
     s.hit+=float(views.hitChancePct);
-    s.dodge=std::max(0.f,100*dodgeBase[idx]+s.base[1]*dodgeAgility+localFeralDodgePct(p,c)+diminish((agi-s.base[1])*dodgeAgility+bonus[1]+s.defense*.04f,dodgeCap[idx],k[idx])+float(views.dodgePct)+float(buffDodge));
-    s.parry=canParry&&mh&&mh->itemClass==2&&!disarmed?std::max(0.f,5+diminish(bonus[2]+s.defense*.04f,parryCap[idx],k[idx])+float(views.parryPct)):0;
+    s.dodge=std::max(0.f,100*dodgeBase[idx]+s.base[1]*dodgeAgility+localFeralDodgePct(p,c)+diminish((agi-s.base[1])*dodgeAgility+bonus[1]+s.defense*.04f,dodgeCap[idx],k[idx])+float(views.dodgePct)+float(buffDodge)+float(talentSum(p,c,&LocalSpellDefinition::passiveDodgePct)));
+    s.parry=canParry&&mh&&mh->itemClass==2&&!disarmed?std::max(0.f,5+diminish(bonus[2]+s.defense*.04f,parryCap[idx],k[idx])+float(views.parryPct)+float(talentSum(p,c,&LocalSpellDefinition::passiveParryPct))):0;
     const bool shieldBlockActive=std::any_of(p.statAuras.begin(),p.statAuras.end(),[&](const auto& a){
         if(a.remainingMs==0)return false;
         if(a.spellId==2565)return true;
@@ -658,7 +679,7 @@ LocalMeleeOutcome localRollPlayerMelee(const LocalRealmPlayer& p,const LocalReal
     // GetUnitDodgeChance / GetUnitParryChance / GetUnitBlockChance as
     // GetTotalAuraModifier terms.
     const float buffDodge=float(localNpcBuffTotal(n,&LocalNpcBuff::dodgePct)),buffParry=float(localNpcBuffTotal(n,&LocalNpcBuff::parryPct)),buffBlock=float(localNpcBuffTotal(n,&LocalNpcBuff::blockPct));
-    if(take(flags&0x800000?0:(boss?5.85f:5.f)+buffDodge+diff*.04f-s.expertise))return LocalMeleeOutcome::Dodge;
+    if(take(flags&0x800000?0:(boss?5.85f:5.f)+buffDodge+diff*.04f-s.expertise-s.targetDodgeReduction))return LocalMeleeOutcome::Dodge;
     const bool facing=front(n.x,n.y,n.orientation,p.x,p.y);
     const float npcParry=(it!=std::end(npcs)&&it->id==n.entry?(it->rank==3?13.4f:it->type==7?5.f:0.f):0.f)+buffParry;
     if(take(!facing||(flags&4)||!(npcParry>0)?0:npcParry+diff*.04f-s.expertise))return LocalMeleeOutcome::Parry;

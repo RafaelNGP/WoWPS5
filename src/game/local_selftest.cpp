@@ -1329,7 +1329,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     }
                     arena.tick(0.05f, players); continue;
                 }
-                for (int t = 0; t < 120 && p.castingSpellId; ++t) { p.health = p.maxHealth; arena.tick(0.05f, players); }
+                // A next-swing strike (Heroic Strike, Cleave) lands with the next main-hand swing.
+                for (int t = 0; t < 120 && (p.castingSpellId || p.nextSwingSpellId); ++t) { p.health = p.maxHealth; if (p.nextSwingSpellId) p.mana = std::max(p.mana, p.maxMana / 2); arena.tick(0.05f, players); }
                 arena.tick(0.05f, players);
                 const LocalRealmNpc* after = nullptr;
                 for (const auto& v : arena.npcs()) if (v.guid == foeGuid) after = &v;

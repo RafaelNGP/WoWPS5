@@ -498,6 +498,10 @@
                 }
             }
         }
+        // Toughness, Iron Will, Weapon Mastery: the victim's mechanic duration
+        // reduction, after diminishing returns (Spell::DoSpellHitOnUnit).
+        if(d.mechanic&&d.mechanic<32)if(const auto pct=localTalentMechanicDurationPct(target,*content,d.mechanic))
+            duration=std::max<uint32_t>(1,uint32_t(uint64_t(duration)*uint32_t(100+pct)/100));
         // Aura::CanStackWith: the same spell from another caster stacks only
         // when the spell carries a periodic effect; otherwise it replaces.
         if(!periodic)std::erase_if(npcPeriodic,[&](const auto& a){

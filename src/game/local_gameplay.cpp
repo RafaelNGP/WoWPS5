@@ -1261,6 +1261,8 @@ struct LocalGameplay::Impl {
     // this ruleset recomputes on a fixed interval and on every emitter change,
     // which is a cadence choice, not a different rule.
     uint64_t nextAreaAuraGeneration=1;
+    // A queued next-swing strike is resolving inside the main-hand swing.
+    bool resolvingNextSwing=false;
     float areaAuraTimer=0;
     LocalVendorInventory vendorInventory;
     // AuraEffect::CalculatePeriodicData snapshots the periodic critical chance at
@@ -3349,12 +3351,15 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
             d.passivePushbackPct,d.pushbackSpellMask[0],d.pushbackSpellMask[1],d.pushbackSpellMask[2]};
         for(auto value:values) hash(value);
         hash(d.meleeSpecialProfile);hash(d.triggeredAuraSpellId);hash(uint32_t(d.triggeredOnly));
-        hash(d.meleeHastePct);hash(d.procParentTalentId);
+        hash(d.meleeHastePct);hash(d.procParentTalentId);hash(uint32_t(d.nextSwing));
         hash(d.clearcastingProfile);hash(uint32_t(d.chargedCostPct));for(auto mask:d.chargedCostMask)hash(mask);
         hash(uint32_t(d.omenProcEligible));hash(d.sourceRawCastTimeMs);
         for(auto percent:d.passiveTotalStatPct)hash(percent);hash(d.passiveSpellCritPct);
         hash(d.passiveArmorAttackPowerDivisor);hash(d.passiveOffhandDamagePct);hash(d.passiveWeaponHitPct);
         hash(d.passivePhysicalDamagePct);hash(d.physicalDamageDonePct);hash(d.damageTakenPct);
+        hash(d.passiveDodgePct);hash(d.passiveParryPct);hash(d.passiveExpertise);hash(d.passiveTargetDodgeReductionPct);
+        hash(d.passiveWeaponArmorPenetrationPct);
+        for(size_t k=0;k<2;++k){hash(d.passiveMechanicDurationMask[k]);hash(uint32_t(int32_t(d.passiveMechanicDurationPct[k])));hash(uint32_t(d.passiveMechanicDurationNotStack[k]));}
         {uint32_t perLevel;std::memcpy(&perLevel,&d.npcArmorPerLevel,4);hash(d.npcSlowPercent);hash(uint32_t(d.npcArmorAmount));hash(perLevel);}
         {uint32_t weaponPerLevel;std::memcpy(&weaponPerLevel,&d.npcWeaponBonusPerLevel,4);
          hash(uint32_t(int32_t(d.npcArmorPercent)));hash(uint32_t(d.npcWeaponEffect)|uint32_t(d.npcWeaponScales)<<1|uint32_t(d.npcWeaponPercentFirst)<<2|uint32_t(d.npcNextSwing)<<3|
@@ -3396,7 +3401,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(d.auraInterruptFlags);hash(d.preventionType);
         hash(uint32_t(d.sourceDamageDoesNotBreakAuras));
         hash(d.controlProfile);hash(d.controlEffectSlot);hash(d.armorDebuffPct);hash(d.armorDebuffEffectSlot);
-        for(const auto* a:{&d.targetDebuffAttackPower,&d.targetDebuffResistance,&d.targetDebuffDamageTakenPct,&d.targetDebuffCastSpeedPct})hash(uint32_t(*a));
+        for(const auto* a:{&d.targetDebuffAttackPower,&d.targetDebuffResistance,&d.targetDebuffDamageTakenPct,&d.targetDebuffCastSpeedPct})hash(uint32_t(*a));hash(uint32_t(int32_t(d.targetDebuffMeleeHastePct)));hash(d.targetDebuffMeleeHasteSlot);
         hash(uint32_t(d.targetDebuffResistanceSchool)|uint32_t(d.targetDebuffDamageTakenSchool)<<8|uint32_t(d.targetDebuffArmorPct)<<16|uint32_t(d.targetDebuffEffectMask)<<24);
         hash(uint32_t(d.controlDamageCapPct)|uint32_t(d.controlSingleTarget)<<8);hash(uint32_t(d.classBuffHealingTakenPct));hash(d.lifeTapAmount);hash(uint32_t(d.createItemUnique));hash(uint32_t(d.directLeechPct)|uint32_t(d.immolateBonus)<<16);
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
@@ -7385,12 +7390,28 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if((d->meleeSpecialProfile||d->stormstrikeProfile)&&!validEquipment(p,c))return reject("Invalid equipped weapon state");
     if(!localSpellEquipmentReady(p,c,*d))return reject("Required spell equipment is not equipped");
     if(!d->maxAuraStacks)return reject("Invalid aura stack limit");
+    // SPELL_ATTR0_ON_NEXT_SWING (Heroic Strike, Cleave): Spell::prepare puts the
+    // strike in CURRENT_MELEE_SPELL and the next main-hand swing casts it
+    // instead of a white hit. It is off the global cooldown, the rage is only
+    // checked here (spent when the swing lands), and asking again cancels it.
+    if(d->nextSwing&&!finishing&&!g.resolvingNextSwing) {
+        if(p.nextSwingSpellId==cmd.id){p.nextSwingSpellId=0;p.nextSwingTarget=0;if(!++p.castRevision)++p.castRevision;result=d->name+" cancelled";return true;}
+        auto* victim=g.npc(cmd.target&&cmd.target!=p.guid?cmd.target:p.attackTarget);
+        if(!victim||victim->dead||!canAttack(p,*victim))return reject("Choose a living enemy");
+        if(d->allowableClasses&&!(d->allowableClasses&(1u<<(p.classId-1))))return reject("This ability is not available to your class");
+        if(p.resourceType!=LocalResourceType::Rage||p.mana<localSpellResourceCost(p,c,*d))return reject("Not enough resource");
+        if(localSpellCooldownRemaining(p,c,*d))return reject("Spell or shared category is on cooldown");
+        p.nextSwingSpellId=cmd.id;p.nextSwingTarget=victim->guid;p.attackTarget=victim->guid;
+        if(!++p.castRevision)++p.castRevision;
+        LOG_INFO("[LOCAL_NEXT_SWING] player=",p.guid," spell=",d->id," npc=",victim->guid," queued");
+        result=d->name+" queued for the next swing";return true;
+    }
     // An aspect lasts until cancelled: it holds a fixed lease that never counts down.
     const auto talentedDuration=d->classBuff&&d->indefiniteDuration?kLocalIndefiniteAuraMs:
         localSpellDuration(p,c,*d)+(d->comboFinisher&&d->comboDurationMaxMs>d->durationMs?(d->comboDurationMaxMs-d->durationMs)*std::min<uint32_t>(5,p.comboPoints)/5:0);
     const auto talentedGlobalCooldown=localSpellGlobalCooldown(p,c,*d);
     if(!finishing&&p.castingSpellId)return reject("A spell is already being cast; move or stop to cancel");
-    if(!finishing&&p.globalCooldownMs)return reject("Global cooldown is active");
+    if(!finishing&&p.globalCooldownMs&&!g.resolvingNextSwing)return reject("Global cooldown is active");
     if(d->allowableClasses&&!(d->allowableClasses&(1u<<(p.classId-1))))return reject("This ability is not available to your class");
     // Spell::CheckPower returns OK for a spell with no cost before it reads the
     // power type (Cloak of Shadows: mana, nothing to pay, on a rogue).
@@ -7703,6 +7724,8 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     std::array<LocalRealmNpc*,MaxNpcs> chainNpcs{};std::array<LocalRealmPlayer*,5> chainPlayers{};
     size_t chainCount=1;
     chainNpcs[0]=n;chainPlayers[0]=healed;
+    // SPELLMOD_RADIUS (op 6): Booming Voice's larger shouts.
+    const float areaRadius=d->areaRadius*float(100+localTalentCastModifier(p,c,*d,6,true))/100.f+float(localTalentCastModifier(p,c,*d,6,false));
     if(d->areaRadius) {
         if(!std::isfinite(d->areaRadius)||d->areaRadius<=0||d->areaRadius>30||(!d->damage&&!d->weaponDamage&&!d->targetDebuffAttackPower)||d->heal||d->chainTargets!=1||
            d->periodicDamage||d->periodicHeal||buff||d->snarePercent)return reject("Invalid caster-area spell profile");
@@ -7720,7 +7743,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
                 while(angle<-3.14159265f)angle+=6.2831853f;
                 if(std::abs(angle)>d->areaConeDegrees*3.14159265f/360.f)continue;
             }
-            if(std::isfinite(dist)&&dist<=d->areaRadius*d->areaRadius&&chainCount<chainNpcs.size()){
+            if(std::isfinite(dist)&&dist<=areaRadius*areaRadius&&chainCount<chainNpcs.size()){
                 if(d->weaponDamage&&chainCount>=4&&!d->fanOfKnives)break;
                 chainNpcs[chainCount++]=&candidate;
             }
@@ -7855,6 +7878,9 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
             specialStats.crit+=float(r->classBuffSpecialCritPct);
             if(!--a.procCharges)a.remainingMs=0;
         }
+    // SPELLMOD_CRITICAL_CHANCE (op 7) on a warrior special (Improved Overpower);
+    // Spell::GetCritChance adds it to the melee critical chance.
+    if(meleeRoll&&d->spellFamily==4){const auto bonus=float(localTalentCastModifier(p,c,*d,7,false));specialStats.crit+=bonus;specialStats.offHandCrit+=bonus;}
     auto meleeOutcome=templateImmune?LocalMeleeOutcome::Immune:
         meleeRoll?localRollPlayerMelee(p,*n,specialStats,true,g.meleeRoll(),g.meleeRoll(),false,meleeRules):
         magicHitRoll?g.playerSpellHitOutcome(p,*n,*d):LocalMeleeOutcome::Hit;
@@ -7942,7 +7968,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     consumeLocalRunes(p.runeCooldownMs,*runeMask);
     if(p.resourceType==LocalResourceType::RunicPower)
         p.mana=uint32_t(std::min(uint64_t(p.maxMana),uint64_t(p.mana)+d->runicPowerGain));
-    if(!finishing)p.globalCooldownMs=talentedGlobalCooldown;
+    if(!finishing&&!g.resolvingNextSwing)p.globalCooldownMs=talentedGlobalCooldown;
     if(cooldown) {
         if(cooldownSlot<p.cooldowns.size())p.cooldowns[cooldownSlot]={cmd.id,cooldown};
         else p.cooldowns.push_back({cmd.id,cooldown});
@@ -8226,12 +8252,21 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         g.addThreat(*n,p.guid,1);g.selectThreatTarget(*n,players);
         LOG_INFO("[LOCAL_DISARM] npc=",n->guid," spell=",d->id," ms=",b.remainingMs);
     }
-    if(d->areaRadius&&d->targetDebuffAttackPower<0) {
+    if(d->areaRadius&&(d->targetDebuffAttackPower<0||d->targetDebuffMeleeHastePct<0)) {
+        // Improved Demoralizing Shout (ALL_EFFECTS) and Improved Thunder Clap
+        // (EFFECT2) raise the debuff's magnitude (Player::ApplySpellMod).
+        constexpr uint8_t slotOps[]={3,12,23};
+        const auto talented=[&](int32_t amount,uint8_t slot){
+            float v=localSpellAmountModifier(p,c,*d,float(-amount),8);
+            if(slot<3)v=localSpellAmountModifier(p,c,*d,v,slotOps[slot]);
+            return -int32_t(v);};
+        const int32_t attackPower=d->targetDebuffAttackPower<0?talented(d->targetDebuffAttackPower,0):0;
+        const int32_t haste=d->targetDebuffMeleeHastePct<0?std::max(-99,talented(d->targetDebuffMeleeHastePct,d->targetDebuffMeleeHasteSlot)):0;
         for(size_t i=0;i<chainCount;++i) {
             auto* targetNpc=chainNpcs[i];
             if(!targetNpc||targetNpc->dead)continue;
             LocalNpcBuff b;b.spellId=d->id;b.casterGuid=p.guid;b.durationMs=b.remainingMs=talentedDuration;
-            b.attackPower=d->targetDebuffAttackPower;
+            b.attackPower=attackPower;b.hastePct=haste;
             size_t slot=targetNpc->npcBuffs.size();
             for(size_t j=0;j<targetNpc->npcBuffs.size();++j) {
                 if(targetNpc->npcBuffs[j].spellId==d->id&&targetNpc->npcBuffs[j].casterGuid==p.guid){slot=j;break;}
@@ -8552,7 +8587,9 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(d->healthCostBasePct)p.health-=std::min(p.health-1,localResourcePools(p,c).baseHealth*d->healthCostBasePct/100);
     // An ENERGIZE of rage (Bloodrage, Enrage); the rage over time is the aura's own.
     if(d->energizeRage&&p.resourceType==LocalResourceType::Rage) {
-        p.mana=std::min(p.maxMana,p.mana+d->energizeRage);
+        // Improved Bloodrage: SPELLMOD_EFFECT1 percent on the warrior's energize.
+        const auto rage=d->spellFamily==4?uint32_t(localSpellAmountModifier(p,c,*d,localSpellAmountModifier(p,c,*d,float(d->energizeRage),8),3)):uint32_t(d->energizeRage);
+        p.mana=std::min(p.maxMana,p.mana+rage);
         LOG_INFO("[LOCAL_RAGE] player=",p.guid," spell=",d->id," health=",p.health," rage=",p.mana);
     }
     // Righteous Defense: 31790 (ATTACK_ME, MOD_TAUNT) on up to three of the
@@ -8606,7 +8643,8 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         const float reach=std::max(1.0f,localCreatureCombatReach(c.npc(victim->entry)));
         if(len>reach){p.x=victim->x+dx/len*reach;p.y=victim->y+dy/len*reach;p.z=victim->z;}
         p.orientation=std::atan2(victim->y-p.y,victim->x-p.x);++p.positionRevision;
-        if(p.resourceType==LocalResourceType::Rage)p.mana=std::min(p.maxMana,p.mana+d->chargeRage);
+        // Improved Charge: SPELLMOD_ALL_EFFECTS flat, in the DBC's tenths of rage.
+        if(p.resourceType==LocalResourceType::Rage)p.mana=std::min(p.maxMana,p.mana+d->chargeRage+uint32_t(localTalentCastModifier(p,c,*d,8,false))/10);
         p.attackTarget=victim->guid;g.addThreat(*victim,p.guid,1);g.selectThreatTarget(*victim,players);
         LOG_INFO("[LOCAL_CHARGE] player=",p.guid," spell=",d->id," npc=",victim->guid," rage=",d->chargeRage);
     }
@@ -9280,7 +9318,8 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
         if(p->overpowerWindowMs){p->overpowerWindowMs=p->overpowerWindowMs>ms?p->overpowerWindowMs-ms:0;changed=true;}
         if(p->revengeWindowMs){p->revengeWindowMs=p->revengeWindowMs>ms?p->revengeWindowMs-ms:0;changed=true;}
         if(p->victoryRushWindowMs){p->victoryRushWindowMs=p->victoryRushWindowMs>ms?p->victoryRushWindowMs-ms:0;changed=true;}
-        if(p->dead||!p->health)p->overpowerWindowMs=p->revengeWindowMs=p->victoryRushWindowMs=0;
+        if(p->dead||!p->health){p->overpowerWindowMs=p->revengeWindowMs=p->victoryRushWindowMs=0;p->nextSwingSpellId=0;p->nextSwingTarget=0;}
+        if(p->nextSwingSpellId&&!p->attackTarget){p->nextSwingSpellId=0;p->nextSwingTarget=0;changed=true;}
         // Travel can return early below; riding state and rune recovery still
         // advance so landing cannot restore a mount that was cleared in flight.
         if(p->mountSpellId && (p->dead || p->flight.active || p->transportEntry || p->instanceId || (p->movementState&kLocalMovementInLiquid))) {
@@ -9493,6 +9532,21 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                     if(ms.offHand) {
                         auto& otherTimer=hand?p->attackTimer:p->offHandTimer;
                         otherTimer=std::max(.2f,otherTimer);
+                    }
+                    // A queued Heroic Strike or Cleave is this main-hand swing.
+                    // Without the rage (or a valid target) by now it is dropped
+                    // and the swing is an ordinary white hit.
+                    if(!hand&&p->nextSwingSpellId) {
+                        const auto spell=p->nextSwingSpellId;const auto queued=p->nextSwingTarget;
+                        p->nextSwingSpellId=0;p->nextSwingTarget=0;
+                        std::string why;bool struck=false;
+                        if(queued==n->guid){
+                            g.resolvingNextSwing=true;
+                            struck=executeCastSpell(*p,{LocalAction::CastSpell,n->guid,spell},players,why,false);
+                            g.resolvingNextSwing=false;
+                        }
+                        LOG_INFO("[LOCAL_NEXT_SWING] player=",p->guid," spell=",spell," npc=",n->guid," struck=",struck?1:0," ",why);
+                        if(struck){timer=localMeleeSpeed(*p,content(),false);changed=true;continue;}
                     }
                     const auto w=localWeaponAmounts(*p,content(),hand!=0);
                     auto outcome=localRollPlayerMelee(*p,*n,ms,false,g.meleeRoll(),g.meleeRoll(),hand!=0);
