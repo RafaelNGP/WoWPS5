@@ -724,6 +724,10 @@ struct LocalRealmPlayer {
     // Unit::m_currentSpells[CURRENT_MELEE_SPELL]).
     uint32_t nextSwingSpellId = 0;
     uint64_t nextSwingTarget = 0;
+    // Sword Specialization's pending extra swings, and the internal cooldowns
+    // of the Warrior procs that carry one (session-only).
+    uint8_t extraAttacks = 0;
+    std::array<uint32_t,2> warriorProcCooldownMs{};
 };
 
 inline uint8_t localItemContainerSlots(uint32_t itemId) {
@@ -1013,6 +1017,16 @@ struct LocalSpellDefinition {
     // aura 280 weapon-qualified armor penetration (the requiredItem* fields).
     uint8_t passiveDodgePct=0,passiveParryPct=0,passiveExpertise=0,passiveTargetDodgeReductionPct=0;
     uint8_t passiveWeaponArmorPenetrationPct=0;
+    uint8_t passiveBlockPct=0; // aura 51 with a shield (Shield Specialization)
+    // Reviewed Warrior proc talents (local_warrior_procs.hpp): the kind, its
+    // per-event chance, the spell it triggers and a kind-specific amount.
+    uint8_t warriorProc=0,warriorProcChance=0;
+    uint32_t warriorProcChild=0;
+    uint16_t warriorProcAmount=0;
+    // The triggered aura such a talent applies on its owner (LocalWarriorProcAura)
+    // and the talent that must stay allocated for it to keep working.
+    uint8_t warriorProcAura=0;
+    uint16_t warriorProcParentTalent=0;
     // Aura 232 SPELL_AURA_MECHANIC_DURATION_MOD (adds up) and 234 ..._NOT_STACK
     // (only the strongest counts): a bit per Mechanic and a negative percent.
     std::array<uint32_t,2> passiveMechanicDurationMask{};

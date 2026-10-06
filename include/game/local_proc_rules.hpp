@@ -178,7 +178,7 @@ inline bool localRollProcBasisPoints(uint32_t chance,uint64_t& state) {
 }
 inline bool localHasTimedAura(const LocalSpellDefinition& d) {
     return !d.passive&&(d.buffHealth || d.buffArmor || d.buffAbsorb || d.classBuff || d.proc.effect!=LocalProcEffect::None ||
-        d.periodicHealMaxHealthPct || d.physicalDamageDonePct || d.damageTakenPct || d.arcaneBlastProfile==2);
+        d.periodicHealMaxHealthPct || d.physicalDamageDonePct || d.damageTakenPct || d.arcaneBlastProfile==2 || d.warriorProcAura);
 }
 inline bool validLocalProcDefinition(const LocalSpellDefinition& d,const LocalProcDefinition& p) {
     if(p.spellFamily>1000||!validLocalProcFilters(p)||d.sourceDamageClass>3||d.mageArmorGroup>1)return false;
@@ -248,7 +248,14 @@ inline bool validLocalProcDefinition(const LocalSpellDefinition& d,const LocalPr
         if(d.arcaneBlastProfile==1&&(d.triggeredOnly||(d.id!=30451&&d.id!=42894&&d.id!=42896&&d.id!=42897)||
            d.durationMs||d.maxAuraStacks!=1||d.sourceDamageClass!=1||!d.damage||d.heal||d.periodicDamage||d.periodicHeal))return false;
     }
-    if(d.physicalDamageDonePct||d.damageTakenPct) {
+    // Enrage / Wrecking Crew children (local_warrior_procs.hpp): a 12 s physical
+    // damage aura owned by the warrior while its talent stays allocated.
+    if(d.warriorProcAura) {
+        if(d.passive||!d.triggeredOnly||d.allowableClasses!=1||!d.warriorProcParentTalent||!d.durationMs||d.durationMs>60000||
+           d.maxAuraStacks!=1||d.damageTakenPct||d.damage||d.heal||d.periodicDamage||d.periodicHeal||d.buffHealth||d.buffArmor||
+           d.buffAbsorb||d.manaPer5||p.effect!=LocalProcEffect::None||
+           (d.warriorProcAura==1)!=(d.physicalDamageDonePct>0)||d.physicalDamageDonePct>20)return false;
+    } else if(d.physicalDamageDonePct||d.damageTakenPct) {
         if(d.id!=12292||d.physicalDamageDonePct!=20||d.damageTakenPct!=5||d.passive||d.triggeredOnly||
            d.allowableClasses!=1||d.talentId!=165||d.talentRank!=1||!d.buffSelfOnly||d.durationMs!=30000||
            d.maxAuraStacks!=1||d.buffHealth||d.buffArmor||d.buffAbsorb||d.damage||d.heal||d.periodicDamage||

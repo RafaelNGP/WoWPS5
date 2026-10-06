@@ -359,7 +359,7 @@ LocalMeleeStats localMeleeStats(const LocalRealmPlayer& p,const LocalWorldConten
         const auto* d=c.spell(a.spellId);
         return d&&d->spellFamily==4&&(d->spellFamilyFlags[0]&0x1000u);
     });
-    s.block=shield?(shieldBlockActive?100.f:std::max(0.f,5+bonus[3]+s.defense*.04f+float(views.blockPct))):0;
+    s.block=shield?(shieldBlockActive?100.f:std::max(0.f,5+bonus[3]+s.defense*.04f+float(views.blockPct)+float(talentSum(p,c,&LocalSpellDefinition::passiveBlockPct)))):0;
     s.blockValue=shield?uint32_t(std::max(int64_t(0),blockValue+oh->block+str/2-10)):0;
     if(shieldBlockActive)s.blockValue*=2;
     s.shieldBlockValue=uint32_t(std::max(int64_t(0),blockValue+(shield?int64_t(oh->block):0)+str/2-10));

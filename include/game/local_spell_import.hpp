@@ -19,6 +19,7 @@
 #include "game/local_stormstrike_import.hpp"
 #include "game/local_warrior_progression_import.hpp"
 #include "game/local_warrior_talents_import.hpp"
+#include "game/local_warrior_procs.hpp"
 #include "game/local_arcane_import.hpp"
 #include "game/local_clearcasting_import.hpp"
 #include "game/local_ghost_wolf_import.hpp"
@@ -2908,6 +2909,21 @@ inline void importClientTalents(LocalSpellImport& out,const pipeline::DBCFile* t
         const auto existing=std::find_if(out.spells.begin(),out.spells.end(),[&](const auto& d){return d.id==aura.id;});
         if(existing!=out.spells.end())*existing=std::move(aura);else out.spells.push_back(std::move(aura));
     }
+    // Reviewed Warrior proc talents: the spell each one triggers, built from its
+    // own pinned record. A talent whose child does not match stays blocked.
+    std::vector<LocalSpellDefinition> warriorChildren;
+    for(auto& talent:out.spells)if(talent.unsupportedReason.empty()&&talent.warriorProc) {
+        LocalSpellDefinition child;
+        if(!decodeClientWarriorProcChild(t,talent,child)||out.spells.size()+warriorChildren.size()>=8192) {
+            talent.unsupportedReason="Unreviewed Warrior proc child profile";
+            for(auto& observed:out.audit)if(observed.id==talent.id)observed.status=talent.unsupportedReason;
+        } else if(child.id&&std::none_of(warriorChildren.begin(),warriorChildren.end(),[&](const auto& c){return c.id==child.id;}))
+            warriorChildren.push_back(std::move(child));
+    }
+    for(auto& child:warriorChildren) {
+        const auto existing=std::find_if(out.spells.begin(),out.spells.end(),[&](const auto& d){return d.id==child.id;});
+        if(existing!=out.spells.end())*existing=std::move(child);else out.spells.push_back(std::move(child));
+    }
     std::vector<LocalSpellDefinition> petPowerChildren;
     for(auto& talent:out.spells)if(talent.unsupportedReason.empty()&&talent.proc.effect==LocalProcEffect::RestorePetPower) {
         const auto source=detail::ClientSpellTables::lookup(rows,talent.id);LocalSpellDefinition child;
@@ -3220,7 +3236,7 @@ inline LocalSpellImport importClientStarterSpells(
             out.audit.push_back({mount.id,mount.allowableClasses,false,"Supported decoder; imported class mount"});
             out.spells.push_back(std::move(mount));continue;
         }
-        if(!detail::decodeClientSpell(tables,entry.second,d)) {
+        if(!detail::decodeClientSpell(tables,entry.second,d)&&!(d.id==kLocalBerserkerRage&&d.allowableClasses==1&&decodeClientBerserkerRage(tables,d))) {
             out.audit.push_back({d.id,d.allowableClasses,false,d.unsupportedReason});++abilitiesRejected;continue;
         }
         if(out.spells.size()>=kLocalMaxImportedClassAbilities+sizeof(starters)/sizeof(starters[0])){

@@ -4,6 +4,13 @@
 namespace wowee::game {
 inline bool localTimedDamageTalentReady(const LocalRealmPlayer& p,const LocalWorldContent& c,const LocalSpellDefinition& d) {
     if(!d.physicalDamageDonePct&&!d.damageTakenPct)return true;
+    if(d.warriorProcAura) {
+        if(p.classId!=1||!validLocalTalents(p)||!d.unsupportedReason.empty())return false;
+        return std::any_of(p.talents.begin(),p.talents.end(),[&](const auto& t){
+            const auto* parent=t.first==d.warriorProcParentTalent?localTalentSpell(c,t.first,t.second):nullptr;
+            return parent&&parent->unsupportedReason.empty()&&localTalentPrerequisitesReady(p,c,*parent);
+        });
+    }
     if(p.classId!=1||!validLocalTalents(p)||!d.talentId||!validLocalProc(d)||!d.unsupportedReason.empty())return false;
     return std::any_of(p.talents.begin(),p.talents.end(),[&](const auto& t){
         return t.first==d.talentId&&t.second==d.talentRank&&localTalentPrerequisitesReady(p,c,d);

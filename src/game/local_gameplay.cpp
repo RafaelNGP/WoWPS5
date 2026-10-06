@@ -20,6 +20,7 @@
 #include "game/local_spell_critical.hpp"
 #include "game/local_proc_talents.hpp"
 #include "game/local_reactive_talents.hpp"
+#include "game/local_warrior_procs.hpp"
 #include "game/local_arcane.hpp"
 #include "game/local_stormstrike.hpp"
 #include "game/local_proc_timing.hpp"
@@ -2680,6 +2681,155 @@ struct LocalGameplay::Impl {
     #include "game/local_npc_smart_motion.inc"
     #include "game/local_npc_gossip.inc"
     #include "game/local_pet_spell_runtime.inc"
+    // ---- Reviewed Warrior proc talents (local_warrior_procs.hpp) -----------
+    // They run from the root combat events the warrior takes part in, apart
+    // from the generic dispatcher, with their own pinned chances and children.
+    bool inWarriorProcs=false;
+    uint64_t warriorProcRandom=0x2545f4914f6cdd1dULL;
+    bool warriorRoll(uint8_t chance){return localRollProc(chance,warriorProcRandom);}
+    void applyWarriorProcAura(LocalRealmPlayer& p,uint32_t childId,const std::vector<LocalRealmPlayer*>& players) {
+        const auto* child=content->spell(childId);
+        if(!child||!child->warriorProcAura||!child->unsupportedReason.empty()||!validLocalProc(*child)||
+           !localTimedDamageTalentReady(p,*content,*child))return;
+        const bool damageAura=child->warriorProcAura==uint8_t(LocalWarriorProcAura::Damage);
+        // Enrage and Wrecking Crew never stack: the newer one replaces the other.
+        auto slot=std::find_if(p.statAuras.begin(),p.statAuras.end(),[&](const auto& a){
+            const auto* d=content->spell(a.spellId);
+            return d&&d->warriorProcAura==child->warriorProcAura&&(a.spellId==childId||damageAura);});
+        LocalStatAura aura{childId,child->durationMs,p.mapId,p.instanceId,p.guid};
+        aura.procCharges=damageAura?0:1;
+        if(slot!=p.statAuras.end()){localPrepareAuraApplication(p,aura,&*slot);*slot=aura;}
+        else {
+            if(std::count_if(p.statAuras.begin(),p.statAuras.end(),[](const auto& a){return a.remainingMs!=0;})>=long(kLocalMaxStatAuras))return;
+            localPrepareAuraApplication(p,aura,nullptr);
+            auto free=std::find_if(p.statAuras.begin(),p.statAuras.end(),[](const auto& a){return !a.remainingMs;});
+            if(free!=p.statAuras.end())*free=aura;else if(p.statAuras.size()<kLocalMaxStatAuras)p.statAuras.push_back(aura);else return;
+        }
+        LocalCombatEvent shown{0,p.guid,p.guid,childId,p.mapId,p.instanceId,0,0,0,LocalCombatEventKind::ProcAura,false,0};
+        shown.attackType=LocalCombatAttackType::None;shown.auraApplied=true;shown.auraDurationMs=aura.remainingMs;shown.auraCharges=aura.procCharges;
+        emitCombatEvent(shown,players);
+        LOG_INFO("[LOCAL_WARRIOR_PROC] player=",p.guid," aura=",childId," ms=",aura.remainingMs);
+    }
+    // Deep Wounds (spell_warr_deep_wounds): a share of the hand's average
+    // weapon damage, attack power included, spread over 12721's six ticks; a
+    // refresh carries the ticks still owed into the new bleed.
+    void applyDeepWounds(LocalRealmPlayer& p,LocalRealmNpc& n,bool offHand,const LocalSpellDefinition& talent) {
+        const auto* bleed=content->spell(kLocalDeepWoundsPeriodic);
+        if(!bleed||!bleed->durationMs||!bleed->periodicIntervalMs||n.dead||n.transportEntry)return;
+        const auto w=localWeaponAmounts(p,*content,offHand);if(!w.active)return;
+        const auto interval=bleed->periodicIntervalMs,ticks=bleed->durationMs/interval;
+        uint64_t total=uint64_t(std::max(0.f,(w.low+w.high)/2.f*float(talent.warriorProcAmount)/100.f));
+        auto it=std::find_if(periodicDamage.begin(),periodicDamage.end(),[&](const auto& a){
+            return a.owner==p.guid&&a.target==n.guid&&a.spell==kLocalDeepWoundsPeriodic&&a.remaining&&a.targetEpoch==n.combatEpoch;});
+        if(it!=periodicDamage.end())total+=uint64_t(it->damage)*((it->remaining+interval-1)/interval);
+        const auto perTick=uint32_t(std::min<uint64_t>(1000000,total/std::max(1u,ticks)));
+        if(!perTick)return;
+        PeriodicDamage aura{p.guid,n.guid,kLocalDeepWoundsPeriodic,bleed->durationMs,interval,interval,perTick,p.mapId,p.instanceId};
+        aura.targetEpoch=n.combatEpoch;
+        if(it!=periodicDamage.end())*it=aura;
+        else if(periodicDamage.size()<MaxNpcs*8)periodicDamage.push_back(aura); // melee events only: never inside the periodic loop
+        else return;
+        LOG_INFO("[LOCAL_DEEP_WOUNDS] player=",p.guid," npc=",n.guid," tick=",perTick);
+    }
+    // Trauma: bleeds (Deep Wounds, Rend) on a creature hurt this much more.
+    uint32_t traumaPct(const LocalRealmNpc& n) const {
+        uint32_t pct=0;
+        for(const auto& b:n.npcBuffs)if(b.remainingMs)if(const auto* d=content->spell(b.spellId);d&&d->warriorProcParentTalent==1859)
+            pct=std::max<uint32_t>(pct,d->warriorProcAmount);
+        return pct;
+    }
+    void warriorProcs(const LocalCombatEvent& event,const std::vector<LocalRealmPlayer*>& players) {
+        if(inWarriorProcs||event.procDepth||event.auraSpell)return;
+        struct Guard{bool& flag;explicit Guard(bool& v):flag(v){flag=true;}~Guard(){flag=false;}} guard(inWarriorProcs);
+        const auto& c=*content;
+        using K=LocalWarriorProc;
+        const bool landed=event.outcome==LocalMeleeOutcome::Hit||event.outcome==LocalMeleeOutcome::Critical||
+            event.outcome==LocalMeleeOutcome::Glancing||event.outcome==LocalMeleeOutcome::Crushing||
+            (event.outcome==LocalMeleeOutcome::Block&&event.effective);
+        const bool critical=event.outcome==LocalMeleeOutcome::Critical;
+        const bool melee=event.kind==LocalCombatEventKind::PlayerMelee||
+            (event.kind==LocalCombatEventKind::SpellDamage&&event.attackType==LocalCombatAttackType::Melee);
+        const auto& f=event.spellFamilyFlags;
+        // ---- The warrior dealt it.
+        if(auto* p=player(event.source,players);p&&p->classId==1&&!p->dead&&p->health) {
+            auto* n=npc(event.target);
+            if(n&&!n->dead&&melee&&landed) {
+                if(critical) {
+                    if(const auto* t=localWarriorProcTalent(*p,c,K::DeepWounds))applyDeepWounds(*p,*n,event.offHand,*t);
+                    if(const auto* t=localWarriorProcTalent(*p,c,K::Trauma))if(const auto* child=c.spell(t->warriorProcChild)) {
+                        LocalNpcBuff b;b.spellId=child->id;b.casterGuid=p->guid;b.durationMs=b.remainingMs=child->durationMs;
+                        auto slot=std::find_if(n->npcBuffs.begin(),n->npcBuffs.end(),[&](const auto& o){
+                            const auto* od=c.spell(o.spellId);return od&&od->warriorProcParentTalent==1859;});
+                        if(slot!=n->npcBuffs.end()){npcBuffRemoved(*n,*slot);*slot=b;}
+                        else if(n->npcBuffs.size()<kLocalMaxNpcBuffs)n->npcBuffs.push_back(b);
+                    }
+                    if(const auto* t=localWarriorProcTalent(*p,c,K::WreckingCrew))applyWarriorProcAura(*p,t->warriorProcChild,players);
+                }
+                if(const auto* t=localWarriorProcTalent(*p,c,K::SuddenDeath);t&&warriorRoll(t->warriorProcChance))
+                    applyWarriorProcAura(*p,t->warriorProcChild,players);
+                // Sword Specialization: an extra main-hand swing, once per 6 s.
+                if(const auto* t=localWarriorProcTalent(*p,c,K::SwordSpecialization);t&&!p->warriorProcCooldownMs[kLocalSwordSpecializationCooldown]) {
+                    const auto* weapon=worn(*p,c,event.offHand?16:15);
+                    if(weapon&&weapon->itemClass==2&&weapon->subclass<32&&(t->requiredItemSubclasses&(1u<<weapon->subclass))&&
+                       warriorRoll(t->warriorProcChance)) {
+                        p->extraAttacks=uint8_t(std::min(3,p->extraAttacks+1));
+                        p->warriorProcCooldownMs[kLocalSwordSpecializationCooldown]=kLocalWarriorProcCooldownMs;
+                        LOG_INFO("[LOCAL_WARRIOR_PROC] player=",p->guid," extra attack");
+                    }
+                }
+            }
+            if(n&&!n->dead&&event.kind==LocalCombatEventKind::SpellDamage&&event.spellFamily==4&&landed) {
+                // Bloodsurge: Heroic Strike, Bloodthirst, Whirlwind.
+                if((f[0]&0x40u)||(f[1]&0x400u)||(f[1]&0x4u))
+                    if(const auto* t=localWarriorProcTalent(*p,c,K::Bloodsurge);t&&warriorRoll(t->warriorProcChance))
+                        applyWarriorProcAura(*p,t->warriorProcChild,players);
+                // Sword and Board: Revenge (and Devastate) reset Shield Slam.
+                if((f[0]&0x400u)||(f[1]&0x40u))
+                    if(const auto* t=localWarriorProcTalent(*p,c,K::SwordAndBoard);t&&warriorRoll(t->warriorProcChance)) {
+                        for(const auto& known:p->knownSpells)if(const auto* slam=c.spell(known);slam&&slam->spellFamily==4&&(slam->spellFamilyFlags[1]&0x200u)) {
+                            std::erase_if(p->cooldowns,[&](const auto& cd){return cd.spellId==slam->id;});
+                            if(slam->cooldownCategory)for(auto& cd:p->categoryCooldowns)if(cd.category==slam->cooldownCategory&&cd.family==slam->spellFamily)cd.remainingMs=0;
+                        }
+                        applyWarriorProcAura(*p,t->warriorProcChild,players);
+                    }
+            }
+            // Taste for Blood: a Rend tick opens Overpower, once per 6 s.
+            if(event.kind==LocalCombatEventKind::PeriodicDamage&&event.spellFamily==4&&(f[0]&0x20u)&&
+               !p->warriorProcCooldownMs[kLocalTasteForBloodCooldown])
+                if(const auto* t=localWarriorProcTalent(*p,c,K::TasteForBlood);t&&warriorRoll(t->warriorProcChance))
+                    if(const auto* child=c.spell(t->warriorProcChild)) {
+                        p->overpowerWindowMs=std::max(p->overpowerWindowMs,child->durationMs);
+                        p->warriorProcCooldownMs[kLocalTasteForBloodCooldown]=kLocalWarriorProcCooldownMs;
+                        LOG_INFO("[LOCAL_WARRIOR_PROC] player=",p->guid," Taste for Blood: Overpower ",child->durationMs,"ms");
+                    }
+        }
+        // ---- The warrior took it.
+        if(auto* p=player(event.target,players);p&&p->classId==1&&!p->dead&&p->health) {
+            auto* attacker=npc(event.source);
+            const bool hostile=attacker&&(event.kind==LocalCombatEventKind::NpcMelee||event.kind==LocalCombatEventKind::SpellDamage||
+                event.kind==LocalCombatEventKind::PeriodicDamage);
+            if(hostile&&event.effective)
+                if(const auto* t=localWarriorProcTalent(*p,c,K::Enrage);t&&warriorRoll(t->warriorProcChance))
+                    applyWarriorProcAura(*p,t->warriorProcChild,players);
+            if(attacker&&event.kind==LocalCombatEventKind::NpcMelee) {
+                const bool avoided=event.outcome==LocalMeleeOutcome::Block||event.outcome==LocalMeleeOutcome::Dodge||
+                    event.outcome==LocalMeleeOutcome::Parry||event.blocked;
+                if(avoided)if(const auto* t=localWarriorProcTalent(*p,c,K::ShieldSpecialization);t&&warriorRoll(t->warriorProcChance))
+                    if(const auto* child=c.spell(t->warriorProcChild);child&&p->resourceType==LocalResourceType::Rage) {
+                        p->mana=std::min(p->maxMana,p->mana+child->energizeRage);
+                        LOG_INFO("[LOCAL_WARRIOR_PROC] player=",p->guid," Shield Specialization rage=",unsigned(child->energizeRage));
+                    }
+                // Damage Shield: struck or blocked with a shield on.
+                if((event.effective||event.blocked)&&!attacker->dead)if(const auto* t=localWarriorProcTalent(*p,c,K::DamageShield)) {
+                    const auto* shield=worn(*p,c,16);
+                    if(shield&&shield->itemClass==4&&shield->subclass==6) {
+                        const auto amount=localMeleeStats(*p,c).shieldBlockValue*t->warriorProcAmount/100;
+                        if(amount)damageNpc(*attacker,*p,amount,players,false,kLocalDamageShieldSpell,false,t->id);
+                    }
+                }
+            }
+        }
+    }
     void emitCombatEvent(LocalCombatEvent event,const std::vector<LocalRealmPlayer*>& players) {
         localHydrateProcEventMetadata(event,content->spell(event.spell));
         if(event.kind!=LocalCombatEventKind::Kill&&event.kind!=LocalCombatEventKind::Death) {
@@ -2723,6 +2873,7 @@ struct LocalGameplay::Impl {
         event.sequence=combatHistory.record(event);
         if(root)event.rootSequence=event.sequence;
         if(event.kind==LocalCombatEventKind::ProcAura)return;
+        if(!procDispatchDepth)warriorProcs(event,players);
         if(event.kind==LocalCombatEventKind::SpellDamage&&(localProcEventHitMask(event)&(LocalProcHitNormal|LocalProcHitCritical)))
             if(const auto* d=content->spell(event.spell);d&&d->sourceDamageClass==1)
                 if(auto* caster=player(event.source,players);caster&&consumeLocalArcaneBlast(*caster,*content,*d))
@@ -3358,7 +3509,8 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(d.passiveArmorAttackPowerDivisor);hash(d.passiveOffhandDamagePct);hash(d.passiveWeaponHitPct);
         hash(d.passivePhysicalDamagePct);hash(d.physicalDamageDonePct);hash(d.damageTakenPct);
         hash(d.passiveDodgePct);hash(d.passiveParryPct);hash(d.passiveExpertise);hash(d.passiveTargetDodgeReductionPct);
-        hash(d.passiveWeaponArmorPenetrationPct);
+        hash(d.passiveWeaponArmorPenetrationPct);hash(d.passiveBlockPct);hash(d.warriorProc);hash(d.warriorProcChance);hash(d.warriorProcChild);
+        hash(d.warriorProcAmount);hash(d.warriorProcAura);hash(d.warriorProcParentTalent);
         for(size_t k=0;k<2;++k){hash(d.passiveMechanicDurationMask[k]);hash(uint32_t(int32_t(d.passiveMechanicDurationPct[k])));hash(uint32_t(d.passiveMechanicDurationNotStack[k]));}
         {uint32_t perLevel;std::memcpy(&perLevel,&d.npcArmorPerLevel,4);hash(d.npcSlowPercent);hash(uint32_t(d.npcArmorAmount));hash(perLevel);}
         {uint32_t weaponPerLevel;std::memcpy(&weaponPerLevel,&d.npcWeaponBonusPerLevel,4);
@@ -7306,7 +7458,9 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         const auto* reagent=c.item(d->reagentItems[r]);
         return reject("Missing reagent: "+(reagent?reagent->name:std::to_string(d->reagentItems[r])));
     }
-    if(d->outOfCombatOnly&&!finishing&&localCombatActive(p,g.npcs))return reject("You can't do that while in combat");
+    // Juggernaut (aura 262 on Charge): usable in combat.
+    const bool juggernautCharge=d->charge&&d->spellFamily==4&&localWarriorProcTalent(p,c,LocalWarriorProc::Juggernaut);
+    if(d->outOfCombatOnly&&!finishing&&!juggernautCharge&&localCombatActive(p,g.npcs))return reject("You can't do that while in combat");
     if(d->teleport&&!c.spellDestination(d->id))return reject("This destination is not available here");
     if(d->teleport&&(p.flight.active||p.transportEntry))return reject("You can't do that right now");
     // spell_warl_life_tap::CheckCast: more health than the tap (else it fizzles).
@@ -7421,12 +7575,17 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if(!runeMask)return reject("Not enough ready runes");
     if(finishing&&!p.castCostPrepared)return reject("Cast preparation is unavailable");
     uint32_t appliedCostAura=0;
-    const auto cost=finishing?p.castPreparedCost:localChargedSpellCost(p,c,*d,localSpellBaseResourceCost(p,c,*d),&appliedCostAura);
+    // Sword and Board (50227): the next Shield Slam costs nothing.
+    auto* swordAndBoard=!finishing&&d->spellFamily==4&&(d->spellFamilyFlags[1]&0x200u)?localWarriorProcAura(p,c,LocalWarriorProcAura::SwordAndBoard):nullptr;
+    const auto cost=finishing?p.castPreparedCost:swordAndBoard?0u:localChargedSpellCost(p,c,*d,localSpellBaseResourceCost(p,c,*d),&appliedCostAura);
     if((d->formId&&p.classId==11?localAvailableMana(p):p.mana)<cost)return reject("Not enough resource");
     migrateLocalCategoryCooldowns(p,c);
     if(localSpellCooldownRemaining(p,c,*d))return reject("Spell or shared category is on cooldown");
-    const auto cooldown=d->clientSpell?localSpellRecoveryDuration(p,c,*d,false):std::max(500U,d->cooldownMs);
-    const auto categoryCooldown=localSpellRecoveryDuration(p,c,*d,true);
+    // Juggernaut's SPELLMOD_COOLDOWN +5 s on Charge (a positive op 11 the
+    // generic modifier path reserves for reductions).
+    const uint32_t juggernautDelay=juggernautCharge?localWarriorProcTalent(p,c,LocalWarriorProc::Juggernaut)->warriorProcAmount:0u;
+    const auto cooldown=(d->clientSpell?localSpellRecoveryDuration(p,c,*d,false):std::max(500U,d->cooldownMs))+(d->cooldownMs?juggernautDelay:0u);
+    const auto categoryCooldown=localSpellRecoveryDuration(p,c,*d,true)+(d->categoryCooldownMs?juggernautDelay:0u);
     size_t cooldownSlot=p.cooldowns.size();
     if(cooldown) {
         for(size_t i=0;i<p.cooldowns.size();++i)
@@ -7477,7 +7636,9 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     if((d->damage||d->weaponDamage||d->interruptCast||d->taunt||d->charge||d->periodicDamage||d->snarePercent||d->controlProfile||d->armorDebuffPct||d->targetDebuffEffectMask||d->stormstrikeProfile==1||d->disarm||d->pestilenceRadius>0||d->judgementDebuff||d->manaBurnPct)&&!d->areaRadius) {
         if(!n||n->dead||!canAttack(p,*n))return reject("Choose a living enemy");
         // TargetAuraState HEALTHLESS_20_PERCENT (Execute, Kill Shot).
-        if(d->targetMaxHealthPct&&uint64_t(n->health)*100>uint64_t(n->maxHealth)*d->targetMaxHealthPct)
+        // Sudden Death (52437, aura 262): Execute regardless of the target's health.
+        if(d->targetMaxHealthPct&&uint64_t(n->health)*100>uint64_t(n->maxHealth)*d->targetMaxHealthPct&&
+           !(d->executeSpell&&localWarriorProcAura(p,c,LocalWarriorProcAura::SuddenDeath)))
             return reject("Target needs to be below "+std::to_string(d->targetMaxHealthPct)+"% health");
         if(!localSpellTargetInRange(p,c,*d,n->mapId,n->instanceId,n->x,n->y,n->z,targetReach,!finishing))
             return reject("Spell target out of effective range");
@@ -7794,6 +7955,9 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // Unit::ModSpellCastTime's UNIT_MOD_CAST_SPEED for a non-ability spell
     // (a creature's MOD_CASTING_SPEED_NOT_STACK view, 2.37).
     auto castTime=d->sourceAbilityOrTrade?localSpellCastTime(p,c,*d):localPlayerCastTimeModified(p,localSpellCastTime(p,c,*d));
+    // Bloodsurge's Slam! (46916): SPELLMOD_CASTING_TIME -100% on the next Slam.
+    if(!finishing&&castTime&&d->spellFamily==4&&(d->spellFamilyFlags[0]&0x200000u))
+        if(auto* slam=localWarriorProcAura(p,c,LocalWarriorProcAura::Bloodsurge)){castTime=0;slam->remainingMs=0;}
     // A class buff's MOD_CASTING_SPEED_NOT_STACK (Bloodlust, Heroism): the strongest one.
     if(!d->sourceAbilityOrTrade&&castTime){int32_t pct=0;
         for(const auto& a:p.statAuras)if(a.remainingMs)if(const auto* bd=c.spell(a.spellId);bd&&bd->classBuff)pct=std::max(pct,bd->classBuffCastSpeedPct);
@@ -7881,6 +8045,9 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     // SPELLMOD_CRITICAL_CHANCE (op 7) on a warrior special (Improved Overpower);
     // Spell::GetCritChance adds it to the melee critical chance.
     if(meleeRoll&&d->spellFamily==4){const auto bonus=float(localTalentCastModifier(p,c,*d,7,false));specialStats.crit+=bonus;specialStats.offHandCrit+=bonus;}
+    // Juggernaut (65156): +25% critical chance on the next Slam or Mortal Strike.
+    if(meleeRoll&&d->spellFamily==4&&(d->spellFamilyFlags[0]&0x2200000u))
+        if(auto* jugg=localWarriorProcAura(p,c,LocalWarriorProcAura::Juggernaut)){specialStats.crit+=25.f;jugg->remainingMs=0;}
     auto meleeOutcome=templateImmune?LocalMeleeOutcome::Immune:
         meleeRoll?localRollPlayerMelee(p,*n,specialStats,true,g.meleeRoll(),g.meleeRoll(),false,meleeRules):
         magicHitRoll?g.playerSpellHitOutcome(p,*n,*d):LocalMeleeOutcome::Hit;
@@ -7946,6 +8113,21 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
     p.mountSpellId=d->mountDisplayId?d->id:0;
     if(d->formId&&p.classId==11&&p.resourceType!=LocalResourceType::Mana)p.druidMana-=paidCost;else p.mana-=paidCost;
     if(!avoided)p.mana-=extraEnergy;
+    if(swordAndBoard)swordAndBoard->remainingMs=0;
+    if(d->executeSpell) {
+        if(auto* sudden=localWarriorProcAura(p,c,LocalWarriorProcAura::SuddenDeath))sudden->remainingMs=0;
+        // Sudden Death: at least this much rage stays after Execute.
+        if(const auto* t=localWarriorProcTalent(p,c,LocalWarriorProc::SuddenDeath);t&&p.resourceType==LocalResourceType::Rage)
+            p.mana=std::max<uint32_t>(p.mana,std::min<uint32_t>(p.maxMana,t->warriorProcAmount));
+    }
+    // Improved Berserker Rage: the cast itself gives rage (23690 / 23691).
+    if(d->id==kLocalBerserkerRage&&p.resourceType==LocalResourceType::Rage)
+        if(const auto* t=localWarriorProcTalent(p,c,LocalWarriorProc::ImprovedBerserkerRage))if(const auto* child=c.spell(t->warriorProcChild))
+            p.mana=std::min(p.maxMana,p.mana+child->energizeRage);
+    // Improved Hamstring: a chance to root the creature (23694).
+    if(d->spellFamily==4&&(d->spellFamilyFlags[0]&0x2u)&&n&&!avoided&&!nullified&&!n->dead)
+        if(const auto* t=localWarriorProcTalent(p,c,LocalWarriorProc::ImprovedHamstring);t&&g.warriorRoll(t->warriorProcChance))
+            if(const auto* root=c.spell(t->warriorProcChild))g.applyAreaControl(p,*n,*root,root->durationMs,LocalNpcControlKind::Root,false);
     if(d->spellFamily==4&&(d->spellFamilyFlags[0]&0x4u))p.overpowerWindowMs=0;
     if(d->requiresDefenseState)p.revengeWindowMs=0;
     if(d->requiresVictoryRush)p.victoryRushWindowMs=0;
@@ -8646,6 +8828,7 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         // Improved Charge: SPELLMOD_ALL_EFFECTS flat, in the DBC's tenths of rage.
         if(p.resourceType==LocalResourceType::Rage)p.mana=std::min(p.maxMana,p.mana+d->chargeRage+uint32_t(localTalentCastModifier(p,c,*d,8,false))/10);
         p.attackTarget=victim->guid;g.addThreat(*victim,p.guid,1);g.selectThreatTarget(*victim,players);
+        if(const auto* t=d->spellFamily==4?localWarriorProcTalent(p,c,LocalWarriorProc::Juggernaut):nullptr)g.applyWarriorProcAura(p,t->warriorProcChild,players);
         LOG_INFO("[LOCAL_CHARGE] player=",p.guid," spell=",d->id," npc=",victim->guid," rage=",d->chargeRage);
     }
     // Death Grip: the creature lands in front of the knight (the jump of 57604
@@ -9140,7 +9323,10 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
             }
             else if(aura.spell==12654&&(!owner||owner->mapId!=aura.mapId||owner->instanceId!=aura.instanceId))g.orphanIgniteHit(*target,aura.damage,aura.owner,players);
             else {
-                const auto amount=localStackedAuraAmount(aura.damage,aura.stacks);
+                auto amount=localStackedAuraAmount(aura.damage,aura.stacks);
+                // Trauma: Deep Wounds and Rend bleed harder on the marked creature.
+                if(spell&&(aura.spell==kLocalDeepWoundsPeriodic||(spell->spellFamily==4&&(spell->spellFamilyFlags[0]&0x20u))))
+                    if(const auto pct=g.traumaPct(*target))amount=uint32_t(std::min<uint64_t>(1000000,uint64_t(amount)*(100+pct)/100));
                 g.damageNpc(*target,*owner,amount,players,spell&&(spell->schoolMask&1)&&!spell->periodicIgnoresArmor,aura.spell,true,
                              0,nullptr,LocalMeleeOutcome::Hit,false,0,0,false,false,aura.critChanceBasisPoints);
                 // Drain Life: the drained health returns to the caster.
@@ -9318,7 +9504,8 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
         if(p->overpowerWindowMs){p->overpowerWindowMs=p->overpowerWindowMs>ms?p->overpowerWindowMs-ms:0;changed=true;}
         if(p->revengeWindowMs){p->revengeWindowMs=p->revengeWindowMs>ms?p->revengeWindowMs-ms:0;changed=true;}
         if(p->victoryRushWindowMs){p->victoryRushWindowMs=p->victoryRushWindowMs>ms?p->victoryRushWindowMs-ms:0;changed=true;}
-        if(p->dead||!p->health){p->overpowerWindowMs=p->revengeWindowMs=p->victoryRushWindowMs=0;p->nextSwingSpellId=0;p->nextSwingTarget=0;}
+        for(auto& icd:p->warriorProcCooldownMs)if(icd){icd=icd>ms?icd-ms:0;}
+        if(p->dead||!p->health){p->overpowerWindowMs=p->revengeWindowMs=p->victoryRushWindowMs=0;p->nextSwingSpellId=0;p->nextSwingTarget=0;p->extraAttacks=0;}
         if(p->nextSwingSpellId&&!p->attackTarget){p->nextSwingSpellId=0;p->nextSwingTarget=0;changed=true;}
         // Travel can return early below; riding state and rune recovery still
         // advance so landing cannot restore a mount that was cleared in flight.
@@ -9525,7 +9712,13 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                     localComboFacingReady(*p,*n,false)){
                 const auto ms=localMeleeStats(*p,content());
                 for(unsigned hand=0;hand<2&&!n->dead;++hand){
-                    auto& timer=hand?p->offHandTimer:p->attackTimer;if(timer>0||(hand&&!ms.offHand))continue;
+                    auto& timer=hand?p->offHandTimer:p->attackTimer;
+                    // Sword Specialization: an extra main-hand swing now, which
+                    // leaves the regular swing timer where it was.
+                    const bool extraSwing=!hand&&timer>0&&p->extraAttacks;
+                    const float heldTimer=timer;
+                    if((timer>0&&!extraSwing)||(hand&&!ms.offHand))continue;
+                    if(extraSwing)--p->extraAttacks;
                     // Source dual-wield scheduling staggers the other hand
                     // before attack callbacks. A new haste aura may then
                     // rescale this remaining fraction along with that hand.
@@ -9536,7 +9729,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                     // A queued Heroic Strike or Cleave is this main-hand swing.
                     // Without the rage (or a valid target) by now it is dropped
                     // and the swing is an ordinary white hit.
-                    if(!hand&&p->nextSwingSpellId) {
+                    if(!hand&&!extraSwing&&p->nextSwingSpellId) {
                         const auto spell=p->nextSwingSpellId;const auto queued=p->nextSwingTarget;
                         p->nextSwingSpellId=0;p->nextSwingTarget=0;
                         std::string why;bool struck=false;
@@ -9559,7 +9752,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                     // resetAttackTimer follows the source hit/proc handling:
                     // consuming the last charge starts the next normal-speed
                     // interval unless a critical hit refreshed Flurry.
-                    timer=localMeleeSpeed(*p,content(),hand!=0);
+                    timer=extraSwing?heldTimer:localMeleeSpeed(*p,content(),hand!=0);
                     if(outcome==LocalMeleeOutcome::Parry&&n->attackTimer>.4f&&!(localNpcMeleeFlags(n->entry)&8))n->attackTimer=std::max(.4f,n->attackTimer-.8f);
                     if(g.meleeRoll()<1000){
                         if(localReduceEquippedDurability(*p,hand?16:15,1))stats(*p,content(),false);
@@ -10224,7 +10417,9 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                         target->castRemainingMs+=delay;target->castPushbackMs+=delay;
                     }
                 }
-                if (damage && target->resourceType == LocalResourceType::Rage) target->mana=std::min(target->maxMana,target->mana+std::min(10U,damage/4+1));
+                // Berserker Rage: twice the rage from the damage taken.
+                if (damage && target->resourceType == LocalResourceType::Rage) target->mana=std::min(target->maxMana,target->mana+std::min(10U,damage/4+1)*
+                    (localHoldsStatAura(*target,kLocalBerserkerRage)?2U:1U));
             }
             g.emitCombatEvent({0,n.guid,target->guid,0,target->mapId,target->instanceId,attempted,effective,attempted-blocked-damage,LocalCombatEventKind::NpcMelee,target->dead,0,outcome,blocked},players);
             // Unit::DealMeleeDamage:2126-2128 - the shield runs only when the
