@@ -1972,7 +1972,12 @@
     /// physical damage: (weapon + flat + AP/14 x 2.0) x (1 + pct).
     uint32_t npcMeleeDamage(const LocalRealmNpc& n,uint32_t weapon,uint8_t schoolMask=1) const {
         int64_t flat=0;float pct=1.f;int64_t ap=0;
-        for(const auto& b:n.npcBuffs){if(b.damageFlatSchool&schoolMask)flat+=b.damageFlat;if(b.damagePctSchool&schoolMask)pct*=1.f+float(b.damagePct)/100.f;ap+=b.attackPower;}
+        // spell_group 1062 "AP Debuffs" (Demoralizing Shout, Demoralizing Roar),
+        // EXCLUSIVE_SAME_EFFECT: only the strongest of them counts.
+        int64_t apDebuff=0;
+        for(const auto& b:n.npcBuffs){if(b.damageFlatSchool&schoolMask)flat+=b.damageFlat;if(b.damagePctSchool&schoolMask)pct*=1.f+float(b.damagePct)/100.f;
+            if(const auto* bd=content->spell(b.spellId);bd&&localDemoralizingDebuff(*bd))apDebuff=std::min<int64_t>(apDebuff,b.attackPower);else ap+=b.attackPower;}
+        ap+=apDebuff;
         const int64_t base=int64_t(weapon)+flat+ap/7;
         return uint32_t(std::clamp<int64_t>(int64_t(float(std::max<int64_t>(0,base))*pct),0,1000000));
     }

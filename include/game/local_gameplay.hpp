@@ -1584,6 +1584,10 @@ inline bool localPaladinBlessing(const LocalSpellDefinition& d) {
     for(uint32_t id:{19740u,25782u,56520u,19742u,25894u,56521u,20217u,25898u,20911u,25899u})if(first==id)return true;
     return false;
 }
+// spell_group 1062 "AP Debuffs": Demoralizing Shout and Demoralizing Roar, by first rank.
+inline bool localDemoralizingDebuff(const LocalSpellDefinition& d) {
+    const auto first=d.firstRankSpell?d.firstRankSpell:d.id;return first==1160u||first==99u;
+}
 // The charges an aura starts with: its proc's, or a class buff's hit charges.
 inline uint8_t localAuraChargeCap(const LocalSpellDefinition& d) { return d.proc.charges ? d.proc.charges : d.classBuffHitCharges; }
 struct LocalQuestObjective {

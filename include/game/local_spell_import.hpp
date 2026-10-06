@@ -1687,8 +1687,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(u(95+effect)==127&&amount>0&&amount<=100000)d.targetDebuffRangedAttackerAp=amount;
             d.targetDebuffEffectMask|=uint8_t(1u<<effect);d.controlSingleTarget=(u(9)&0x20u)!=0;harm=true;continue;
         }
-        // Demoralizing Shout: area attack-power debuff on enemies around caster
-        if(!creatureCaster&&d.spellFamily==4&&(d.spellFamilyFlags[0]&0x20000u)&&
+        // Demoralizing Shout / Roar: area attack-power debuff on enemies around caster
+        if(!creatureCaster&&((d.spellFamily==4&&(d.spellFamilyFlags[0]&0x20000u))||(d.spellFamily==7&&d.spellFamilyFlags[0]==0x8u&&!d.spellFamilyFlags[1]))&&
            type==6&&u(95+effect)==99&&u(86+effect)==22&&(u(89+effect)==15||!u(89+effect))&&!u(116+effect)&&
            d.durationMs&&d.durationMs<=600000) {
             const auto radius=ClientSpellTables::lookup(t.radiusIndex,u(92+effect));
