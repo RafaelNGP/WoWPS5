@@ -1479,11 +1479,14 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     const bool coneOfCold=!creatureCaster&&d.spellFamily==3&&(d.spellFamilyFlags[0]&0x200u)&&u(71)==6&&u(95)==33&&u(86)==104&&!u(89)&&
         u(72)==2&&u(87)==104&&!u(90)&&u(73)==6&&u(97)==118&&u(88)==104&&!u(91)&&i(82)+int32_t(u(76))==0&&i(80)+1<0&&i(80)+1>-100&&
         !u(116)&&!u(117)&&!u(118)&&!u(spell335::ProcFlags)&&!u(spell335::ProcCharges)&&!u(212);
+    // Fan of Knives: one WEAPON_PERCENT_DAMAGE at the enemies around the rogue.
+    const bool fanOfKnives=!creatureCaster&&d.spellFamily==8&&(d.spellFamilyFlags[1]&0x40000u)&&u(71)==31&&u(86)==18&&u(89)==16&&
+        !u(72)&&!u(73)&&!u(212)&&!u(spell335::ProcFlags);
     // Arcane Explosion's reviewed profile, and every other point-blank area
     // attack in its shape: each effect on the enemies around the caster
     // (TARGET_SRC_CASTER + TARGET_UNIT_SRC_AREA_ENEMY) with a fixed radius.
     const bool arcaneExplosion=(d.spellFamily==3&&d.spellFamilyFlags[0]==4096&&!d.spellFamilyFlags[1]&&!d.spellFamilyFlags[2]&&
-        u(71)==2&&!u(72)&&!u(73)&&u(86)==22&&u(89)==15&&!u(104)&&!u(212))||(pbaoeShape&&pbaoeDamage)||coneOfCold;
+        u(71)==2&&!u(72)&&!u(73)&&u(86)==22&&u(89)==15&&!u(104)&&!u(212))||(pbaoeShape&&pbaoeDamage)||coneOfCold||fanOfKnives;
     if(arcaneExplosion) {
         const auto radius=ClientSpellTables::lookup(t.radiusIndex,u(92));
         if(!t.radii||radius<0)unavailable("Area radius record missing");
@@ -1896,6 +1899,12 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 } else unavailable("Unreviewed rage-over-time aura");
             }
             if(!d.energizeRage&&effect==0)unavailable("Unreviewed rage energize");
+            continue;
+        }
+        if(fanOfKnives&&effect==0) {
+            const int32_t percent=i(80)+1; // CalcValue: base + 1 (one die side)
+            if(percent<=0||percent>1000||u(74)>1||f(77)!=0)unavailable("Invalid weapon percentage");
+            else {d.weaponPercent=uint16_t(percent);d.weaponDamage=true;d.fanOfKnives=true;harm=true;}
             continue;
         }
         if(coneOfCold&&effect!=1) {

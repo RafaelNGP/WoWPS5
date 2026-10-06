@@ -1569,6 +1569,9 @@ struct LocalSpellDefinition {
     // percent more threat for the schools of classBuffThreatSchool.
     int16_t classBuffThreatPct = 0;
     uint8_t classBuffThreatSchool = 0;
+    // Fan of Knives: a weapon-percent strike on every creature around the
+    // rogue (18/16), with no four-target cap.
+    bool fanOfKnives = false;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.
