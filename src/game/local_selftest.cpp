@@ -1842,8 +1842,31 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         SELFTEST_CHECK(!offered.empty());
         SELFTEST_CHECK(offered[0].id == qDef.id);
 
-        // 7e. Accept quest targeting GameObject GUID
+        // Negative check: unrelated quest not offered by poster
+        LocalQuestDefinition otherDef;
+        otherDef.id = 9902;
+        otherDef.title = "Unrelated Quest";
+        otherDef.giverEntry = 12345;
+        otherDef.turnInEntry = 12345;
+        contentPtr->quests.push_back(otherDef);
+        std::sort(contentPtr->quests.begin(), contentPtr->quests.end(), [](const auto& a, const auto& b) { return a.id < b.id; });
+        world.useContent(contentPtr);
+        SELFTEST_CHECK(!localQuestOffered(p, poster, otherDef));
+        SELFTEST_CHECK(localQuestOffered(p, poster, qDef));
+
         const uint64_t posterGuid = localGameObjectGuid(poster.id);
+        // Negative check: cannot accept unrelated quest at poster
+        const LocalRealmCommand badAcceptCmd{LocalAction::AcceptQuest, posterGuid, otherDef.id};
+        ok = world.execute(p, badAcceptCmd, players, res);
+        SELFTEST_CHECK(!ok);
+
+        // Negative check: cannot accept quest from non-questgiver object (e.g. shrine)
+        const uint64_t shrineGuid = localGameObjectGuid(shrine.id);
+        const LocalRealmCommand shrineAcceptCmd{LocalAction::AcceptQuest, shrineGuid, qDef.id};
+        ok = world.execute(p, shrineAcceptCmd, players, res);
+        SELFTEST_CHECK(!ok);
+
+        // 7e. Accept quest targeting GameObject GUID
         const LocalRealmCommand acceptCmd{LocalAction::AcceptQuest, posterGuid, qDef.id};
         ok = world.execute(p, acceptCmd, players, res);
         SELFTEST_CHECK(ok);
@@ -1856,7 +1879,6 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         SELFTEST_CHECK(progress->progress[1] == 0);
 
         // 7f. Interact with Shrine (GameObject objective) -> awards credit
-        const uint64_t shrineGuid = localGameObjectGuid(shrine.id);
         const LocalRealmCommand shrineCmd{LocalAction::UseGameObject, shrineGuid, shrine.id};
         ok = world.execute(p, shrineCmd, players, res);
         SELFTEST_CHECK(ok);
@@ -1876,6 +1898,11 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         SELFTEST_CHECK(progress != nullptr);
         SELFTEST_CHECK(progress->progress[1] == 1);
         SELFTEST_CHECK(progress->status == LocalQuestStatus::Complete);
+
+        // Negative check: cannot turn in quest at wrong GameObject (e.g. chest or shrine)
+        const LocalRealmCommand badTurnInCmd{LocalAction::TurnInQuest, shrineGuid, qDef.id};
+        ok = world.execute(p, badTurnInCmd, players, res);
+        SELFTEST_CHECK(!ok);
 
         // 7h. Turn in quest targeting GameObject GUID
         const uint32_t initialMoney = p.money;

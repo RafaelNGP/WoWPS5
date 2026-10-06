@@ -982,6 +982,17 @@ std::vector<LocalQuestDefinition> LocalWorldContent::questsForGameObject(uint32_
                 }
             }
         }
+    } else {
+        for (const auto& obj : gameObjects) {
+            if (obj.entry == entry && obj.id != entry && obj.id != 0) {
+                auto more = questsForNpc(obj.id);
+                for (auto& q : more) {
+                    if (std::none_of(result.begin(), result.end(), [&](const auto& existing){ return existing.id == q.id; })) {
+                        result.push_back(std::move(q));
+                    }
+                }
+            }
+        }
     }
     return result;
 }
@@ -2860,7 +2871,28 @@ LocalGameplay& LocalGameplay::operator=(LocalGameplay&&) noexcept=default;
 #include "local_script_actions.inc"
 const LocalWorldContent& LocalGameplay::content()const{return *impl_->content;}
 std::shared_ptr<LocalWorldContent> LocalGameplay::sharedContent()const{return impl_->content;}
-void LocalGameplay::useContent(std::shared_ptr<LocalWorldContent> c){impl_->content=std::move(c);impl_->rebuild(true);impl_->combatHistory.clear();}
+void LocalGameplay::useContent(std::shared_ptr<LocalWorldContent> c){
+    if (c) {
+        for (auto& object : c->gameObjects) {
+            if (!object.questGiver) {
+                if (std::any_of(c->quests.begin(), c->quests.end(), [&](const auto& q) {
+                        return q.giverEntry == object.entry || q.giverEntry == object.id ||
+                               q.turnInEntry == object.entry || q.turnInEntry == object.id;
+                    })) {
+                    object.questGiver = true;
+                } else if (c->catalog) {
+                    std::vector<LocalQuestDefinition> defs;
+                    std::string err;
+                    if ((c->catalog->questsForGameObject(object.entry, defs, err) && !defs.empty()) ||
+                        (c->catalog->questsForGameObject(object.id, defs, err) && !defs.empty())) {
+                        object.questGiver = true;
+                    }
+                }
+            }
+        }
+    }
+    impl_->content=std::move(c);impl_->rebuild(true);impl_->combatHistory.clear();
+}
 const std::vector<LocalVehicleProjectile>& LocalGameplay::vehicleProjectiles()const{return impl_->vehicleProjectiles;}
 void LocalGameplay::setRemoteVehicleProjectiles(std::vector<LocalVehicleProjectile> shots){impl_->vehicleProjectiles=std::move(shots);}
 const std::vector<LocalVehicleCast>& LocalGameplay::vehicleCasts()const{return impl_->vehicleCasts;}
@@ -2921,6 +2953,16 @@ bool LocalGameplay::loadCatalog(const std::string& directory, std::string& error
     impl_->content->catalog = std::move(c);
     impl_->content->classResources = true;
     impl_->content->fingerprint = (impl_->content->fingerprint ^ impl_->content->catalog->fingerprint()) * 16777619U;
+    for (auto& object : impl_->content->gameObjects) {
+        if (!object.questGiver) {
+            std::vector<LocalQuestDefinition> defs;
+            std::string err;
+            if ((impl_->content->catalog->questsForGameObject(object.entry, defs, err) && !defs.empty()) ||
+                (impl_->content->catalog->questsForGameObject(object.id, defs, err) && !defs.empty())) {
+                object.questGiver = true;
+            }
+        }
+    }
     impl_->rebuild(true);
     return true;
 }
@@ -4294,6 +4336,16 @@ bool LocalGameplay::loadContent(const std::string& path,std::string& error) {
             c->gameObjects.push_back(std::move(object));
         }
         std::sort(c->gameObjects.begin(),c->gameObjects.end(),[](const auto& a,const auto& b){return a.id<b.id;});
+        for(auto& object : c->gameObjects) {
+            if(!object.questGiver) {
+                if(std::any_of(c->quests.begin(), c->quests.end(), [&](const auto& q) {
+                    return q.giverEntry == object.entry || q.giverEntry == object.id ||
+                           q.turnInEntry == object.entry || q.turnInEntry == object.id;
+                })) {
+                    object.questGiver = true;
+                }
+            }
+        }
         // Pools own membership exclusively: each pooled spawn names exactly one
         // pool and every member is a loot-bearing shared object.
         seen.clear();
@@ -5299,7 +5351,17 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
             if(object->kind==LocalGameObjectKind::Door ? (cmd.buyout>1 || cmd.buyout==shared->status) : cmd.buyout!=0)
                 return reject("Invalid object state request");
         } else if(cmd.bid || cmd.buyout)return reject("Invalid scripted object request");
-        if(object->kind==LocalGameObjectKind::Script && std::none_of(c.scriptTriggers.begin(),c.scriptTriggers.end(),[&](const auto& t){
+        const bool neededForQuestObjective = std::any_of(p.quests.begin(), p.quests.end(), [&](const auto& q) {
+            if (q.status != LocalQuestStatus::Active) return false;
+            const auto* def = c.quest(q.id); if (!def) return false;
+            for (size_t i = 0; i < def->objectives.size(); ++i) {
+                const auto& obj = def->objectives[i];
+                if (obj.type == LocalQuestObjective::Type::GameObject && (obj.entry == object->entry || obj.entry == object->id))
+                    if (i < q.progress.size() && q.progress[i] < obj.count) return true;
+            }
+            return false;
+        });
+        if(!neededForQuestObjective && object->kind==LocalGameObjectKind::Script && std::none_of(c.scriptTriggers.begin(),c.scriptTriggers.end(),[&](const auto& t){
             return t.kind==LocalScriptTriggerKind::ObjectUse && t.sourceId==object->id && localScriptTriggerMatches(p,t);
         }))return reject("Object has no available action");
         auto staged=p;
@@ -6473,7 +6535,7 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         if(p.dead || p.ghost) return reject("You are dead");
         if(cmd.action == LocalAction::AcceptQuest) {
             const auto* def = c.quest(cmd.id);
-            if(!def || (def->giverEntry != object->entry && def->giverEntry != object->id && !object->questGiver))
+            if(!def || !object->questGiver || (def->giverEntry != object->entry && def->giverEntry != object->id))
                 return reject("This character does not offer that quest");
             if (def->requiredSkill) {
                 const auto* line = localProfession(skillLines(), def->requiredSkill);
@@ -6504,7 +6566,7 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         }
         if(cmd.action == LocalAction::TurnInQuest) {
             const auto* def = c.quest(cmd.id);
-            if(!def || (def->turnInEntry != object->entry && def->turnInEntry != object->id && !object->questGiver))
+            if(!def || !object->questGiver || (def->turnInEntry != object->entry && def->turnInEntry != object->id))
                 return reject("Wrong quest recipient");
             if(!validLocalQuestRewards(*def)) return reject("Invalid quest reward bundle");
             if(def->rewardChoices.empty() ? cmd.bid != 0 : cmd.bid == 0 || cmd.bid > def->rewardChoices.size())

@@ -269,8 +269,8 @@ class QuestChainCompilerTests(unittest.TestCase):
             first = companion.read_bytes(), report.read_bytes()
             self.assertEqual(counts["inputCatalogQuests"], len(read_pack(ROOT / "assets/local_realm/catalog/quests.pack")))
             self.assertEqual(counts["compiledGates"] + counts["blockedGates"], counts["inputCatalogQuests"])
-            self.assertEqual((counts["inputCatalogQuests"], counts["compiledGates"], counts["blockedGates"]), (950, 947, 3))
-            self.assertEqual(counts["orderedPreviousGates"], 14)
+            self.assertEqual((counts["inputCatalogQuests"], counts["compiledGates"], counts["blockedGates"]), (1345, 1341, 4))
+            self.assertEqual(counts["orderedPreviousGates"], 22)
             rules = {q["id"]: q for q in json.loads(first[0])["quests"]}
             # Real Quest374 must wait for rewarded427; original catalog omitted it.
             self.assertFalse(admits(rules[374], {}))

@@ -243,6 +243,13 @@ def main():
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
         print(f"Catalog updated: {len(quests)} total quests, manifest fingerprint {manifest['fingerprint']}")
 
+        chains_path = args.catalog.parent / 'quest_chains.json'
+        if chains_path.exists():
+            from import_quest_chains import convert
+            with tempfile.NamedTemporaryFile(suffix='.json') as rep:
+                counts = convert(HERE.parent.parent, chains_path, Path(rep.name))
+                print(f"Quest chains updated: {counts['compiledGates']} compiled, {counts['blockedGates']} blocked")
+
 
 if __name__ == '__main__':
     main()

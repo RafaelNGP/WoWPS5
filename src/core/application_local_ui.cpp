@@ -174,7 +174,7 @@ void Application::renderLocalRealmOverlay() {
         if(self.vehicleGuid){localRealm_->exitVehicle();return;}
         if(const auto* object=localRealm_->nearbyGameObject()){
             const auto goQuests=localRealm_->questsForGameObject(object->entry);
-            const bool hasOfferedQuests = object->questGiver || std::any_of(goQuests.begin(), goQuests.end(), [&](const auto& q){
+            const bool hasOfferedQuests = std::any_of(goQuests.begin(), goQuests.end(), [&](const auto& q){
                 return game::localQuestOffered(self, *object, q);
             });
             if(hasOfferedQuests) {
