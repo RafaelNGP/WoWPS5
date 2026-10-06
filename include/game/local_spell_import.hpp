@@ -1591,7 +1591,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 else if(au==108&&d.id==54428&&u(86+e)==1&&!misc&&amount<0&&amount>-100)percentage=true;
                 else if(au==103&&u(86+e)==1&&!misc&&amount<0)percentage=true; // Fade
                 else if(au==134&&u(86+e)==1&&!misc&&amount>0&&amount<=100&&d.spellFamily==3)percentage=true; // Mage Armor: regeneration while casting
-                else if(au==22&&u(86+e)==1&&misc==126&&amount>0&&d.spellFamily==3){} // Mage Armor's resistances: player resistance is not modelled
+                else if((au==22||au==143)&&misc>0&&misc<=126&&!(misc&1)&&amount>0&&amount<=1000)percentage=true; // resistances (Shadow Protection, Mage Armor)
                 else if(au==13&&u(86+e)==1&&misc==1&&amount>0&&amount<=10000&&d.spellFamily==7)percentage=true; // Tiger's Fury
                 else if(au==10&&u(86+e)==1&&misc>0&&misc<=127&&amount>0&&amount<=1000)percentage=true; // Righteous Fury: school threat
                 else if(au==28&&spellReflection)percentage=true; // Spell Reflection
@@ -1882,6 +1882,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 if(au==29){for(int k=0;k<5;++k)if(misc==-1||misc==k)d.classBuffStats[size_t(k)]+=amount;}
                 else if(au==99)d.classBuffAttackPower+=amount;
                 else if(au==22&&(misc&1))d.classBuffArmor+=amount;
+                else if((au==22||au==143)&&misc>0&&misc<=126&&!(misc&1)&&amount<=1000&&!d.classBuffResistance){
+                    d.classBuffResistance=int16_t(amount);d.classBuffResistanceSchool=uint8_t(misc);d.classBuffResistanceExclusive=au==143;}
                 else if(au==34||(!creatureCaster&&d.spellFamily==4&&(d.spellFamilyFlags[1]&0x80u)&&au==230))d.classBuffHealth+=amount;
                 else if(au==31&&tg==1)d.classBuffSpeedPct+=amount;
                 else if(au==49&&tg==1)d.classBuffDodgePct+=amount;

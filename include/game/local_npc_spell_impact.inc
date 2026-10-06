@@ -121,6 +121,16 @@
     }
     /// Unit::MeleeDamageBonusTaken / SpellDamageBonusTaken on a player from the
     /// creature views it carries: flat MOD_DAMAGE_TAKEN, then MOD_DAMAGE_PERCENT_TAKEN.
+    /// Unit::CalcAbsorbResist on a player victim: its class buffs' resistance
+    /// for the school (the lowest of a mask), the caster's level term, and the
+    /// eleven-bucket roll. Holy never resists on a player.
+    uint32_t npcPartialResist(uint8_t casterLevel,const LocalRealmPlayer& target,const LocalSpellDefinition* d,uint32_t damage,uint32_t schoolMask) {
+        if(!damage||!localPartialResistApplies(schoolMask,false,d&&d->sourceNoCastLog,d&&d->sourceBinary))return damage;
+        const auto resistance=localResistanceForMask(localPlayerResistances(target,*content),schoolMask);
+        if(!resistance)return damage;
+        const auto resisted=localResistedAmount(damage,localPartialResistBucket(localAverageResist(resistance,casterLevel,target.level),float(meleeRoll())/10000.f));
+        return damage-resisted;
+    }
     uint32_t npcDamageTakenByPlayer(const LocalRealmPlayer& p,uint32_t damage,uint32_t schoolMask) const {
         // Unit::IsImmunedToDamage: every school of the hit is one the player's
         // class buffs make it immune to (Divine Shield, Hand of Protection).
@@ -179,7 +189,7 @@
             emitCombatEvent(event,players);return outcome;
         }
         const uint32_t raw=rawOverride>=0?uint32_t(std::min<int64_t>(1000000,rawOverride)):uint32_t(std::min<float>(1000000.f,float(npcSpellRawDamage(n,d))*std::max(0.f,damageMultiplier)));
-        const uint32_t attempted=localFormDamage(target,npcDamageTakenByPlayer(target,localIncomingDamageAfterTalents(target,*content,raw),d.schoolMask),true);
+        const uint32_t attempted=npcPartialResist(n.level,target,&d,localFormDamage(target,npcDamageTakenByPlayer(target,localIncomingDamageAfterTalents(target,*content,raw),d.schoolMask),true),d.schoolMask);
         const uint32_t damage=localAbsorbDamage(target,*content,attempted,d.schoolMask);
         stats(target,*content,false);
         const uint32_t effective=std::min(damage,target.health);
@@ -268,7 +278,7 @@
         const bool physical=(d.schoolMask&1u)!=0;
         uint32_t reduced=npcDamageTakenByPlayer(target,localIncomingDamageAfterTalents(target,*content,raw),d.schoolMask?d.schoolMask:1u);
         if(physical&&!d.directIgnoresArmor)reduced=localArmorReducedDamage(reduced,localMeleeArmor(target,*content),n.level);
-        const uint32_t attempted=localFormDamage(target,reduced,true);
+        const uint32_t attempted=physical?localFormDamage(target,reduced,true):npcPartialResist(n.level,target,&d,localFormDamage(target,reduced,true),d.schoolMask);
         const uint32_t blocked=physical&&meleeClass&&localNpcMeleeSpellBlocked(n,target,meleeStats,d,meleeRoll())?std::min(attempted,meleeStats.blockValue):0u;
         const uint32_t damage=localAbsorbDamage(target,*content,attempted-blocked,d.schoolMask);
         stats(target,*content,false);
@@ -578,7 +588,7 @@
         // physical tick unless it bleeds (Unit::IsDamageReducedByArmor).
         uint32_t reduced=npcDamageTakenByPlayer(target,localIncomingDamageAfterTalents(target,*content,a.amount),d->schoolMask);
         if((d->schoolMask&1u)&&!d->periodicIgnoresArmor)reduced=localArmorReducedDamage(reduced,localMeleeArmor(target,*content),a.casterLevel);
-        const uint32_t attempted=localFormDamage(target,reduced,true);
+        const uint32_t attempted=npcPartialResist(a.casterLevel,target,d,localFormDamage(target,reduced,true),d->schoolMask);
         const uint32_t damage=localAbsorbDamage(target,*content,attempted,d->schoolMask);
         stats(target,*content,false);
         const uint32_t effective=std::min(damage,target.health);

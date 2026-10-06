@@ -1612,6 +1612,12 @@ struct LocalSpellDefinition {
     // 35729 (server-side) removes the magic debuffs at once.
     int8_t classBuffSpellHitTakenPct = 0;
     uint8_t classBuffSpellHitTakenSchool = 0;
+    // A class buff's resistance: SPELL_AURA_MOD_RESISTANCE (22, adds) or
+    // MOD_RESISTANCE_EXCLUSIVE (143, only the highest per school) on these
+    // magic schools (Shadow Protection, Ice Armor, Mage Armor).
+    int16_t classBuffResistance = 0;
+    uint8_t classBuffResistanceSchool = 0;
+    bool classBuffResistanceExclusive = false;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.
@@ -1695,6 +1701,12 @@ inline const LocalWeaponImbue* localWeaponImbue(uint32_t spell) {
     for(const auto& w:kLocalWeaponImbues)if(w.spell==spell)return &w;
     return nullptr;
 }
+// A player's resistances, UNIT_FIELD_RESISTANCES order (holy, fire, nature,
+// frost, shadow, arcane), from its class buffs: MOD_RESISTANCE adds, and
+// MOD_RESISTANCE_EXCLUSIVE counts only its highest per school
+// (AuraEffect::HandleAuraModResistanceExclusive).
+struct LocalWorldContent;
+std::array<uint16_t,6> localPlayerResistances(const LocalRealmPlayer& p,const LocalWorldContent& c);
 // The charges an aura starts with: its proc's, or a class buff's hit charges.
 inline uint8_t localAuraChargeCap(const LocalSpellDefinition& d) { return d.proc.charges ? d.proc.charges : d.classBuffHitCharges; }
 struct LocalQuestObjective {
