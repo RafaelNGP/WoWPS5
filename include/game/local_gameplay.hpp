@@ -1530,6 +1530,9 @@ struct LocalSpellDefinition {
     // Fade: SPELL_AURA_MOD_TOTAL_THREAT (103), negative: while held, the
     // holder's threat counts this much less when a creature picks its victim.
     uint32_t classBuffThreatReduction = 0;
+    // Spell Reflection: SPELL_AURA_REFLECT_SPELLS (28) at this chance with its
+    // one charge: the next reflectable creature spell goes back, ending it.
+    uint8_t classBuffReflectPct = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.

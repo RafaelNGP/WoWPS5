@@ -1,6 +1,14 @@
     // Included inside Impl. Hostile spell outcomes are snapshotted at launch;
     // a ward applied after launch does not retroactively reflect a missile.
-    bool npcSpellReflects(const LocalRealmNpc& n,const LocalRealmPlayer& target,const LocalSpellDefinition& d) {
+    bool npcSpellReflects(const LocalRealmNpc& n,LocalRealmPlayer& target,const LocalSpellDefinition& d) {
+        // Spell Reflection: its chance, and the reflection spends its one charge.
+        if(localSpellCanReflect(d)&&!target.dead)for(auto& a:target.statAuras)
+            if(a.remainingMs&&a.mapId==target.mapId&&a.instanceId==target.instanceId)
+                if(const auto* r=content->spell(a.spellId);r&&r->classBuff&&r->classBuffReflectPct&&meleeRoll(99)<r->classBuffReflectPct) {
+                    a.remainingMs=0;
+                    LOG_INFO("[LOCAL_REFLECT] player=",target.guid," npc=",n.guid," spell=",d.id," aura=",r->id);
+                    return true;
+                }
         const auto chance=localWardIncomingReflectChanceBasisPoints(target,*content,d,n.guid);
         return chance&&meleeRoll()<chance;
     }
