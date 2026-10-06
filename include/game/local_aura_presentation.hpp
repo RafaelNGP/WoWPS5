@@ -182,7 +182,7 @@ inline uint64_t localSpellCommandTarget(const LocalSpellDefinition& s,const Loca
     // Every hostile single-target shape goes to the selection: a control or
     // an armor reduction without damage (Kidney Shot, Sap, Expose Armor) too.
     if(s.damage||s.periodicDamage||s.snarePercent||s.weaponDamage||s.interruptCast||s.taunt||s.charge||
-       s.controlProfile||s.armorDebuffPct||s.targetDebuffEffectMask||s.hostileDispelMask||s.disarm||s.pestilenceRadius>0||s.judgementDebuff)return selected;
+       s.controlProfile||s.armorDebuffPct||s.targetDebuffEffectMask||s.hostileDispelMask||s.disarm||s.pestilenceRadius>0||s.judgementDebuff||s.manaBurnPct)return selected;
     if(s.id==kLocalTameBeast)return selected; // Tame Beast is cast at the beast.
     const bool friendly=((s.heal||s.periodicHeal)&&!s.healingSelfOnly)||
         ((s.buffHealth||s.buffArmor||s.buffAbsorb||s.proc.effect!=LocalProcEffect::None)&&!s.buffSelfOnly);

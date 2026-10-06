@@ -1860,6 +1860,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             else if(type)unavailable("Unreviewed weapon imbue effect");
             continue;
         }
+        if(!creatureCaster&&d.id==8129&&effect==0&&type==62&&u(86)==6&&!u(89)&&!u(110)&&!u(72)&&!u(73)&&i(80)>=0&&i(80)<100&&
+           std::isfinite(f(101))&&f(101)>0&&f(101)<=10){d.manaBurnPct=uint8_t(i(80)+1);d.manaBurnDamagePct=uint8_t(std::lround(f(101)*100.f));harm=true;continue;}
         if(layOnHands) {
             if(effect==0){d.layOnHands=true;healing=true;}
             else d.energizeMana=uint32_t(i(81)+1);

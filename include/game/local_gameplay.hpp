@@ -1558,6 +1558,10 @@ struct LocalSpellDefinition {
     // share of each tick that heals the caster (Drain Life 100, Devouring
     // Plague 15). Zero reads as 100 for definitions compiled before it.
     uint8_t periodicLeechPct = 0;
+    // Mana Burn (Spell::EffectPowerBurn, 8129): this percent of the target's
+    // maximum mana burned, at most twice it of the priest's, dealing the
+    // EffectValueMultiplier percent of it as shadow damage; fears end.
+    uint8_t manaBurnPct = 0, manaBurnDamagePct = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.
