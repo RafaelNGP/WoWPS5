@@ -1904,6 +1904,18 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         // Pounce: its bleed is the triggered spell's own DoT (see riderOk).
         if(!creatureCaster&&d.spellFamily==7&&effect==1&&type==64&&u(86+1)==6&&!u(89+1)&&u(117)&&u(71)==6&&u(95)==12&&u(86)==6){d.triggerDotSpell=u(117);harm=true;continue;}
         if(d.controlImmune&&effect>0&&type==6&&(u(95+effect)==39||u(95+effect)==118))continue; // Banish's immunity (riderOk)
+        // Shadowfiend: SUMMON of its guardian and a server-side scaling trigger;
+        // the guardian's Mana Leech (34650, ENERGIZE_PCT on its owner) is its hits'.
+        if(!creatureCaster&&d.id==34433&&d.durationMs&&d.durationMs<=60000) {
+            if(effect==0&&type==28&&u(110)) {
+                const auto leech=ClientSpellTables::lookup(t.spellIndex,34650);
+                const auto lu=[&](uint32_t col){return leech>=0?t.spells->getUInt32(uint32_t(leech),col):0u;};
+                const int32_t pct=leech>=0?t.spells->getInt32(uint32_t(leech),80)+1:0;
+                if(lu(71)==137&&lu(86)==25&&pct>0&&pct<=100){d.guardianEntry=u(110);d.guardianDurationMs=d.durationMs;d.guardianManaPct=uint8_t(pct);harm=true;}
+                else unavailable("Unreviewed Shadowfiend shape");
+            }
+            continue;
+        }
         if(fanOfKnives&&effect==0) {
             const int32_t percent=i(80)+1; // CalcValue: base + 1 (one die side)
             if(percent<=0||percent>1000||u(74)>1||f(77)!=0)unavailable("Invalid weapon percentage");
@@ -2252,7 +2264,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if(harm&&!d.schoolMask&&(!creatureCaster||d.damage||d.periodicDamage))unavailable("Damaging spell has no school");
     if(buff&&(harm||healing)) unavailable("Mixed stat buffs and other effects are not implemented");
     if(harm&&healing) unavailable("Mixed hostile/friendly spells are not implemented");
-    if(!harm&&!healing&&!buff&&!d.formId&&!formBoost&&!formResource&&!summonPet&&!areaAura&&!d.controlProfile&&!d.createItemId&&!d.teleport&&!d.totemEntry&&!d.dispelMask&&!d.lifeTapAmount&&!d.raiseDeadEntry&&!d.vanish&&!d.layOnHands) unavailable("No supported direct or periodic damage/healing effect");
+    if(!harm&&!healing&&!buff&&!d.formId&&!formBoost&&!formResource&&!summonPet&&!areaAura&&!d.controlProfile&&!d.createItemId&&!d.teleport&&!d.totemEntry&&!d.dispelMask&&!d.lifeTapAmount&&!d.raiseDeadEntry&&!d.vanish&&!d.layOnHands&&!d.guardianEntry) unavailable("No supported direct or periodic damage/healing effect");
     if(d.teleport&&(harm||healing||buff||d.createItemId))unavailable("Teleport beside other effects is not implemented");
     if(d.createItemId&&(harm||healing||buff))unavailable("Item creation beside other effects is not implemented");
     if(!creatureCaster){d.healingSelfOnly=healingTarget==1;d.buffSelfOnly=d.formId!=0||formBoost||formResource||buffTarget==1;}

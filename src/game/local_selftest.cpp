@@ -471,7 +471,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
-            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39}, {1, 8, "Polymorph", 40}, {4, 11, "Entangling Roots", 41}, {1, 6, "Icy Touch", 42}, {1, 6, "Plague Strike", 42}, {1, 6, "Blood Boil", 0}, {1, 6, "Death Coil", 0}, {1, 6, "Death Grip", 43}, {1, 6, "Pestilence", 44}, {1, 6, "Anti-Magic Shell", 45}, {1, 6, "Raise Dead", 46}, {1, 6, "Empower Rune Weapon", 47}, {1, 6, "Strangulate", 1}, {3, 3, "Steady Shot", 0}, {3, 3, "Hunter's Mark", 48}, {2, 7, "Bloodlust", 49}, {3, 3, "Rapid Fire", 50}, {2, 7, "Windfury Totem", 51}, {3, 3, "Feign Death", 52}, {2, 7, "Fire Nova", 53}, {1, 2, "Judgement of Light", 54}, {3, 3, "Distracting Shot", 1}, {2, 7, "Wind Shear", 1}, {1, 2, "Blessing of Kings", 55}, {1, 2, "Blessing of Wisdom", 55}, {1, 8, "Frost Armor", 56}, {1, 5, "Inner Fire", 56}, {1, 8, "Frost Nova", 57}, {1, 1, "Sunder Armor", 58}, {1, 5, "Psychic Scream", 59}, {1, 9, "Howl of Terror", 59}, {1, 1, "Bloodrage", 60}, {1, 2, "Divine Plea", 61}, {1, 1, "Intimidating Shout", 62}, {4, 11, "Faerie Fire", 63}, {4, 11, "Innervate", 64}, {1, 4, "Vanish", 65}, {1, 4, "Feint", 66}, {4, 11, "Demoralizing Roar", 67}, {1, 1, "Challenging Shout", 68}, {1, 8, "Cone of Cold", 69}, {1, 5, "Fade", 70}, {1, 1, "Spell Reflection", 71}, {1, 1, "Retaliation", 56}, {1, 1, "Recklessness", 73}, {2, 7, "Flametongue Weapon", 74}, {2, 7, "Windfury Weapon", 74}, {2, 7, "Rockbiter Weapon", 74}, {2, 7, "Frostbrand Weapon", 74}, {1, 2, "Lay on Hands", 75}, {1, 2, "Hand of Freedom", 76}, {4, 11, "Enrage", 77}, {1, 5, "Devouring Plague", 0}, {1, 5, "Mana Burn", 78}, {1, 2, "Righteous Fury", 80}, {1, 4, "Fan of Knives", 0}, {4, 11, "Pounce", 19}, {4, 11, "Cyclone", 81},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39}, {1, 8, "Polymorph", 40}, {4, 11, "Entangling Roots", 41}, {1, 6, "Icy Touch", 42}, {1, 6, "Plague Strike", 42}, {1, 6, "Blood Boil", 0}, {1, 6, "Death Coil", 0}, {1, 6, "Death Grip", 43}, {1, 6, "Pestilence", 44}, {1, 6, "Anti-Magic Shell", 45}, {1, 6, "Raise Dead", 46}, {1, 6, "Empower Rune Weapon", 47}, {1, 6, "Strangulate", 1}, {3, 3, "Steady Shot", 0}, {3, 3, "Hunter's Mark", 48}, {2, 7, "Bloodlust", 49}, {3, 3, "Rapid Fire", 50}, {2, 7, "Windfury Totem", 51}, {3, 3, "Feign Death", 52}, {2, 7, "Fire Nova", 53}, {1, 2, "Judgement of Light", 54}, {3, 3, "Distracting Shot", 1}, {2, 7, "Wind Shear", 1}, {1, 2, "Blessing of Kings", 55}, {1, 2, "Blessing of Wisdom", 55}, {1, 8, "Frost Armor", 56}, {1, 5, "Inner Fire", 56}, {1, 8, "Frost Nova", 57}, {1, 1, "Sunder Armor", 58}, {1, 5, "Psychic Scream", 59}, {1, 9, "Howl of Terror", 59}, {1, 1, "Bloodrage", 60}, {1, 2, "Divine Plea", 61}, {1, 1, "Intimidating Shout", 62}, {4, 11, "Faerie Fire", 63}, {4, 11, "Innervate", 64}, {1, 4, "Vanish", 65}, {1, 4, "Feint", 66}, {4, 11, "Demoralizing Roar", 67}, {1, 1, "Challenging Shout", 68}, {1, 8, "Cone of Cold", 69}, {1, 5, "Fade", 70}, {1, 1, "Spell Reflection", 71}, {1, 1, "Retaliation", 56}, {1, 1, "Recklessness", 73}, {2, 7, "Flametongue Weapon", 74}, {2, 7, "Windfury Weapon", 74}, {2, 7, "Rockbiter Weapon", 74}, {2, 7, "Frostbrand Weapon", 74}, {1, 2, "Lay on Hands", 75}, {1, 2, "Hand of Freedom", 76}, {4, 11, "Enrage", 77}, {1, 5, "Devouring Plague", 0}, {1, 5, "Mana Burn", 78}, {1, 2, "Righteous Fury", 80}, {1, 4, "Fan of Knives", 0}, {4, 11, "Pounce", 19}, {4, 11, "Cyclone", 81}, {1, 5, "Shadowfiend", 82},
         };
         size_t passed = 0;
         // Incinerate carries the Immolate bonus (a quarter more on an Immolated target).
@@ -1121,7 +1121,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     p.globalCooldownMs = 0; p.mana = p.maxMana; }
                 if (a.kind == 43) { auto& far = const_cast<LocalRealmNpc&>(*n); far.x = far.homeX = p.x + 15; far.y = far.homeY = p.y; far.z = far.homeZ = p.z;
                     p.orientation = 0; } // 15 yd east, the knight facing it
-                if (a.kind == 42 || a.kind == 66 || a.kind == 78) { auto& sturdy = const_cast<LocalRealmNpc&>(*n); sturdy.maxHealth = sturdy.health = 100000; }
+                if (a.kind == 42 || a.kind == 66 || a.kind == 78 || a.kind == 82) { auto& sturdy = const_cast<LocalRealmNpc&>(*n); sturdy.maxHealth = sturdy.health = 100000; }
                 if (a.kind == 41) { auto& sturdy = const_cast<LocalRealmNpc&>(*n); sturdy.maxHealth = sturdy.health = 20000; }
                 if (a.kind == 27) { auto& sturdy = const_cast<LocalRealmNpc&>(*n); sturdy.maxHealth = sturdy.health = 20000; }
                 const uint32_t before = n->health;
@@ -1226,6 +1226,19 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     uint32_t held = 0; for (const auto& s : p.statAuras) if (s.spellId == spellId) held = s.remainingMs;
                     landed = !p.comboPoints && held > 6000;
                     if (!landed) result = "combo=" + std::to_string(p.comboPoints) + " aura=" + std::to_string(held) + "ms";
+                }
+                else if (a.kind == 82) {
+                    // Shadowfiend: its guardian fights the creature, and its hits give the priest mana back.
+                    const auto* sd = content.spell(spellId);
+                    bool fiend = false; for (const auto& v : arena.pets()) if (v.ownerGuid == p.guid && sd && v.entry == sd->guardianEntry) fiend = true;
+                    p.mana = 0; bool leeched = false;
+                    for (int t = 0; t < 200 && !leeched; ++t) {
+                        const uint32_t prev = p.mana; p.health = p.maxHealth; arena.tick(0.05f, players);
+                        if (p.mana >= prev + p.maxMana * 5 / 100) leeched = true; // a hit's 5 %, not regeneration
+                        for (const auto& v : arena.npcs()) if (v.guid == foeGuid) const_cast<LocalRealmNpc&>(v).health = v.maxHealth;
+                    }
+                    landed = sd && fiend && leeched;
+                    if (!landed) result = "fiend " + std::to_string(fiend) + " mana " + std::to_string(p.mana) + " (" + result + ")";
                 }
                 else if (a.kind == 81) {
                     // Cyclone: the creature held, and the druid's swings at it are immune.

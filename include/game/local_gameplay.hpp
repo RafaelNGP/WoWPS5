@@ -1579,6 +1579,10 @@ struct LocalSpellDefinition {
     // Banish: beside its stun, SCHOOL_IMMUNITY (all schools) and healing
     // taken -100% on the creature: while it holds, nothing harms it.
     bool controlImmune = false;
+    // Shadowfiend: a timed guardian (its SUMMON's entry) whose landed melee
+    // hits restore this percent of the owner's maximum mana (34650, Mana Leech).
+    uint32_t guardianEntry = 0, guardianDurationMs = 0;
+    uint8_t guardianManaPct = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.
