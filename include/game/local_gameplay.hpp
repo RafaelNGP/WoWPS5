@@ -210,7 +210,7 @@ struct LocalStatAura {
     uint32_t procCooldownMs=0, manaRegenRemainder=0;
     uint32_t procAmountSnapshot=0;
     bool hasProcAmountSnapshot=false;
-    uint32_t buffArmorSnapshot=0; // Caster-modified armor; zero reads legacy unmodified amount.
+    uint32_t buffArmorSnapshot=0; // Caster-modified armor; zero reads legacy unmodified amount. Innervate: its mana a tick.
     uint64_t costModGeneration=0; // Session-only identity; a refresh cannot spend an older cast reservation.
     uint16_t reflectChanceBasisPointsSnapshot=0; // Ward effect1 at application; persisted.
     uint64_t applicationGeneration=0; // Authority-only identity of one aura application; never serialized.
@@ -1521,6 +1521,11 @@ struct LocalSpellDefinition {
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.
     uint8_t healthCostBasePct = 0, energizeRage = 0, periodicRage = 0;
     uint32_t periodicRageMs = 0;
+    // Innervate (spell_dru_innervate): PERIODIC_ENERGIZE of mana, the
+    // caster's base mana times this percent over the aura's ticks; the
+    // per-tick amount is snapshotted on the recipient's aura at application.
+    uint16_t innervatePct = 0;
+    uint32_t innervateIntervalMs = 0;
     // Frost Armor: Chilled, the PROC_TRIGGER_SPELL its holder puts on a
     // creature that lands a melee hit on it (spell_proc -168): the creature's
     // attack speed (aura 138) and movement (aura 33) slowed for its duration.

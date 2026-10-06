@@ -1530,6 +1530,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 // Divine Plea: its SPELLMOD_DAMAGE on the paladin's heals (Holy Light,
                 // Flash of Light, Holy Shock: its class mask), as healing done.
                 else if(au==108&&d.id==54428&&u(86+e)==1&&!misc&&amount<0&&amount>-100)percentage=true;
+                else if(au==24&&!misc&&d.spellFamily==7&&amount>0&&amount<=1000&&u(98+e)>=1000&&u(98+e)<=d.durationMs)percentage=true; // Innervate
                 else modelled=false;
             }
             any=percentage&&modelled;
@@ -1784,6 +1785,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(!presenceSpell&&tg==1&&misc==127&&amount<0&&amount>-100){if(au==79)d.classBuffDamagePct+=amount;else if(au==87)d.classBuffDamageTakenPct+=amount;}
             if(au==136&&tg==1&&misc==127&&amount>0&&amount<=1000)d.classBuffHealingDonePct+=amount; // Avenging Wrath
             if(au==108&&d.id==54428&&tg==1&&!misc&&amount<0&&amount>-100)d.classBuffHealingDonePct+=amount; // Divine Plea
+            if(au==24&&!misc&&d.spellFamily==7&&amount>0&&amount<=1000&&u(98+effect)>=1000){d.innervatePct=uint16_t(amount);d.innervateIntervalMs=u(98+effect);} // Innervate
             if(amount>0&&amount<=100000) {
                 if(au==29){for(int k=0;k<5;++k)if(misc==-1||misc==k)d.classBuffStats[size_t(k)]+=amount;}
                 else if(au==99)d.classBuffAttackPower+=amount;

@@ -3229,7 +3229,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(uint32_t(d.classBuffStatPct));hash(uint32_t(d.areaRoot));hash(uint32_t(d.healthCostBasePct)|uint32_t(d.energizeRage)<<8|uint32_t(d.periodicRage)<<16);hash(d.periodicRageMs);{uint32_t fr;std::memcpy(&fr,&d.areaFearRadius,4);hash(fr);}hash(uint32_t(d.areaMaxTargets)|uint32_t(d.areaFearStunsTarget)<<8);hash(uint32_t(d.armorDebuffStackMax)|uint32_t(d.armorDebuffMinor)<<8);hash(uint32_t(d.classBuffHitCharges)|uint32_t(uint8_t(d.chillHastePct))<<8|uint32_t(uint8_t(d.chillSpeedPct))<<16);hash(d.chillSpell);hash(d.chillDurationMs);hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(uint32_t(d.classBuffStatPct));hash(uint32_t(d.areaRoot));hash(uint32_t(d.healthCostBasePct)|uint32_t(d.energizeRage)<<8|uint32_t(d.periodicRage)<<16);hash(d.periodicRageMs);hash(uint32_t(d.innervatePct));hash(d.innervateIntervalMs);{uint32_t fr;std::memcpy(&fr,&d.areaFearRadius,4);hash(fr);}hash(uint32_t(d.areaMaxTargets)|uint32_t(d.areaFearStunsTarget)<<8);hash(uint32_t(d.armorDebuffStackMax)|uint32_t(d.armorDebuffMinor)<<8);hash(uint32_t(d.classBuffHitCharges)|uint32_t(uint8_t(d.chillHastePct))<<8|uint32_t(uint8_t(d.chillSpeedPct))<<16);hash(d.chillSpell);hash(d.chillDurationMs);hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -5186,8 +5186,9 @@ void LocalGameplay::initializePlayer(LocalRealmPlayer& p, bool fresh, uint8_t fo
                 if(localAuraChargeCap(*d)&&!aura.procCharges)aura.remainingMs=0;
                 if(d->periodicHealMaxHealthPct)aura.manaRegenRemainder%=d->periodicIntervalMs;
                 else if(d->periodicRageMs)aura.manaRegenRemainder%=d->periodicRageMs;
+                else if(d->innervateIntervalMs)aura.manaRegenRemainder%=d->innervateIntervalMs;
                 else if(!d->manaPer5)aura.manaRegenRemainder=0;
-                aura.buffArmorSnapshot=d->buffArmor?std::min(aura.buffArmorSnapshot,uint32_t(std::min(uint64_t(1000000),uint64_t(d->buffArmor)*11))):0;
+                aura.buffArmorSnapshot=d->buffArmor?std::min(aura.buffArmorSnapshot,uint32_t(std::min(uint64_t(1000000),uint64_t(d->buffArmor)*11))):d->innervatePct?aura.buffArmorSnapshot:0;
             }
         }
         std::erase_if(p.statAuras,[](const auto& aura){return !aura.remainingMs;});
@@ -8022,6 +8023,9 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         if(buffSlot==healed->statAuras.size())for(size_t i=0;i<healed->statAuras.size();++i)
             if(!healed->statAuras[i].remainingMs){buffSlot=i;break;}
         LocalStatAura a{d->id,talentedDuration,healed->mapId,healed->instanceId,p.guid,d->buffAbsorb};
+        // Innervate: the caster's base mana share, a tick's worth.
+        if(d->innervatePct&&d->innervateIntervalMs&&d->durationMs>=d->innervateIntervalMs)
+            a.buffArmorSnapshot=uint32_t(std::min<uint64_t>(1000000,uint64_t(localClassBaseMana(p))*d->innervatePct/100/(d->durationMs/d->innervateIntervalMs)));
         if(d->buffArmor)a.buffArmorSnapshot=uint32_t(std::min(uint64_t(1000000),
             uint64_t(d->buffArmor)*uint32_t(100+localTalentCastModifier(p,c,*d,8,true))/100));
         if(buffSlot<healed->statAuras.size())
@@ -8555,6 +8559,16 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
                     const auto capacity=localManaCapacity(*p);
                     for(uint32_t tick=0;tick<credit/d->classBuffManaIntervalMs;++tick)
                         p->mana=uint32_t(std::min(uint64_t(capacity),uint64_t(p->mana)+uint64_t(capacity)*d->classBuffManaPct/100));
+                } else if(d->classBuff&&d->innervatePct&&d->innervateIntervalMs) {
+                    // Innervate's PERIODIC_ENERGIZE: the snapshotted mana each
+                    // period (to the hidden pool in a druid form).
+                    const uint32_t credit=a.manaRegenRemainder%d->innervateIntervalMs+activeMs;
+                    a.manaRegenRemainder=credit%d->innervateIntervalMs;
+                    const bool hiddenPool=p->classId==11&&p->formSpellId&&p->resourceType!=LocalResourceType::Mana;
+                    if(p->resourceType==LocalResourceType::Mana||hiddenPool) {
+                        auto& pool=hiddenPool?p->druidMana:p->mana;
+                        pool=uint32_t(std::min<uint64_t>(localManaCapacity(*p),uint64_t(pool)+uint64_t(credit/d->innervateIntervalMs)*a.buffArmorSnapshot));
+                    }
                 } else if(d->classBuff&&d->periodicRage&&d->periodicRageMs) {
                     // Bloodrage's PERIODIC_ENERGIZE: rage each period, the
                     // sub-5000 field holding the elapsed milliseconds.
