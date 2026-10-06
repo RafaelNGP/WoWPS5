@@ -2048,6 +2048,12 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             else {if(d.absorbSchoolMask && d.absorbSchoolMask!=u(110+effect))unavailable("Mixed absorb schools are not implemented");
                 d.buffAbsorb+=low;d.absorbSchoolMask=u(110+effect);d.buffAbsorbPerLevel=scale;}
             buff=true;
+        } else if(!combo&&type==3&&target==6&&!secondary&&effect==0&&!creatureCaster&&d.spellFamily==4&&(d.spellFamilyFlags[0]&0x200000u)&&
+                  !u(72)&&!u(73)&&!d.weaponDamage&&[&]{const auto r=ClientSpellTables::lookup(t.spellIndex,50783);
+                      return r>=0&&t.spells->getUInt32(uint32_t(r),71)==58;}()) {
+            // spell_warr_slam: the dummy casts 50783 (WEAPON_DAMAGE) with its own
+            // value as the bonus, so Slam is the weapon strike plus that value.
+            directSlot(effect);d.weaponDamage=true;d.damage+=low;d.damageMax+=high;d.damagePerLevel+=scale;harm=true;
         } else if(!combo&&(type==58||type==121||type==17)&&target==6&&!secondary) {
             // Spell::EffectWeaponDmg for a single hostile target: the weapon's
             // damage (normalized for 121) plus this flat bonus, through the
