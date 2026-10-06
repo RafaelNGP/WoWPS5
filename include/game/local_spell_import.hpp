@@ -1447,11 +1447,16 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         if(!((u(86+e)==22&&u(89+e)==15)||(u(86+e)==18&&u(89+e)==16)))pbaoeShape=false;
         if(u(71+e)==2||u(71+e)==58||u(71+e)==121)pbaoeDamage=true;
     }
+    // Cone of Cold: a slow, frost damage and an empty healing-taken hook, each
+    // on the enemies in the cone in front of the mage (TARGET_UNIT_CONE_ENEMY_104).
+    const bool coneOfCold=!creatureCaster&&d.spellFamily==3&&(d.spellFamilyFlags[0]&0x200u)&&u(71)==6&&u(95)==33&&u(86)==104&&!u(89)&&
+        u(72)==2&&u(87)==104&&!u(90)&&u(73)==6&&u(97)==118&&u(88)==104&&!u(91)&&i(82)+int32_t(u(76))==0&&i(80)+1<0&&i(80)+1>-100&&
+        !u(116)&&!u(117)&&!u(118)&&!u(spell335::ProcFlags)&&!u(spell335::ProcCharges)&&!u(212);
     // Arcane Explosion's reviewed profile, and every other point-blank area
     // attack in its shape: each effect on the enemies around the caster
     // (TARGET_SRC_CASTER + TARGET_UNIT_SRC_AREA_ENEMY) with a fixed radius.
     const bool arcaneExplosion=(d.spellFamily==3&&d.spellFamilyFlags[0]==4096&&!d.spellFamilyFlags[1]&&!d.spellFamilyFlags[2]&&
-        u(71)==2&&!u(72)&&!u(73)&&u(86)==22&&u(89)==15&&!u(104)&&!u(212))||(pbaoeShape&&pbaoeDamage);
+        u(71)==2&&!u(72)&&!u(73)&&u(86)==22&&u(89)==15&&!u(104)&&!u(212))||(pbaoeShape&&pbaoeDamage)||coneOfCold;
     if(arcaneExplosion) {
         const auto radius=ClientSpellTables::lookup(t.radiusIndex,u(92));
         if(!t.radii||radius<0)unavailable("Area radius record missing");
@@ -1833,6 +1838,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             }
             if(!d.energizeRage&&effect==0)unavailable("Unreviewed rage energize");
             continue;
+        }
+        if(coneOfCold&&effect!=1) {
+            if(effect==0){d.areaSnarePercent=uint8_t(-(i(80)+1));d.areaConeDegrees=104.f;harm=true;}
+            continue; // effect 2: the empty healing-taken hook (Improved Cone of Cold's)
         }
         if(frostNova&&arcaneExplosion&&effect==1){d.areaRoot=true;d.controlDamageCapPct=10;harm=true;continue;}
         // Challenging Shout / Roar: a lone MOD_TAUNT on the enemies around the caster.

@@ -29,8 +29,9 @@ inline bool validLocalNpcSnares(const LocalRealmNpc& n,const LocalWorldContent& 
     if(n.snares.size()>kLocalMaxNpcSnares || ((n.dead||n.transportEntry)&&!n.snares.empty()))return false;
     for(size_t i=0;i<n.snares.size();++i) {
         const auto& a=n.snares[i];const auto* d=c.spell(a.spellId);
-        if(!d||!d->unsupportedReason.empty()||!d->snarePercent||d->snarePercent>99||
-           a.percent!=d->snarePercent||!a.casterGuid||!a.remainingMs||
+        const uint8_t percent=d?(d->snarePercent?d->snarePercent:d->areaSnarePercent):0;
+        if(!d||!d->unsupportedReason.empty()||!percent||percent>99||
+           a.percent!=percent||!a.casterGuid||!a.remainingMs||
            a.remainingMs>d->durationMs||d->durationMs>600000)return false;
         for(size_t j=0;j<i;++j)if(n.snares[j].casterGuid==a.casterGuid&&
             n.snares[j].spellId==a.spellId)return false;

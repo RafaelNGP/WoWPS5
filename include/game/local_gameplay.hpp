@@ -1522,6 +1522,11 @@ struct LocalSpellDefinition {
     // Challenging Shout / Roar: MOD_TAUNT on every creature within this radius
     // of the caster, each taunted as by a single-target taunt.
     float areaTauntRadius = 0;
+    // Cone of Cold: the caster-area damage limited to a cone in front of the
+    // caster (TARGET_UNIT_CONE_ENEMY_104: Spell.cpp's 104 degrees), and the
+    // slow it puts on every creature it hits.
+    float areaConeDegrees = 0;
+    uint8_t areaSnarePercent = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.

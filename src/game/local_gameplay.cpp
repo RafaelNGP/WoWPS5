@@ -3229,7 +3229,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(uint32_t(d.classBuffStatPct));hash(uint32_t(d.areaRoot));hash(uint32_t(d.healthCostBasePct)|uint32_t(d.energizeRage)<<8|uint32_t(d.periodicRage)<<16);hash(d.periodicRageMs);hash(uint32_t(d.innervatePct));hash(d.innervateIntervalMs);hash(uint32_t(d.vanish));hash(d.threatReduction);{uint32_t tr;std::memcpy(&tr,&d.threatReductionPerLevel,4);hash(tr);}{uint32_t fr;std::memcpy(&fr,&d.areaFearRadius,4);hash(fr);}hash(uint32_t(d.areaMaxTargets)|uint32_t(d.areaFearStunsTarget)<<8);{uint32_t tr;std::memcpy(&tr,&d.areaTauntRadius,4);hash(tr);}hash(uint32_t(d.armorDebuffStackMax)|uint32_t(d.armorDebuffMinor)<<8);hash(uint32_t(d.classBuffHitCharges)|uint32_t(uint8_t(d.chillHastePct))<<8|uint32_t(uint8_t(d.chillSpeedPct))<<16);hash(d.chillSpell);hash(d.chillDurationMs);hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(uint32_t(d.classBuffStatPct));hash(uint32_t(d.areaRoot));hash(uint32_t(d.healthCostBasePct)|uint32_t(d.energizeRage)<<8|uint32_t(d.periodicRage)<<16);hash(d.periodicRageMs);hash(uint32_t(d.innervatePct));hash(d.innervateIntervalMs);hash(uint32_t(d.vanish));hash(d.threatReduction);{uint32_t tr;std::memcpy(&tr,&d.threatReductionPerLevel,4);hash(tr);}{uint32_t fr;std::memcpy(&fr,&d.areaFearRadius,4);hash(fr);}hash(uint32_t(d.areaMaxTargets)|uint32_t(d.areaFearStunsTarget)<<8);{uint32_t tr;std::memcpy(&tr,&d.areaTauntRadius,4);hash(tr);std::memcpy(&tr,&d.areaConeDegrees,4);hash(tr);}hash(uint32_t(d.areaSnarePercent));hash(uint32_t(d.armorDebuffStackMax)|uint32_t(d.armorDebuffMinor)<<8);hash(uint32_t(d.classBuffHitCharges)|uint32_t(uint8_t(d.chillHastePct))<<8|uint32_t(uint8_t(d.chillSpeedPct))<<16);hash(d.chillSpell);hash(d.chillDurationMs);hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -7401,6 +7401,14 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         for(auto& candidate:g.npcs) {
             if(candidate.dead||!candidate.health||candidate.mapId!=p.mapId||candidate.instanceId!=p.instanceId||!canAttack(p,candidate))continue;
             const auto dist=distance2(p,candidate);
+            // A cone (Cone of Cold): only the creatures within half its angle of
+            // the caster's facing.
+            if(d->areaConeDegrees>0) {
+                float angle=std::atan2(candidate.y-p.y,candidate.x-p.x)-p.orientation;
+                while(angle>3.14159265f)angle-=6.2831853f;
+                while(angle<-3.14159265f)angle+=6.2831853f;
+                if(std::abs(angle)>d->areaConeDegrees*3.14159265f/360.f)continue;
+            }
             if(std::isfinite(dist)&&dist<=d->areaRadius*d->areaRadius&&chainCount<chainNpcs.size()){
                 if(d->weaponDamage&&chainCount>=4)break;
                 chainNpcs[chainCount++]=&candidate;
@@ -7792,6 +7800,12 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
                 const auto gain=localHealingTakenWithBuffs(c,p,uint32_t(std::min<uint64_t>(1000000,uint64_t(healthBefore-chainNpcs[i]->health)*d->directLeechPct/100)));
                 p.health=uint32_t(std::min<uint64_t>(p.maxHealth,uint64_t(p.health)+gain));
                 LOG_INFO("[LOCAL_LEECH] player=",p.guid," spell=",d->id," healed=",gain);
+            }
+            if(d->areaSnarePercent&&!chainNpcs[i]->dead&&!localOutcomeNullifiesDamage(meleeOutcome)) {
+                auto& snares=chainNpcs[i]->snares;
+                const LocalNpcSnare slow{d->id,talentedDuration,p.guid,d->areaSnarePercent,p.positionRevision};
+                auto it=std::find_if(snares.begin(),snares.end(),[&](const auto& o){return o.spellId==d->id&&o.casterGuid==p.guid;});
+                if(it!=snares.end())*it=slow;else if(snares.size()<kLocalMaxNpcSnares)snares.push_back(slow);
             }
             if(d->areaRoot&&!chainNpcs[i]->dead&&!localOutcomeNullifiesDamage(meleeOutcome))g.applyAreaControl(p,*chainNpcs[i],*d,talentedDuration,LocalNpcControlKind::Root);
             amount=uint32_t(uint64_t(amount)*d->chainMultiplierPermille/1000);
