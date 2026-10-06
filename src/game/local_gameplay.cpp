@@ -2011,7 +2011,7 @@ struct LocalGameplay::Impl {
     // An area control on one creature (Frost Nova's root, Psychic Scream's
     // fear): diminished like any creature control (only ALL-type groups count
     // against a creature), held until it has absorbed a tenth of its health.
-    void applyAreaControl(LocalRealmPlayer& p,LocalRealmNpc& n,const LocalSpellDefinition& d,uint32_t durationMs,LocalNpcControlKind kind) {
+    void applyAreaControl(LocalRealmPlayer& p,LocalRealmNpc& n,const LocalSpellDefinition& d,uint32_t durationMs,LocalNpcControlKind kind,bool capped=true) {
         if(n.transportEntry||!durationMs||durationMs>600000)return;
         const auto group=localDiminishingGroupForSpell(d,false);
         const auto level=localDiminishingRead(n,group,authorityClockMs);
@@ -2019,7 +2019,8 @@ struct LocalGameplay::Impl {
         const float modifier=localDiminishingMultiplier(group,level,false,false);
         if(modifier==0.f){LOG_INFO("[LOCAL_DR] immune npc=",n.guid," spell=",d.id);return;}
         LocalNpcControl a{d.id,uint32_t(float(durationMs)*modifier),p.guid,p.positionRevision,uint8_t(kind)};
-        a.damageLeft=uint32_t(uint64_t(n.maxHealth)*d.controlDamageCapPct/100);
+        // Uncapped (Intimidating Shout's cowering target): the first damage breaks it.
+        a.damageLeft=capped?uint32_t(uint64_t(n.maxHealth)*d.controlDamageCapPct/100):0;
         auto it=std::find_if(n.controls.begin(),n.controls.end(),[&](const auto& o){return o.spellId==d.id;});
         if(it!=n.controls.end())*it=a;
         else if(n.controls.size()<kLocalMaxNpcControls){n.controls.push_back(a);localDiminishingApply(n,group,true,authorityClockMs);}
@@ -3228,7 +3229,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(uint32_t(d.classBuffStatPct));hash(uint32_t(d.areaRoot));hash(uint32_t(d.healthCostBasePct)|uint32_t(d.energizeRage)<<8|uint32_t(d.periodicRage)<<16);hash(d.periodicRageMs);{uint32_t fr;std::memcpy(&fr,&d.areaFearRadius,4);hash(fr);}hash(uint32_t(d.areaMaxTargets));hash(uint32_t(d.armorDebuffStackMax));hash(uint32_t(d.classBuffHitCharges)|uint32_t(uint8_t(d.chillHastePct))<<8|uint32_t(uint8_t(d.chillSpeedPct))<<16);hash(d.chillSpell);hash(d.chillDurationMs);hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(uint32_t(d.classBuffStatPct));hash(uint32_t(d.areaRoot));hash(uint32_t(d.healthCostBasePct)|uint32_t(d.energizeRage)<<8|uint32_t(d.periodicRage)<<16);hash(d.periodicRageMs);{uint32_t fr;std::memcpy(&fr,&d.areaFearRadius,4);hash(fr);}hash(uint32_t(d.areaMaxTargets)|uint32_t(d.areaFearStunsTarget)<<8);hash(uint32_t(d.armorDebuffStackMax));hash(uint32_t(d.classBuffHitCharges)|uint32_t(uint8_t(d.chillHastePct))<<8|uint32_t(uint8_t(d.chillSpeedPct))<<16);hash(d.chillSpell);hash(d.chillDurationMs);hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -8216,8 +8217,14 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         std::vector<LocalRealmNpc*> feared;
         for(auto& m:g.npcs)if(!m.dead&&m.health&&m.mapId==p.mapId&&m.instanceId==p.instanceId&&canAttack(p,m)&&distance2(p,m)<=d->areaFearRadius*d->areaFearRadius)feared.push_back(&m);
         std::sort(feared.begin(),feared.end(),[&](auto* l,auto* r){return distance2(p,*l)<distance2(p,*r);});
+        // Intimidating Shout: its target cowers (spell_warr_intimidating_shout
+        // takes it out of the fear's targets) until damaged.
+        LocalRealmNpc* cowering=d->areaFearStunsTarget?g.npc(cmd.target):nullptr;
+        if(cowering&&(cowering->dead||!canAttack(p,*cowering)))cowering=nullptr;
+        if(cowering)std::erase(feared,cowering);
         if(d->areaMaxTargets&&feared.size()>d->areaMaxTargets)feared.resize(d->areaMaxTargets);
-        for(auto* m:feared){g.applyAreaControl(p,*m,*d,talentedDuration,LocalNpcControlKind::Stun);g.addThreat(*m,p.guid,1);g.selectThreatTarget(*m,players);}
+        if(cowering)feared.insert(feared.begin(),cowering);
+        for(auto* m:feared){g.applyAreaControl(p,*m,*d,talentedDuration,LocalNpcControlKind::Stun,m!=cowering);g.addThreat(*m,p.guid,1);g.selectThreatTarget(*m,players);}
     }
     if(d->threatAmount)if(auto* victim=g.npc(cmd.target);victim&&!victim->dead){g.addThreat(*victim,p.guid,uint64_t(d->threatAmount)*1000);g.selectThreatTarget(*victim,players);}
     if(d->taunt)if(auto* victim=g.npc(cmd.target);victim&&!victim->dead) {

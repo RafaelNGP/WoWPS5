@@ -1258,7 +1258,17 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     // its taken-damage proc flags are the fear's 10% damage cap, as Fear's.
     const bool areaFear=!creatureCaster&&(d.spellFamily==5||d.spellFamily==6)&&u(71)==6&&u(95)==7&&u(86)==22&&u(89)==15&&
         u(72)==6&&u(96)==31&&u(87)==22&&u(90)==15&&!u(73)&&!u(116)&&!u(117)&&u(spell335::ProcFlags)==0xa22a8u&&!u(spell335::ProcCharges)&&u(40)&&u(212)<=10;
-    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!rootControl&&!incinerate&&!innerFire&&!chillArmor&&!frostNova&&!areaFear&&d.id!=1784&&d.id!=21084&&d.id!=20154&&
+    // Intimidating Shout: a TRIGGER_SPELL of 20511 (a lone stun that damage
+    // breaks) on its target, then the same area fear and run speed.
+    const bool intimidatingShout=!creatureCaster&&d.spellFamily==4&&u(71)==64&&u(86)==6&&!u(89)&&u(116)&&
+        u(72)==6&&u(96)==7&&u(87)==22&&u(90)==15&&u(73)==6&&u(97)==31&&u(88)==22&&u(91)==15&&!u(117)&&!u(118)&&
+        u(spell335::ProcFlags)==0xa22a8u&&!u(spell335::ProcCharges)&&u(40)&&u(212)<=10&&[&]{
+            const auto child=ClientSpellTables::lookup(t.spellIndex,u(116));
+            if(child<0)return false;
+            const auto cu=[&](uint32_t col){return t.spells->getUInt32(uint32_t(child),col);};
+            return cu(71)==6&&cu(95)==12&&cu(86)==6&&!cu(89)&&!cu(72)&&!cu(73)&&!cu(spell335::ProcFlags)&&
+                (cu(spell335::AuraInterruptFlags)&kLocalAuraInterruptTakeDamage)&&cu(40)==u(40);}();
+    if((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!aspectSpell&&d.id!=kLocalProwlSpell&&!reactive&&!earthShield&&!molten&&!combo&&simpleShield!=SimpleShieldKind::Mana&&!creatureCaster&&!deathItemChannel&&!damageBrokenControl&&!fearControl&&!rootControl&&!incinerate&&!innerFire&&!chillArmor&&!frostNova&&!areaFear&&!intimidatingShout&&d.id!=1784&&d.id!=21084&&d.id!=20154&&
        !(d.id==6346&&u(spell335::ProcCharges)==1)&&!(d.id==22812&&!u(spell335::ProcChance))) // Fear Ward's immunity charge, Barkskin's inert proc (classBuff) // Stealth: its damage and attack breaks are the form rule
         unavailable("This proc family or its trigger conditions are not implemented");
     // Spell.dbc column 38 is BaseLevel and column 39 is SpellLevel
@@ -1810,14 +1820,15 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             continue;
         }
         if(frostNova&&arcaneExplosion&&effect==1){d.areaRoot=true;d.controlDamageCapPct=10;harm=true;continue;}
-        if(areaFear) {
-            if(effect==0) {
-                const auto radius=ClientSpellTables::lookup(t.radiusIndex,u(92));
+        if(areaFear||intimidatingShout) {
+            if(effect==(intimidatingShout?1u:0u)) {
+                d.areaFearStunsTarget=intimidatingShout;
+                const auto radius=ClientSpellTables::lookup(t.radiusIndex,u(92+effect));
                 const float r=t.radii&&radius>=0?t.radii->getFloat(radius,1):0.f;
                 if(!std::isfinite(r)||r<=0||r>30||!d.durationMs||d.durationMs>60000)unavailable("Unreviewed area fear");
                 else {d.areaFearRadius=r;d.areaMaxTargets=uint8_t(u(212));d.controlDamageCapPct=10;harm=true;}
             }
-            continue; // effect 1: the fleeing run speed, as Fear's
+            continue; // the target's stun (runtime) and the fleeing run speed, as Fear's
         }
         if(!arcaneExplosion && !(type==5&&target==1&&secondary==17) && !(d.groundRadius&&type==2&&target==16&&!secondary) && (secondary || (target!=1&&target!=6&&target!=21&&target!=25&&!(chainHeal&&target==45)))) unavailable("Area or scripted targeting is not implemented");
         if(type==6 && (u(95+effect)==3 || u(95+effect)==8) && (((u(spell335::ProcFlags)||u(spell335::ProcCharges))&&!deathItemChannel&&!rootControl)||u(116+effect)))

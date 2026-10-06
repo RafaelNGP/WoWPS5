@@ -1510,6 +1510,9 @@ struct LocalSpellDefinition {
     // like Fear (an incapacitation with a 10% damage cap).
     float areaFearRadius = 0;
     uint8_t areaMaxTargets = 0;
+    // Intimidating Shout: its target cowers (20511, a stun any damage breaks)
+    // and the area fear leaves that target out.
+    bool areaFearStunsTarget = false;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.

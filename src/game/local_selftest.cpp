@@ -471,7 +471,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
-            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39}, {1, 8, "Polymorph", 40}, {4, 11, "Entangling Roots", 41}, {1, 6, "Icy Touch", 42}, {1, 6, "Plague Strike", 42}, {1, 6, "Blood Boil", 0}, {1, 6, "Death Coil", 0}, {1, 6, "Death Grip", 43}, {1, 6, "Pestilence", 44}, {1, 6, "Anti-Magic Shell", 45}, {1, 6, "Raise Dead", 46}, {1, 6, "Empower Rune Weapon", 47}, {1, 6, "Strangulate", 1}, {3, 3, "Steady Shot", 0}, {3, 3, "Hunter's Mark", 48}, {2, 7, "Bloodlust", 49}, {3, 3, "Rapid Fire", 50}, {2, 7, "Windfury Totem", 51}, {3, 3, "Feign Death", 52}, {2, 7, "Fire Nova", 53}, {1, 2, "Judgement of Light", 54}, {3, 3, "Distracting Shot", 1}, {2, 7, "Wind Shear", 1}, {1, 2, "Blessing of Kings", 55}, {1, 2, "Blessing of Wisdom", 55}, {1, 8, "Frost Armor", 56}, {1, 5, "Inner Fire", 56}, {1, 8, "Frost Nova", 57}, {1, 1, "Sunder Armor", 58}, {1, 5, "Psychic Scream", 59}, {1, 9, "Howl of Terror", 59}, {1, 1, "Bloodrage", 60}, {1, 2, "Divine Plea", 61},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39}, {1, 8, "Polymorph", 40}, {4, 11, "Entangling Roots", 41}, {1, 6, "Icy Touch", 42}, {1, 6, "Plague Strike", 42}, {1, 6, "Blood Boil", 0}, {1, 6, "Death Coil", 0}, {1, 6, "Death Grip", 43}, {1, 6, "Pestilence", 44}, {1, 6, "Anti-Magic Shell", 45}, {1, 6, "Raise Dead", 46}, {1, 6, "Empower Rune Weapon", 47}, {1, 6, "Strangulate", 1}, {3, 3, "Steady Shot", 0}, {3, 3, "Hunter's Mark", 48}, {2, 7, "Bloodlust", 49}, {3, 3, "Rapid Fire", 50}, {2, 7, "Windfury Totem", 51}, {3, 3, "Feign Death", 52}, {2, 7, "Fire Nova", 53}, {1, 2, "Judgement of Light", 54}, {3, 3, "Distracting Shot", 1}, {2, 7, "Wind Shear", 1}, {1, 2, "Blessing of Kings", 55}, {1, 2, "Blessing of Wisdom", 55}, {1, 8, "Frost Armor", 56}, {1, 5, "Inner Fire", 56}, {1, 8, "Frost Nova", 57}, {1, 1, "Sunder Armor", 58}, {1, 5, "Psychic Scream", 59}, {1, 9, "Howl of Terror", 59}, {1, 1, "Bloodrage", 60}, {1, 2, "Divine Plea", 61}, {1, 1, "Intimidating Shout", 62},
         };
         size_t passed = 0;
         // Incinerate carries the Immolate bonus (a quarter more on an Immolated target).
@@ -1006,6 +1006,11 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                         near.maxHealth = near.health = 100000; pestilenceOther = m.guid; }
                     p.mana = p.maxMana; p.runeCooldownMs.fill(0); p.globalCooldownMs = 0;
                 }
+                // Intimidating Shout: a second creature beside the warrior.
+                uint64_t shoutOther = 0;
+                if (a.kind == 62) for (const auto& m : arena.npcs()) if (!shoutOther && m.guid != foeGuid && m.hostile && !m.dead && m.health && m.mapId == p.mapId && m.instanceId == p.instanceId) {
+                    auto& near = const_cast<LocalRealmNpc&>(m); near.x = near.homeX = p.x + 2; near.y = near.homeY = p.y + 1; near.z = near.homeZ = p.z;
+                    near.maxHealth = near.health = 100000; near.level = p.level; shoutOther = m.guid; }
                 uint32_t firstCurse = 0;
                 if (a.kind == 26 && std::string(a.name) == "Curse of the Elements") {
                     for (auto id : p.knownSpells) if (const auto* sd = content.spell(id); sd && sd->name == "Curse of Weakness" && sd->unsupportedReason.empty()) firstCurse = id;
@@ -1076,6 +1081,14 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     const auto* sd = content.spell(spellId);
                     landed = sd && pct == sd->armorDebuffPct && pct && !p.comboPoints && held > (comboBefore - 1) * 6000u && held <= comboBefore * 6000u;
                     if (!landed) result = "armor debuff=" + std::to_string(held) + "ms " + std::to_string(pct) + "% combo " + std::to_string(comboBefore) + "->" + std::to_string(p.comboPoints) + " (" + result + ")";
+                }
+                else if (a.kind == 62) {
+                    // Intimidating Shout: the target cowers until damaged, the creature beside it is feared.
+                    uint32_t cowerCap = 1, otherCap = 0; bool cower = false, other = false;
+                    for (const auto& u : arena.npcs()) for (const auto& ctl : u.controls) if (ctl.spellId == spellId && ctl.casterGuid == p.guid && ctl.remainingMs) {
+                        if (u.guid == foeGuid) { cower = true; cowerCap = ctl.damageLeft; } else if (u.guid == shoutOther) { other = true; otherCap = ctl.damageLeft; } }
+                    landed = cower && cowerCap == 0 && other && otherCap > 0;
+                    if (!landed) result = "cower " + std::to_string(cower) + " cap " + std::to_string(cowerCap) + " other " + std::to_string(other) + " cap " + std::to_string(otherCap) + " (" + result + ")";
                 }
                 else if (a.kind == 58) {
                     // Sunder Armor: 4 % a stack, a second cast makes it 8 %; threat 345 + 5 % AP each (spell_threat).
