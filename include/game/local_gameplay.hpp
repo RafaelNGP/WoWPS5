@@ -1481,6 +1481,9 @@ struct LocalSpellDefinition {
     int32_t classBuffRangedHastePct = 0;
     // SPELL_EFFECT_THREAT (63) on the target (Distracting Shot): flat threat.
     uint32_t threatAmount = 0;
+    // Feint: a negative SPELL_EFFECT_THREAT, the threat the target forgets.
+    uint32_t threatReduction = 0;
+    float threatReductionPerLevel = 0; // its RealPointsPerLevel, negated
     // SPELL_AURA_FEIGN_DEATH (66, Feign Death) on a class buff: every creature
     // drops the holder from its threat and none takes it on sight while it
     // lasts; moving or acting ends it (its AuraInterruptFlags).

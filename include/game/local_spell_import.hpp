@@ -1898,6 +1898,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             }
             harm=true;continue;
         }
+        // Feint: SPELL_EFFECT_THREAT with a negative amount on its target.
+        if(!creatureCaster&&d.spellFamily==8&&type==63&&target==6&&!secondary&&effect==0&&u(74)==1&&i(80)<-1&&i(80)>-100000&&
+           std::isfinite(f(77))&&f(77)<=0&&f(77)>=-100&&!u(72)&&!u(73)&&!d.durationMs){
+            d.threatReduction=uint32_t(-(i(80)+1));d.threatReductionPerLevel=-f(77);harm=true;continue;}
         const auto base=i(80+effect), dice=i(74+effect);const auto scale=f(77+effect);
         const float perCombo=f(119+effect);
         if(base < -1 || base > 100000 || dice<0 || dice>100000 || !std::isfinite(scale)||std::abs(scale)>10000 ||
