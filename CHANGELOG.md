@@ -6,6 +6,7 @@
 - **Heroic Strike / Cleave:** queued on the next main-hand swing instead of striking at once; off the global cooldown, rage spent at the swing, a second press cancels.
 - **Thunder Clap:** its −10% attack-speed slow now lands on the creatures it hits.
 - **Mechanic durations:** stun, charm, snare and disarm effects cast on a character are shortened by its talents (auras 232/234), after diminishing returns.
+- **Procs:** 14 Warrior proc talents run (Deep Wounds, Trauma, Enrage, Wrecking Crew, Sudden Death, Bloodsurge, Taste for Blood, Juggernaut, Sword/Shield Specialization, Improved Hamstring, Damage Shield, Improved Berserker Rage; Sword and Board waits on Devastate), plus Impale and Berserker Rage. 59 of 85 Warrior talents now run.
 - **Status page:** [docs/WARRIOR_STATUS.md](docs/WARRIOR_STATUS.md) lists every ability and talent, the formulas, and what remains.
 
 ## 2.12 — quest and memory stability

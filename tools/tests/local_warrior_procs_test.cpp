@@ -197,6 +197,6 @@ int main(int argc,char** argv){
             for(const auto& ctl:w.npc().controls)if(ctl.spellId==23694&&ctl.kind==uint8_t(LocalNpcControlKind::Root))return true;return false;}));
     }
     std::cout<<"PASS: "<<ranks<<" Warrior proc talent ranks and their children pinned; Deep Wounds, Trauma, Wrecking Crew, Enrage, "
-               "Sudden Death, Bloodsurge, Taste for Blood, Sword and Board, Shield Specialization, Damage Shield, Juggernaut, "
+               "Sudden Death, Bloodsurge, Taste for Blood, Sword and Board (held back without Devastate), Shield Specialization, Damage Shield, Juggernaut, "
                "Improved Berserker Rage with Berserker Rage, Sword Specialization and Improved Hamstring through real combat\n";
 }
