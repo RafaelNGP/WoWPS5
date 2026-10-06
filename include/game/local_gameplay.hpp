@@ -1527,6 +1527,9 @@ struct LocalSpellDefinition {
     // slow it puts on every creature it hits.
     float areaConeDegrees = 0;
     uint8_t areaSnarePercent = 0;
+    // Fade: SPELL_AURA_MOD_TOTAL_THREAT (103), negative: while held, the
+    // holder's threat counts this much less when a creature picks its victim.
+    uint32_t classBuffThreatReduction = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.

@@ -471,7 +471,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
-            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39}, {1, 8, "Polymorph", 40}, {4, 11, "Entangling Roots", 41}, {1, 6, "Icy Touch", 42}, {1, 6, "Plague Strike", 42}, {1, 6, "Blood Boil", 0}, {1, 6, "Death Coil", 0}, {1, 6, "Death Grip", 43}, {1, 6, "Pestilence", 44}, {1, 6, "Anti-Magic Shell", 45}, {1, 6, "Raise Dead", 46}, {1, 6, "Empower Rune Weapon", 47}, {1, 6, "Strangulate", 1}, {3, 3, "Steady Shot", 0}, {3, 3, "Hunter's Mark", 48}, {2, 7, "Bloodlust", 49}, {3, 3, "Rapid Fire", 50}, {2, 7, "Windfury Totem", 51}, {3, 3, "Feign Death", 52}, {2, 7, "Fire Nova", 53}, {1, 2, "Judgement of Light", 54}, {3, 3, "Distracting Shot", 1}, {2, 7, "Wind Shear", 1}, {1, 2, "Blessing of Kings", 55}, {1, 2, "Blessing of Wisdom", 55}, {1, 8, "Frost Armor", 56}, {1, 5, "Inner Fire", 56}, {1, 8, "Frost Nova", 57}, {1, 1, "Sunder Armor", 58}, {1, 5, "Psychic Scream", 59}, {1, 9, "Howl of Terror", 59}, {1, 1, "Bloodrage", 60}, {1, 2, "Divine Plea", 61}, {1, 1, "Intimidating Shout", 62}, {4, 11, "Faerie Fire", 63}, {4, 11, "Innervate", 64}, {1, 4, "Vanish", 65}, {1, 4, "Feint", 66}, {4, 11, "Demoralizing Roar", 67}, {1, 1, "Challenging Shout", 68}, {1, 8, "Cone of Cold", 69},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39}, {1, 8, "Polymorph", 40}, {4, 11, "Entangling Roots", 41}, {1, 6, "Icy Touch", 42}, {1, 6, "Plague Strike", 42}, {1, 6, "Blood Boil", 0}, {1, 6, "Death Coil", 0}, {1, 6, "Death Grip", 43}, {1, 6, "Pestilence", 44}, {1, 6, "Anti-Magic Shell", 45}, {1, 6, "Raise Dead", 46}, {1, 6, "Empower Rune Weapon", 47}, {1, 6, "Strangulate", 1}, {3, 3, "Steady Shot", 0}, {3, 3, "Hunter's Mark", 48}, {2, 7, "Bloodlust", 49}, {3, 3, "Rapid Fire", 50}, {2, 7, "Windfury Totem", 51}, {3, 3, "Feign Death", 52}, {2, 7, "Fire Nova", 53}, {1, 2, "Judgement of Light", 54}, {3, 3, "Distracting Shot", 1}, {2, 7, "Wind Shear", 1}, {1, 2, "Blessing of Kings", 55}, {1, 2, "Blessing of Wisdom", 55}, {1, 8, "Frost Armor", 56}, {1, 5, "Inner Fire", 56}, {1, 8, "Frost Nova", 57}, {1, 1, "Sunder Armor", 58}, {1, 5, "Psychic Scream", 59}, {1, 9, "Howl of Terror", 59}, {1, 1, "Bloodrage", 60}, {1, 2, "Divine Plea", 61}, {1, 1, "Intimidating Shout", 62}, {4, 11, "Faerie Fire", 63}, {4, 11, "Innervate", 64}, {1, 4, "Vanish", 65}, {1, 4, "Feint", 66}, {4, 11, "Demoralizing Roar", 67}, {1, 1, "Challenging Shout", 68}, {1, 8, "Cone of Cold", 69}, {1, 5, "Fade", 70},
         };
         size_t passed = 0;
         // Incinerate carries the Immolate bonus (a quarter more on an Immolated target).
@@ -997,7 +997,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     p.globalCooldownMs = 0; p.mana = p.maxMana; p.cooldowns.clear(); p.categoryCooldowns.clear();
                     auto& sturdy = const_cast<LocalRealmNpc&>(*n); sturdy.maxHealth = sturdy.health = 100000;
                 }
-                if (a.kind == 52 || a.kind == 65) { // in combat first: the creature fighting the hunter / rogue
+                if (a.kind == 52 || a.kind == 65 || a.kind == 70) { // in combat first: the creature fighting the hunter / rogue / priest
                     p.attackTarget = foeGuid; for (int t = 0; t < 30; ++t) { p.health = p.maxHealth; arena.tick(0.05f, players); }
                     p.globalCooldownMs = 0; p.mana = p.maxMana; }
                 if (a.kind == 43) { auto& far = const_cast<LocalRealmNpc&>(*n); far.x = far.homeX = p.x + 15; far.y = far.homeY = p.y; far.z = far.homeZ = p.z;
@@ -1064,7 +1064,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     if (!held) { last = "Curse of Weakness did not land first (" + result + ")"; continue; }
                     p.mana = p.maxMana; p.globalCooldownMs = 0;
                 }
-                if (!arena.execute(p, {LocalAction::CastSpell, a.kind == 15 || a.kind == 18 || a.kind == 22 || a.kind == 52 || a.kind == 53 || a.kind == 65 ? p.guid : foeGuid, spellId}, players, result)) {
+                if (!arena.execute(p, {LocalAction::CastSpell, a.kind == 15 || a.kind == 18 || a.kind == 22 || a.kind == 52 || a.kind == 53 || a.kind == 65 || a.kind == 70 ? p.guid : foeGuid, spellId}, players, result)) {
                     last = result;
                     if (a.kind == 21 && result.find("Nothing to dispel") != std::string::npos) { landed = true; break; }
                     if (std::getenv("ABILITY_VERBOSE")) out << "  " << a.name << " attempt " << attempt << ": " << result << " form=" << p.formSpellId << "\n";
@@ -1126,6 +1126,15 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     const auto* sd = content.spell(spellId);
                     landed = sd && pct == sd->armorDebuffPct && pct && !p.comboPoints && held > (comboBefore - 1) * 6000u && held <= comboBefore * 6000u;
                     if (!landed) result = "armor debuff=" + std::to_string(held) + "ms " + std::to_string(pct) + "% combo " + std::to_string(comboBefore) + "->" + std::to_string(p.comboPoints) + " (" + result + ")";
+                }
+                else if (a.kind == 70) {
+                    // Fade: held with its threat reduction; alone on the list, the priest stays the victim.
+                    const auto* sd = content.spell(spellId); bool held = false; uint64_t target = 0;
+                    for (const auto& st : p.statAuras) if (st.spellId == spellId && st.remainingMs) held = true;
+                    for (int t = 0; t < 10; ++t) { p.health = p.maxHealth; arena.tick(0.05f, players); }
+                    for (const auto& v : arena.npcs()) if (v.guid == foeGuid) target = v.targetGuid;
+                    landed = sd && sd->classBuffThreatReduction >= 90000000 && held && target == p.guid;
+                    if (!landed) result = "held " + std::to_string(held) + " still the victim " + std::to_string(target == p.guid) + " (" + result + ")";
                 }
                 else if (a.kind == 66) {
                     // Feint: the rogue's threat on the creature drops by the spell's amount (floored at 0).

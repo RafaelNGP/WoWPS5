@@ -1768,16 +1768,26 @@ struct LocalGameplay::Impl {
         addThreat(n,guid,top>mine?top-mine+1:1);
         n.targetGuid=guid;
     }
+    // A threat entry as a creature weighs it: a player's MOD_TOTAL_THREAT
+    // (Fade) lowers it while held.
+    uint64_t weighedThreat(const LocalNpcThreat& entry,const std::vector<LocalRealmPlayer*>& players) {
+        uint64_t amount=entry.amount;
+        if(const auto* q=player(entry.guid,players))for(const auto& a:q->statAuras)
+            if(a.remainingMs)if(const auto* d=content->spell(a.spellId);d&&d->classBuff&&d->classBuffThreatReduction)
+                amount-=std::min(amount,uint64_t(d->classBuffThreatReduction)*1000);
+        return amount;
+    }
     void selectThreatTarget(LocalRealmNpc& n,const std::vector<LocalRealmPlayer*>& players) {
-        uint64_t current=0;
+        uint64_t current=0;bool currentFaded=false;
         for(auto& entry:n.threat)if(entry.guid) {
             const auto actor=threatActor(entry.guid,n,players);
             const auto distance=actor.valid?distance2(actor.x,actor.y,actor.z,n.x,n.y,n.z):0;
             if(!actor.valid||!std::isfinite(distance)||distance>70*70){entry={};continue;}
-            if(entry.guid==n.targetGuid)current=entry.amount;
+            if(entry.guid==n.targetGuid){current=weighedThreat(entry,players);currentFaded=current<entry.amount;}
         }
         uint64_t bestGuid=current?n.targetGuid:0,bestAmount=current;
-        for(const auto& entry:n.threat)if(entry.guid&&entry.guid!=n.targetGuid) {
+        for(const auto& e:n.threat)if(e.guid&&e.guid!=n.targetGuid) {
+            const LocalNpcThreat entry{e.guid,weighedThreat(e,players)};
             const auto actor=threatActor(entry.guid,n,players);if(!actor.valid)continue;
             // ThreatManager::SelectVictim, ThreatManager.cpp:656-679: the 110 %
             // threshold applies to a contender the owner IsWithinMeleeRange of,
@@ -1789,7 +1799,9 @@ struct LocalGameplay::Impl {
                 bestGuid=entry.guid;bestAmount=entry.amount;
             }
         }
-        n.targetGuid=bestGuid;
+        // A faded victim with no one else to turn to is still the victim
+        // (ThreatManager::SelectVictim returns the top of the list, however low).
+        n.targetGuid=bestGuid?bestGuid:currentFaded?n.targetGuid:0;
     }
     struct KillRewardPlan {
         uint64_t lootOwner=0;uint32_t group=0;
@@ -3229,7 +3241,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(uint32_t(d.classBuffStatPct));hash(uint32_t(d.areaRoot));hash(uint32_t(d.healthCostBasePct)|uint32_t(d.energizeRage)<<8|uint32_t(d.periodicRage)<<16);hash(d.periodicRageMs);hash(uint32_t(d.innervatePct));hash(d.innervateIntervalMs);hash(uint32_t(d.vanish));hash(d.threatReduction);{uint32_t tr;std::memcpy(&tr,&d.threatReductionPerLevel,4);hash(tr);}{uint32_t fr;std::memcpy(&fr,&d.areaFearRadius,4);hash(fr);}hash(uint32_t(d.areaMaxTargets)|uint32_t(d.areaFearStunsTarget)<<8);{uint32_t tr;std::memcpy(&tr,&d.areaTauntRadius,4);hash(tr);std::memcpy(&tr,&d.areaConeDegrees,4);hash(tr);}hash(uint32_t(d.areaSnarePercent));hash(uint32_t(d.armorDebuffStackMax)|uint32_t(d.armorDebuffMinor)<<8);hash(uint32_t(d.classBuffHitCharges)|uint32_t(uint8_t(d.chillHastePct))<<8|uint32_t(uint8_t(d.chillSpeedPct))<<16);hash(d.chillSpell);hash(d.chillDurationMs);hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(uint32_t(d.classBuffStatPct));hash(uint32_t(d.areaRoot));hash(uint32_t(d.healthCostBasePct)|uint32_t(d.energizeRage)<<8|uint32_t(d.periodicRage)<<16);hash(d.periodicRageMs);hash(uint32_t(d.innervatePct));hash(d.innervateIntervalMs);hash(uint32_t(d.vanish));hash(d.threatReduction);{uint32_t tr;std::memcpy(&tr,&d.threatReductionPerLevel,4);hash(tr);}{uint32_t fr;std::memcpy(&fr,&d.areaFearRadius,4);hash(fr);}hash(uint32_t(d.areaMaxTargets)|uint32_t(d.areaFearStunsTarget)<<8);{uint32_t tr;std::memcpy(&tr,&d.areaTauntRadius,4);hash(tr);std::memcpy(&tr,&d.areaConeDegrees,4);hash(tr);}hash(uint32_t(d.areaSnarePercent));hash(d.classBuffThreatReduction);hash(uint32_t(d.armorDebuffStackMax)|uint32_t(d.armorDebuffMinor)<<8);hash(uint32_t(d.classBuffHitCharges)|uint32_t(uint8_t(d.chillHastePct))<<8|uint32_t(uint8_t(d.chillSpeedPct))<<16);hash(d.chillSpell);hash(d.chillDurationMs);hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
