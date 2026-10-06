@@ -54,6 +54,7 @@ int main(int argc,char** argv){
     p.health=p.maxHealth;p.mana=p.maxMana=100;
     LocalRealmNpc n=rewardNpc();n.health=n.maxHealth=1000000;n.level=1;n.x=n.homeX=1;n.attackTimer=1000;
     game.setRemoteNpcs({n});
+    game.tick(.01f,{&p}); // settle the equipped weapon: a weapon change restarts the swing timers
     std::string message;
     const auto npcHealth=[&]{return game.npcs().front().health;};
     const auto cast=[&](uint32_t id){const bool ok=game.execute(p,{LocalAction::CastSpell,n.guid,id},{&p},message);
