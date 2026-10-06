@@ -107,7 +107,7 @@ int main(int argc,char** argv){
 
     // 2. Deep Wounds + Trauma + Wrecking Crew on a melee critical.
     {
-        World w({{121,3},{1859,2},{2231,5}});
+        World w({{662,2},{121,3},{1859,2},{2231,5}}); // Deep Wounds needs Improved Rend 2
         bool bled=false,traumaMarked=false;uint32_t tick=0;
         check(w.until([&]{w.swing();w.advance(1000);for(const auto& e:w.events())if(e.spell==kLocalDeepWoundsPeriodic&&e.kind==LocalCombatEventKind::PeriodicDamage){bled=true;tick=e.attempted;}},
                       [&]{return bled;}));
@@ -133,7 +133,7 @@ int main(int argc,char** argv){
     }
     // 5. Bloodsurge: a Heroic Strike hit makes the next Slam instant.
     {
-        World w({{1866,3}});
+        World w({{167,1},{1866,3}}); // Bloodsurge needs Bloodthirst
         check(w.until([&]{w.p.mana=100;w.cast(47450);w.swing();},[&]{return w.aura(46916)!=nullptr;}));
         w.p.mana=100;check(w.cast(1464));check(!w.p.castingSpellId&&!w.aura(46916));
     }
@@ -144,11 +144,13 @@ int main(int argc,char** argv){
         check(w.until([&]{w.advance(500);},[&]{return w.p.overpowerWindowMs>0;},60));
         check(w.p.warriorProcCooldownMs[kLocalTasteForBloodCooldown]>0);
     }
-    // 7. Sword and Board: Revenge resets Shield Slam and makes it free.
+    // 7. Sword and Board needs Devastate (talent 1666), which has no local
+    //    implementation yet: the talent is admitted but stays inactive.
     {
         World w({{1871,3}},71,true);
-        check(w.until([&]{w.p.mana=100;w.p.revengeWindowMs=5000;w.cast(6572);},[&]{return w.aura(50227)!=nullptr;}));
-        w.p.mana=0;check(w.cast(23922));check(!w.aura(50227));
+        check(!localWarriorProcTalent(w.p,*w.c,LocalWarriorProc::SwordAndBoard));
+        for(int i=0;i<200;++i){w.p.mana=100;w.p.revengeWindowMs=5000;w.cast(6572);}
+        check(!w.aura(50227));
     }
     // 8. Shield Specialization 5: rage on block/dodge/parry; Damage Shield 2 hits back.
     {
