@@ -20,6 +20,7 @@ work/
     PS5_Vulkan/      https://github.com/mihawk-99/PS5_Vulkan   (commit 3f3ee69)
     PS5_PayloadSDK/  https://github.com/mihawk-99/PS5_PayloadSDK
     PS5_Mesa/        https://github.com/mihawk-99/PS5_Mesa      (commit 0b2d6d1)
+    OpenOrbis-PS4-Toolchain/   only include/orbis/ is used (commit 0a1aaf9)
 ```
 
 ```bash
@@ -29,14 +30,20 @@ cd deps
 git clone https://github.com/mihawk-99/PS5_Vulkan.git     && git -C PS5_Vulkan checkout 3f3ee69
 git clone https://github.com/mihawk-99/PS5_PayloadSDK.git
 git clone https://github.com/mihawk-99/PS5_Mesa.git       && git -C PS5_Mesa checkout 0b2d6d1
+# OpenOrbis's libSce* declarations (orbis/*.h): the PS5 exports the same pad, user,
+# audio, dialog, net and rtc functions. A sparse checkout of include/orbis is enough.
+git clone --filter=blob:none --sparse https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain.git
+git -C OpenOrbis-PS4-Toolchain sparse-checkout set include/orbis
+git -C OpenOrbis-PS4-Toolchain checkout 0a1aaf9
 ```
 
 Another location works too: export `PS5_VULKAN=/path/to/PS5_Vulkan` before
-configuring and linking.
+configuring and linking, and pass
+`-DWOWEE_PS5_ORBIS_INCLUDE=/path/to/OpenOrbis-PS4-Toolchain/include` to cmake.
 
 ## 2. Host packages
 
-- Compilers and build tools: `clang` and `lld` (LLVM 18 or newer), `llvm-ar`,
+- Compilers and build tools: `clang` and `lld` (LLVM 18 or newer; developed with clang 22), `llvm-ar`,
   `cmake`, `ninja`, `make`, `python3`, `zip`.
 - For Mesa/RADV (Fedora names): `meson glslang ccache clang-devel
   spirv-llvm-translator-devel spirv-tools-devel libclc-devel python3-mako
@@ -99,5 +106,7 @@ PS5_Vulkan) that is not part of this repository.
   `PS5_VULKAN` at your PS5_Vulkan checkout.
 - **`PS5_RADV=... has no RADV archive`**: `tools/build-radv.sh release` did not
   finish; check its log.
+- **`orbis/*.h not found`**: the OpenOrbis checkout is missing, or pass
+  `-DWOWEE_PS5_ORBIS_INCLUDE` (see step 1).
 - **The compiler runs out of memory**: build with fewer jobs, e.g.
   `ninja -C build-ps5 -j4`.

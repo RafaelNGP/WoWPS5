@@ -67,6 +67,9 @@ third-party runtime components with their own licenses:
   the `libc.prx` module;
 - MIT: Mesa RADV and its PS5 winsys.
 
+The build also compiles against OpenOrbis's `orbis/*.h` system function
+declarations (GPL-3.0 headers).
+
 GPL-3.0 does not allow the extra non-commercial restriction on a combined
 work, so **no prebuilt binary is distributed** until that is resolved: either
 those components are replaced with permissively licensed code or their authors
