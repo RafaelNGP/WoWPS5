@@ -139,7 +139,7 @@ inline int32_t localTalentCastModifier(const LocalRealmPlayer& p,const LocalWorl
             // caster's hit chance, so its beneficial direction is positive like
             // the others listed here. 0 accepted producers (audit D12).
             ((operation==1)?mod.amount!=0:
-             (operation==0||operation==3||operation==5||operation==6||operation==7||operation==8||operation==12||operation==16||operation==22||operation==23)?mod.amount>0:mod.amount<0)) {
+             (operation==0||operation==3||operation==5||operation==6||operation==7||operation==8||operation==12||operation==15||operation==16||operation==22||operation==23)?mod.amount>0:mod.amount<0)) {
             bool match=false;
             for(unsigned k=0;k<3;++k)match=match || (mod.mask[k]&cast.spellFamilyFlags[k]);
             if(match)amount+=mod.amount;
@@ -147,6 +147,7 @@ inline int32_t localTalentCastModifier(const LocalRealmPlayer& p,const LocalWorl
     }
     if(operation==0||operation==3||operation==8||operation==12||operation==22||operation==23)
         return int32_t(std::clamp(amount,int64_t(0),percentage?int64_t(1000):int64_t(1000000)));
+    if(operation==15)return int32_t(std::clamp(amount,int64_t(0),int64_t(1000)));
     if(operation==5||operation==6||operation==7||operation==16)
         return int32_t(std::clamp(amount,int64_t(0),percentage?int64_t(1000):int64_t(100)));
     if(operation==1)

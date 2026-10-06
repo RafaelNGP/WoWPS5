@@ -107,12 +107,14 @@ int main(int argc,char** argv){
 
     // 2. Deep Wounds + Trauma + Wrecking Crew on a melee critical.
     {
-        World w({{662,2},{121,3},{1859,2},{2231,5}}); // Deep Wounds needs Improved Rend 2
+        World w({{662,2},{121,3},{1859,2},{2231,5}}); // Deep Wounds needs Impale 2/2 (talent 662)
         bool bled=false,traumaMarked=false;uint32_t tick=0;
         check(w.until([&]{w.swing();w.advance(1000);for(const auto& e:w.events())if(e.spell==kLocalDeepWoundsPeriodic&&e.kind==LocalCombatEventKind::PeriodicDamage){bled=true;tick=e.attempted;}},
                       [&]{return bled;}));
         for(const auto& b:w.npc().npcBuffs)if(b.spellId==46857&&b.remainingMs)traumaMarked=true;
         check(traumaMarked&&tick>0);
+        // Impale 2: the abilities' critical bonus is 120 % instead of 100 %.
+        check(localTalentCastModifier(w.p,*w.c,*w.c->spell(12294),15,true)==20);
         check(w.aura(57522)!=nullptr); // Wrecking Crew 5: +10% physical damage for 12 s
         LocalRealmPlayer bare=w.p;bare.talents.clear();
         check(localPhysicalDamageAfterTalents(w.p,*w.c,1000)>=localPhysicalDamageAfterTalents(bare,*w.c,1000)*109/100);

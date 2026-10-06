@@ -8293,7 +8293,11 @@ bool LocalGameplay::executeCastSpell(LocalRealmPlayer& p,const LocalRealmCommand
         // for the profiled specials and  the unprofiled melee-class
         // spells alike; rollSpellCritical below is the MAGIC-class roll and
         // is never eligible for a DmgClass 2 row.
-        if((d->comboProfile||d->meleeSpecialProfile||meleeClassRoll)&&meleeOutcome==LocalMeleeOutcome::Critical)amount=localMeleeCriticalAmount(amount);
+        if((d->comboProfile||d->meleeSpecialProfile||meleeClassRoll)&&meleeOutcome==LocalMeleeOutcome::Critical) {
+            // SPELLMOD_CRIT_DAMAGE_BONUS (op 15, Impale): the +100 % melee bonus grows by this percent.
+            const auto bonusPct=d->spellFamily==4?uint32_t(localTalentCastModifier(p,c,*d,15,true)):0u;
+            amount=bonusPct?uint32_t(std::min<uint64_t>(1000000,uint64_t(amount)+uint64_t(amount)*(100+bonusPct)/100)):localMeleeCriticalAmount(amount);
+        }
         if(d->areaRadius&&chainCount>10)amount=uint32_t(uint64_t(amount)*10/chainCount);
         for(size_t i=0;i<chainCount;++i) {
             // Spell::AddUnitTarget judges every target of a chain or an area

@@ -133,6 +133,8 @@ inline constexpr LocalWarriorTalentRecord kLocalWarriorTalentRecords[]={
     {2246,1,58872,{{{4,464u},{7,2u},{28,1u},{34,40u},{35,100u},{39,1u},{46,1u},{68,4u},{69,64u},{71,6u},{74,1u},{75,1u},{80,9u},{81,4294967295u},{86,1u},{95,4u},{110,1u},{125,1024u},{208,4u},{216,1065353216u},{217,1065353216u},{218,1065353216u},{225,1u}}}},
     {2246,2,58874,{{{4,464u},{7,2u},{28,1u},{34,40u},{35,100u},{39,1u},{46,1u},{68,4u},{69,64u},{71,6u},{74,1u},{75,1u},{80,19u},{81,4294967295u},{86,1u},{95,4u},{110,1u},{125,1024u},{208,4u},{216,1065353216u},{217,1065353216u},{218,1065353216u},{225,1u}}}},
     {2283,1,64976,{{{4,464u},{28,1u},{34,4096u},{35,100u},{46,1u},{68,4294967295u},{71,6u},{72,6u},{73,6u},{74,1u},{75,1u},{76,1u},{80,4294967295u},{81,4294967295u},{82,4999u},{86,1u},{87,1u},{88,1u},{95,262u},{96,42u},{97,107u},{110,1u},{111,7u},{112,11u},{117,65156u},{122,1u},{125,2097152u},{128,1u},{208,4u},{216,1065353216u},{217,1065353216u},{218,1065353216u},{225,1u}}}},
+    {662,1,16493,{{{4,464u},{28,1u},{35,101u},{46,1u},{68,4294967295u},{71,6u},{74,1u},{80,9u},{86,1u},{95,108u},{110,15u},{122,3999288558u},{123,51013u},{208,4u},{216,1065353216u},{217,1065353216u},{218,1065353216u},{225,1u},{229,1065353216u},{230,1065353216u},{231,1065353216u}}}},
+    {662,2,16494,{{{4,464u},{28,1u},{35,101u},{46,1u},{68,4294967295u},{71,6u},{74,1u},{80,19u},{86,1u},{95,108u},{110,15u},{122,3999288558u},{123,51013u},{208,4u},{216,1065353216u},{217,1065353216u},{218,1065353216u},{225,1u},{229,1065353216u},{230,1065353216u},{231,1065353216u}}}},
 };
 inline bool localWarriorTalentReviewed(uint32_t talentId) {
     for(const auto& r:kLocalWarriorTalentRecords)if(r.talentId==talentId)return true;
@@ -175,13 +177,14 @@ inline bool decodeClientWarriorTalent(const Tables& t,uint32_t row,LocalSpellDef
             costModifier(14,false);break; // SPELLMOD_COST, rage in tenths
         case 1864: // Intensify Rage: Bloodrage, Berserker Rage, Recklessness, Death Wish
             costModifier(11,true);break;  // SPELLMOD_COOLDOWN, percent
-        case 126: case 131: case 141: case 142: case 158: case 161: case 166: case 1655: {
+        case 126: case 131: case 141: case 142: case 158: case 161: case 166: case 662: case 1655: {
             // Pure spell modifiers (aura 107 flat, 108 percent) on the warrior's
             // own abilities: Improved Charge (all effects: rage), Improved
             // Overpower (critical chance), Improved Thunder Clap (cost, damage,
             // effect 2: its attack-speed slow), Improved Bloodrage (effect 1:
             // rage), Booming Voice (duration, radius), Improved Demoralizing
-            // Shout and Improved Cleave (all effects), Improved Whirlwind (damage).
+            // Shout and Improved Cleave (all effects), Improved Whirlwind (damage),
+            // Impale (op 15: the critical damage bonus of the abilities).
             d.passiveCastModifiers={};
             for(uint32_t e=0;e<3;++e)if(u(71+e)) {
                 auto& mod=d.passiveCastModifiers[e];

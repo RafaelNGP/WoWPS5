@@ -3018,7 +3018,7 @@ inline void importClientTalents(LocalSpellImport& out,const pipeline::DBCFile* t
                 // effects), Charge and Bloodrage rage, the area debuffs of
                 // Demoralizing Shout and Thunder Clap, and an area's radius.
                 const bool warriorRelevant=talent.spellFamily==4&&(
-                    ((mod.operation==0||mod.operation==7)&&cast.weaponDamage)||
+                    ((mod.operation==0||mod.operation==7||mod.operation==15)&&cast.weaponDamage)||
                     (mod.operation==8&&(cast.weaponDamage||cast.chargeRage||cast.targetDebuffAttackPower<0))||
                     (mod.operation==3&&cast.energizeRage)||
                     (mod.operation==6&&cast.areaRadius>0)||
