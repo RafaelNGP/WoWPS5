@@ -2105,6 +2105,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 if(confuseControl&&type==6&&u(95+k)==56&&k==1)return true; // Polymorph's transform
                 if(fearControl&&k==1)return true; // Fear's run speed
                 if(type==2&&k<effect&&u(86+k)==6&&!u(89+k))return true;
+                if(type==58&&k<effect&&d.comboFinisher&&d.spellFamily==7&&u(86+k)==6&&!u(89+k))return true; // Maim's weapon strike
                 if(horrorCoil&&type==9&&k==0)return true; // Death Coil's leech
                 if(rootControl&&k==1)return true; // Entangling Roots' DoT (its own branch)
                 if(d.id==47476&&type==6&&u(95+k)==4&&!i(80+k)&&!u(74+k))return true; // Strangulate's empty dummy
@@ -2114,7 +2115,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             };
             const auto controlMs=std::max(d.durationMs,d.comboDurationMaxMs);
             if(d.controlProfile)unavailable("Mixed control auras are not implemented");
-            else if(effect&&!(u(71)==2&&!silence)&&!horrorCoil&&!(confuseControl&&u(71)==6&&u(95)==33))unavailable("A control aura outside the first effect is not implemented");
+            else if(effect&&!(u(71)==2&&!silence)&&!horrorCoil&&!(confuseControl&&u(71)==6&&u(95)==33)&&!(u(71)==58&&d.comboFinisher&&d.spellFamily==7))unavailable("A control aura outside the first effect is not implemented");
             else if(target!=6)unavailable("Area or scripted targeting is not implemented");
             else if(!controlMs||controlMs>600000)
                 unavailable("A control without a real fixed duration is not implemented");

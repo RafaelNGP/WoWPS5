@@ -488,6 +488,10 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         if (const auto wrath = std::find_if(clientSpells->begin(), clientSpells->end(), [](const auto& d) { return d.id == 2812; });
             wrath == clientSpells->end() || !wrath->unsupportedReason.empty() || !wrath->areaStun || wrath->areaRadius <= 0 || wrath->targetCreatureType != 0x24) {
             out << "FAIL class ability Holy Wrath: " << (wrath == clientSpells->end() ? std::string("missing") : wrath->unsupportedReason) << "\n"; return false; }
+        // Maim: a cat finisher, its weapon strike beside a stun lasting with the points spent.
+        if (const auto maim = std::find_if(clientSpells->begin(), clientSpells->end(), [](const auto& d) { return d.id == 22570; });
+            maim == clientSpells->end() || !maim->unsupportedReason.empty() || !maim->weaponDamage || maim->controlProfile != 1 || !maim->comboFinisher) {
+            out << "FAIL class ability Maim: " << (maim == clientSpells->end() ? std::string("missing") : maim->unsupportedReason) << "\n"; return false; }
         // Cower: the druid's Feint (a negative threat effect, scaled with level).
         if (const auto cower = std::find_if(clientSpells->begin(), clientSpells->end(), [](const auto& d) { return d.id == 8998; });
             cower == clientSpells->end() || !cower->unsupportedReason.empty() || cower->threatReduction != 240 || cower->threatReductionPerLevel != 1.f) {
