@@ -2042,11 +2042,28 @@ struct LocalGameplay::Impl {
     // A creature's melee hit landing on `p` (spell_proc -168 / -588 HitMask:
     // normal, critical or absorbed): Frost Armor chills the creature, and
     // each Inner Fire held loses a charge, the last ending it.
-    void npcMeleeLandedOnPlayer(LocalRealmNpc& n,LocalRealmPlayer& p) {
+    void npcMeleeLandedOnPlayer(LocalRealmNpc& n,LocalRealmPlayer& p,const std::vector<LocalRealmPlayer*>& players) {
         for(auto& a:p.statAuras) {
             if(!a.remainingMs||a.mapId!=p.mapId||a.instanceId!=p.instanceId)continue;
             const auto* d=content->spell(a.spellId);
             if(!d||!d->classBuff)continue;
+            if(d->classBuffRetaliationSpell) {
+                // CheckProc: the attacker in front (isInFront, a pi arc) and the
+                // warrior not stunned; then a special-attack weapon strike.
+                float angle=std::atan2(n.y-p.y,n.x-p.x)-p.orientation;
+                while(angle>3.14159265f)angle-=6.2831853f;
+                while(angle<-3.14159265f)angle+=6.2831853f;
+                if(n.dead||!a.procCharges||std::abs(angle)>1.5707964f||(localPlayerControl(p)&1))continue;
+                const auto ms=localMeleeStats(p,*content);
+                const auto w=localWeaponAmounts(p,*content,false);
+                const auto outcome=localRollPlayerMelee(p,n,ms,true,meleeRoll(),meleeRoll());
+                const auto damage=uint32_t((w.low+(w.high-w.low)*meleeRoll()/9999.f)*(outcome==LocalMeleeOutcome::Critical?2.f:1.f));
+                damageNpc(n,p,localMeleeAvoided(outcome)?0:damage,players,true,d->classBuffRetaliationSpell,false,0,nullptr,outcome,false,
+                          outcome==LocalMeleeOutcome::Block?localCreatureBlockValue(n):0);
+                if(!--a.procCharges)a.remainingMs=0;
+                LOG_INFO("[LOCAL_RETALIATION] player=",p.guid," npc=",n.guid," outcome=",int(outcome)," damage=",damage," charges=",unsigned(a.procCharges));
+                continue;
+            }
             if(d->classBuffHitCharges&&a.procCharges&&!--a.procCharges)a.remainingMs=0;
             if(d->chillSpell&&!n.dead) {
                 LocalNpcBuff b;b.spellId=d->chillSpell;b.casterGuid=p.guid;b.durationMs=b.remainingMs=d->chillDurationMs;
@@ -3241,7 +3258,7 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
         hash(uint32_t(d.classBuffSchoolImmunity)|uint32_t(d.forbearanceCheck)<<8);hash(uint32_t(d.classBuffHealingDonePct));hash(d.excludeCasterAuraSpell);hash(d.excludeTargetAuraSpell);
         for(auto id:d.afterHitAuras)hash(id);
         hash(d.classBuffMechanicImmunity);hash(uint32_t(d.classBuffImmunityCharge)|uint32_t(d.classBuffPushbackPct)<<8|uint32_t(d.classBuffManaPct)<<16);hash(d.controlTransformEntry);
-        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(uint32_t(d.classBuffStatPct));hash(uint32_t(d.areaRoot));hash(uint32_t(d.healthCostBasePct)|uint32_t(d.energizeRage)<<8|uint32_t(d.periodicRage)<<16);hash(d.periodicRageMs);hash(uint32_t(d.innervatePct));hash(d.innervateIntervalMs);hash(uint32_t(d.vanish));hash(d.threatReduction);{uint32_t tr;std::memcpy(&tr,&d.threatReductionPerLevel,4);hash(tr);}{uint32_t fr;std::memcpy(&fr,&d.areaFearRadius,4);hash(fr);}hash(uint32_t(d.areaMaxTargets)|uint32_t(d.areaFearStunsTarget)<<8);{uint32_t tr;std::memcpy(&tr,&d.areaTauntRadius,4);hash(tr);std::memcpy(&tr,&d.areaConeDegrees,4);hash(tr);}hash(uint32_t(d.areaSnarePercent));hash(d.classBuffThreatReduction);hash(uint32_t(d.classBuffReflectPct));hash(uint32_t(d.armorDebuffStackMax)|uint32_t(d.armorDebuffMinor)<<8);hash(uint32_t(d.classBuffHitCharges)|uint32_t(uint8_t(d.chillHastePct))<<8|uint32_t(uint8_t(d.chillSpeedPct))<<16);hash(d.chillSpell);hash(d.chillDurationMs);hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
+        hash(d.apBonusPer100k);hash(d.periodicApPer100k);hash(uint32_t(d.apBonusRanged)|uint32_t(d.steadyShot)<<1);hash(uint32_t(d.targetDebuffRangedAttackerAp));hash(uint32_t(d.classBuffRangedHastePct));hash(d.threatAmount);hash(uint32_t(d.classBuffFeignDeath));hash(uint32_t(d.sealOfRighteousness));hash(d.sealJudgementSpell);hash(d.sealJudgementBase);hash(d.sealJudgementApPer100k);hash(d.judgementDebuff);hash(uint32_t(d.classBuffStatPct));hash(uint32_t(d.areaRoot));hash(uint32_t(d.healthCostBasePct)|uint32_t(d.energizeRage)<<8|uint32_t(d.periodicRage)<<16);hash(d.periodicRageMs);hash(uint32_t(d.innervatePct));hash(d.innervateIntervalMs);hash(uint32_t(d.vanish));hash(d.threatReduction);{uint32_t tr;std::memcpy(&tr,&d.threatReductionPerLevel,4);hash(tr);}{uint32_t fr;std::memcpy(&fr,&d.areaFearRadius,4);hash(fr);}hash(uint32_t(d.areaMaxTargets)|uint32_t(d.areaFearStunsTarget)<<8);{uint32_t tr;std::memcpy(&tr,&d.areaTauntRadius,4);hash(tr);std::memcpy(&tr,&d.areaConeDegrees,4);hash(tr);}hash(uint32_t(d.areaSnarePercent));hash(d.classBuffThreatReduction);hash(uint32_t(d.classBuffReflectPct));hash(d.classBuffRetaliationSpell);hash(uint32_t(d.armorDebuffStackMax)|uint32_t(d.armorDebuffMinor)<<8);hash(uint32_t(d.classBuffHitCharges)|uint32_t(uint8_t(d.chillHastePct))<<8|uint32_t(uint8_t(d.chillSpeedPct))<<16);hash(d.chillSpell);hash(d.chillDurationMs);hash(d.novaLow);hash(d.novaHigh);hash(d.novaSchool);{uint32_t nr;std::memcpy(&nr,&d.novaRadius,4);hash(nr);}hash(uint32_t(d.classBuffMeleeRangedHastePct)|uint32_t(d.classBuffCastSpeedPct)<<8);for(auto id:d.skipIfHoldsAuras)hash(id);hash(uint32_t(d.deathGrip));{uint32_t pr;std::memcpy(&pr,&d.pestilenceRadius,4);hash(pr);std::memcpy(&pr,&d.raiseDeadRadius,4);hash(pr);}hash(d.raiseDeadEntry);hash(uint32_t(d.runeRefresh));hash(d.raiseDeadDurationMs);hash(d.raiseDeadReagent);hash(uint32_t(d.magicShellAbsorbPct)|uint32_t(d.magicShellHealthPct)<<8|uint32_t(d.classBuffAuraImmunitySchool)<<16);hash(d.diseaseSpell);hash(d.diseaseIntervalMs);hash(d.diseaseDurationMs);hash(uint32_t(d.diseaseSchool)|uint32_t(uint8_t(d.diseaseHastePct))<<8);hash(d.diseaseApPer100k);hash(d.classBuffManaIntervalMs);{uint32_t lt;std::memcpy(&lt,&d.lifeTapPerLevel,4);hash(lt);std::memcpy(&lt,&d.buffAbsorbPerLevel,4);hash(lt);}
         // P04 immunity, dispel and resistance inputs: two peers must agree on
         // what a creature is immune to and what a dispel beside damage does.
         hash(d.effectMask);hash(d.dispelType);hash(uint32_t(d.sourceNoImmunities));
@@ -9757,7 +9774,7 @@ bool LocalGameplay::tick(float seconds,const std::vector<LocalRealmPlayer*>& pla
             // Unit::DealMeleeDamage:2126-2128 - the shield runs only when the
             // swing actually dealt damage, and after the swing is resolved.
             if(damage&&!target->dead)g.dealAreaAuraShieldDamage(*target,n,players);
-            if(!localMeleeAvoided(outcome)&&!target->dead)g.npcMeleeLandedOnPlayer(n,*target);
+            if(!localMeleeAvoided(outcome)&&!target->dead)g.npcMeleeLandedOnPlayer(n,*target,players);
             changed=true;
             };
             whiteSwing();

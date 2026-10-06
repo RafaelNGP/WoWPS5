@@ -471,7 +471,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
-            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39}, {1, 8, "Polymorph", 40}, {4, 11, "Entangling Roots", 41}, {1, 6, "Icy Touch", 42}, {1, 6, "Plague Strike", 42}, {1, 6, "Blood Boil", 0}, {1, 6, "Death Coil", 0}, {1, 6, "Death Grip", 43}, {1, 6, "Pestilence", 44}, {1, 6, "Anti-Magic Shell", 45}, {1, 6, "Raise Dead", 46}, {1, 6, "Empower Rune Weapon", 47}, {1, 6, "Strangulate", 1}, {3, 3, "Steady Shot", 0}, {3, 3, "Hunter's Mark", 48}, {2, 7, "Bloodlust", 49}, {3, 3, "Rapid Fire", 50}, {2, 7, "Windfury Totem", 51}, {3, 3, "Feign Death", 52}, {2, 7, "Fire Nova", 53}, {1, 2, "Judgement of Light", 54}, {3, 3, "Distracting Shot", 1}, {2, 7, "Wind Shear", 1}, {1, 2, "Blessing of Kings", 55}, {1, 2, "Blessing of Wisdom", 55}, {1, 8, "Frost Armor", 56}, {1, 5, "Inner Fire", 56}, {1, 8, "Frost Nova", 57}, {1, 1, "Sunder Armor", 58}, {1, 5, "Psychic Scream", 59}, {1, 9, "Howl of Terror", 59}, {1, 1, "Bloodrage", 60}, {1, 2, "Divine Plea", 61}, {1, 1, "Intimidating Shout", 62}, {4, 11, "Faerie Fire", 63}, {4, 11, "Innervate", 64}, {1, 4, "Vanish", 65}, {1, 4, "Feint", 66}, {4, 11, "Demoralizing Roar", 67}, {1, 1, "Challenging Shout", 68}, {1, 8, "Cone of Cold", 69}, {1, 5, "Fade", 70}, {1, 1, "Spell Reflection", 71},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39}, {1, 8, "Polymorph", 40}, {4, 11, "Entangling Roots", 41}, {1, 6, "Icy Touch", 42}, {1, 6, "Plague Strike", 42}, {1, 6, "Blood Boil", 0}, {1, 6, "Death Coil", 0}, {1, 6, "Death Grip", 43}, {1, 6, "Pestilence", 44}, {1, 6, "Anti-Magic Shell", 45}, {1, 6, "Raise Dead", 46}, {1, 6, "Empower Rune Weapon", 47}, {1, 6, "Strangulate", 1}, {3, 3, "Steady Shot", 0}, {3, 3, "Hunter's Mark", 48}, {2, 7, "Bloodlust", 49}, {3, 3, "Rapid Fire", 50}, {2, 7, "Windfury Totem", 51}, {3, 3, "Feign Death", 52}, {2, 7, "Fire Nova", 53}, {1, 2, "Judgement of Light", 54}, {3, 3, "Distracting Shot", 1}, {2, 7, "Wind Shear", 1}, {1, 2, "Blessing of Kings", 55}, {1, 2, "Blessing of Wisdom", 55}, {1, 8, "Frost Armor", 56}, {1, 5, "Inner Fire", 56}, {1, 8, "Frost Nova", 57}, {1, 1, "Sunder Armor", 58}, {1, 5, "Psychic Scream", 59}, {1, 9, "Howl of Terror", 59}, {1, 1, "Bloodrage", 60}, {1, 2, "Divine Plea", 61}, {1, 1, "Intimidating Shout", 62}, {4, 11, "Faerie Fire", 63}, {4, 11, "Innervate", 64}, {1, 4, "Vanish", 65}, {1, 4, "Feint", 66}, {4, 11, "Demoralizing Roar", 67}, {1, 1, "Challenging Shout", 68}, {1, 8, "Cone of Cold", 69}, {1, 5, "Fade", 70}, {1, 1, "Spell Reflection", 71}, {1, 1, "Retaliation", 56},
         };
         size_t passed = 0;
         // Incinerate carries the Immolate bonus (a quarter more on an Immolated target).
@@ -570,6 +570,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                         foe.maxHealth = foe.health = 1000000; foe.level = p.level; novaFoes.push_back(&foe);
                     }
                 }
+                if (a.kind == 56 && a.cls == 1) for (auto id : p.knownSpells) if (const auto* f = content.spell(id); f && f->name == "Battle Stance" && f->unsupportedReason.empty()) {
+                    arena.execute(p, {LocalAction::CastSpell, p.guid, id}, players, result); arena.tick(0.05f, players); p.globalCooldownMs = 0; p.mana = p.maxMana; }
                 if (a.kind == 71) p.mana = p.maxMana; // rage after the stance change
                 const auto tapHealth = p.health;
                 bool ok = arena.execute(p, {LocalAction::CastSpell, p.guid, spellId}, players, result);
@@ -721,7 +723,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                 }
                 if (a.kind == 56) {
                     // Frost Armor chills a creature hitting the mage in melee; each hit
-                    // taken spends one of Inner Fire's charges. Both raise armor.
+                    // taken spends one of Inner Fire's charges (both raise armor), and
+                    // Retaliation answers a hit from in front, spending a charge.
                     const auto* sd = content.spell(spellId);
                     const auto held = [&]() -> const LocalStatAura* { for (const auto& s : p.statAuras) if (s.spellId == spellId && s.remainingMs) return &s; return nullptr; };
                     const uint8_t chargesBefore = held() ? held()->procCharges : 0;
@@ -740,7 +743,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                         }
                         p.attackTarget = 0;
                     }
-                    ok = ok && sd && foe && armorAfter > armorBefore &&
+                    ok = ok && sd && foe && (sd->classBuffRetaliationSpell || armorAfter > armorBefore) &&
                          (sd->chillSpell ? chilled : sd->classBuffHitCharges && chargesBefore == sd->classBuffHitCharges && chargesAfter + 1 == chargesBefore);
                     if (!ok) result = "armor " + std::to_string(armorBefore) + "->" + std::to_string(armorAfter) + " chill " + std::to_string(sd ? sd->chillSpell : 0) + " chilled " + std::to_string(chilled) +
                                       " charges " + std::to_string(chargesBefore) + "->" + std::to_string(chargesAfter) + " foe " + std::to_string(foe != nullptr) + " (" + result + ")";

@@ -1533,6 +1533,10 @@ struct LocalSpellDefinition {
     // Spell Reflection: SPELL_AURA_REFLECT_SPELLS (28) at this chance with its
     // one charge: the next reflectable creature spell goes back, ending it.
     uint8_t classBuffReflectPct = 0;
+    // Retaliation (spell_warr_retaliation): each creature melee hit landing
+    // from in front of the warrior, while not stunned, is answered with 20240's
+    // weapon strike, spending one of the aura's charges (classBuffHitCharges).
+    uint32_t classBuffRetaliationSpell = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.
