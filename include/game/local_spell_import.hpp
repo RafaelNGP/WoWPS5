@@ -1846,8 +1846,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
         // A shaman weapon imbue: its ENCHANT_ITEM_TEMPORARY becomes the shaman's
         // own aura on the main-hand weapon for the enchant's duration.
         if(!creatureCaster&&d.spellFamily==11)if(const auto* imbue=localWeaponImbue(d.id)) {
-            if(imbue->kind==4)unavailable("Frostbrand Attack is not implemented");
-            else if(type==54){d.imbueKind=imbue->kind;d.durationMs=imbue->seconds*1000;d.classBuff=true;buff=true;buffTarget=1;}
+            if(type==54){d.imbueKind=imbue->kind;d.durationMs=imbue->seconds*1000;d.classBuff=true;buff=true;buffTarget=1;}
             else if(type)unavailable("Unreviewed weapon imbue effect");
             continue;
         }

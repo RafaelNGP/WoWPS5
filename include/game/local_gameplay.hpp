@@ -1617,8 +1617,10 @@ inline bool localDemoralizingDebuff(const LocalSpellDefinition& d) {
 // The shaman weapon imbues (tools/local_realm/import_weapon_imbues.py): a
 // rank's kind, its amount (Rockbiter damage per second of weapon speed,
 // Flametongue's passive base points, Windfury's proc chance, Frostbrand's
-// procs per minute), the spell it uses, Windfury's bonus and its duration.
-struct LocalWeaponImbue { uint32_t spell; uint8_t kind; uint32_t amount, useSpell, bonus, seconds; };
+// procs per minute in tenths), the spell it uses, Windfury's bonus or
+// Frostbrand's hit, its duration, and Frostbrand Attack's slow, its duration
+// and the hit's growth per level (x 100) between its spell and max level.
+struct LocalWeaponImbue { uint32_t spell; uint8_t kind; uint32_t amount, useSpell, bonus, seconds, slowPct, slowMs, perLevel100, spellLevel, maxLevel; };
 inline constexpr LocalWeaponImbue kLocalWeaponImbues[]={
 #include "game/local_weapon_imbues_generated.inc"
 };

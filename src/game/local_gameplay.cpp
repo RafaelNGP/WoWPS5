@@ -2070,6 +2070,21 @@ struct LocalGameplay::Impl {
                               outcome==LocalMeleeOutcome::Block?localCreatureBlockValue(n):0);
                     LOG_INFO("[LOCAL_IMBUE] windfury player=",p.guid," npc=",n.guid," damage=",damage," outcome=",int(outcome));
                 }
+            } else if(w->kind==4&&meleeRoll()<uint32_t(float(w->amount)/10.f*weapon.seconds/60.f*10000.f)) {
+                // Frostbrand (COMBAT_SPELL at spell_enchant_proc_data's 8.8 per
+                // minute): the rank's Frostbrand Attack, a frost hit and its slow.
+                const auto* attack=content->spell(w->useSpell);
+                const auto outcome=attack?playerSpellHitOutcome(p,n,*attack):LocalMeleeOutcome::Hit;
+                if(localOutcomeNullifiesDamage(outcome)){damageNpc(n,p,0,players,false,w->useSpell,false,0,attack,outcome);continue;}
+                const int32_t level=std::clamp<int32_t>(p.level,int32_t(w->spellLevel),int32_t(std::max(w->spellLevel,w->maxLevel)))-int32_t(w->spellLevel);
+                const auto damage=uint32_t(std::max<int64_t>(0,int64_t(w->bonus)+int64_t(level)*int64_t(w->perLevel100)/100));
+                damageNpc(n,p,damage,players,false,w->useSpell,false,0,attack,outcome);
+                if(!n.dead&&attack&&attack->snarePercent) {
+                    const LocalNpcSnare slow{w->useSpell,attack->durationMs,p.guid,attack->snarePercent,p.positionRevision};
+                    auto it=std::find_if(n.snares.begin(),n.snares.end(),[&](const auto& o){return o.spellId==slow.spellId&&o.casterGuid==p.guid;});
+                    if(it!=n.snares.end())*it=slow;else if(n.snares.size()<kLocalMaxNpcSnares)n.snares.push_back(slow);
+                }
+                LOG_INFO("[LOCAL_IMBUE] frostbrand player=",p.guid," npc=",n.guid," damage=",damage," outcome=",int(outcome));
             }
         }
     }
@@ -3231,6 +3246,14 @@ bool LocalGameplay::setStarterSpells(const std::vector<LocalSpellDefinition>& sp
                 a.name=name;a.spellFamily=11;a.schoolMask=school;a.sourceDamageClass=uint8_t(damageClass);
                 synthesized.push_back(std::move(a));
             }
+    // Frostbrand Attack ranks: a frost hit and its slow, for the snare's checks.
+    for(const auto& w:kLocalWeaponImbues)if(w.kind==4&&w.useSpell&&std::any_of(sorted.begin(),sorted.end(),[&](const auto& d){return d.id==w.spell&&d.imbueKind;})&&
+        !std::any_of(sorted.begin(),sorted.end(),[&](const auto& o){return o.id==w.useSpell;})&&
+        !std::any_of(synthesized.begin(),synthesized.end(),[&](const auto& o){return o.id==w.useSpell;})) {
+        LocalSpellDefinition a;a.id=w.useSpell;a.clientSpell=true;a.allowableClasses=64;a.triggeredOnly=true;a.maxAuraStacks=1;
+        a.name="Frostbrand Attack";a.spellFamily=11;a.schoolMask=16;a.sourceDamageClass=1;a.snarePercent=uint8_t(w.slowPct);a.durationMs=w.slowMs;
+        synthesized.push_back(std::move(a));
+    }
     for(auto& a:synthesized)sorted.push_back(std::move(a));
     std::sort(sorted.begin(),sorted.end(),[](const auto& a,const auto& b){return a.id<b.id;});
     hash(0x42313153);hash(uint32_t(sorted.size()));

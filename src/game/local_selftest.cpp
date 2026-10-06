@@ -471,7 +471,7 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
             {1, 4, "Kidney Shot", 23}, {1, 4, "Gouge", 24}, {3, 4, "Sap", 24}, // humanoids only: Coldridge troggs
             {1, 4, "Blind", 24}, {1, 4, "Expose Armor", 25},
             {1, 9, "Curse of Weakness", 26}, {1, 9, "Curse of the Elements", 26}, {1, 9, "Curse of Tongues", 26},
-            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39}, {1, 8, "Polymorph", 40}, {4, 11, "Entangling Roots", 41}, {1, 6, "Icy Touch", 42}, {1, 6, "Plague Strike", 42}, {1, 6, "Blood Boil", 0}, {1, 6, "Death Coil", 0}, {1, 6, "Death Grip", 43}, {1, 6, "Pestilence", 44}, {1, 6, "Anti-Magic Shell", 45}, {1, 6, "Raise Dead", 46}, {1, 6, "Empower Rune Weapon", 47}, {1, 6, "Strangulate", 1}, {3, 3, "Steady Shot", 0}, {3, 3, "Hunter's Mark", 48}, {2, 7, "Bloodlust", 49}, {3, 3, "Rapid Fire", 50}, {2, 7, "Windfury Totem", 51}, {3, 3, "Feign Death", 52}, {2, 7, "Fire Nova", 53}, {1, 2, "Judgement of Light", 54}, {3, 3, "Distracting Shot", 1}, {2, 7, "Wind Shear", 1}, {1, 2, "Blessing of Kings", 55}, {1, 2, "Blessing of Wisdom", 55}, {1, 8, "Frost Armor", 56}, {1, 5, "Inner Fire", 56}, {1, 8, "Frost Nova", 57}, {1, 1, "Sunder Armor", 58}, {1, 5, "Psychic Scream", 59}, {1, 9, "Howl of Terror", 59}, {1, 1, "Bloodrage", 60}, {1, 2, "Divine Plea", 61}, {1, 1, "Intimidating Shout", 62}, {4, 11, "Faerie Fire", 63}, {4, 11, "Innervate", 64}, {1, 4, "Vanish", 65}, {1, 4, "Feint", 66}, {4, 11, "Demoralizing Roar", 67}, {1, 1, "Challenging Shout", 68}, {1, 8, "Cone of Cold", 69}, {1, 5, "Fade", 70}, {1, 1, "Spell Reflection", 71}, {1, 1, "Retaliation", 56}, {1, 1, "Recklessness", 73}, {2, 7, "Flametongue Weapon", 74}, {2, 7, "Windfury Weapon", 74}, {2, 7, "Rockbiter Weapon", 74},
+            {1, 9, "Immolate", 0}, {1, 9, "Fear", 27}, {1, 9, "Demon Armor", 28}, {1, 9, "Life Tap", 29}, {1, 9, "Create Healthstone", 2}, {1, 9, "Shadow Ward", 30}, {1, 9, "Death Coil", 31}, {1, 9, "Incinerate", 0}, {1, 2, "Divine Shield", 32}, {1, 1, "Shield Wall", 33}, {1, 8, "Ice Block", 34}, {1, 5, "Fear Ward", 35}, {4, 11, "Barkskin", 35}, {1, 8, "Ice Barrier", 36}, {3, 3, "Aspect of the Viper", 37}, {1, 6, "Icebound Fortitude", 35}, {1, 2, "Devotion Aura", 38}, {1, 5, "Power Word: Shield", 39}, {1, 8, "Polymorph", 40}, {4, 11, "Entangling Roots", 41}, {1, 6, "Icy Touch", 42}, {1, 6, "Plague Strike", 42}, {1, 6, "Blood Boil", 0}, {1, 6, "Death Coil", 0}, {1, 6, "Death Grip", 43}, {1, 6, "Pestilence", 44}, {1, 6, "Anti-Magic Shell", 45}, {1, 6, "Raise Dead", 46}, {1, 6, "Empower Rune Weapon", 47}, {1, 6, "Strangulate", 1}, {3, 3, "Steady Shot", 0}, {3, 3, "Hunter's Mark", 48}, {2, 7, "Bloodlust", 49}, {3, 3, "Rapid Fire", 50}, {2, 7, "Windfury Totem", 51}, {3, 3, "Feign Death", 52}, {2, 7, "Fire Nova", 53}, {1, 2, "Judgement of Light", 54}, {3, 3, "Distracting Shot", 1}, {2, 7, "Wind Shear", 1}, {1, 2, "Blessing of Kings", 55}, {1, 2, "Blessing of Wisdom", 55}, {1, 8, "Frost Armor", 56}, {1, 5, "Inner Fire", 56}, {1, 8, "Frost Nova", 57}, {1, 1, "Sunder Armor", 58}, {1, 5, "Psychic Scream", 59}, {1, 9, "Howl of Terror", 59}, {1, 1, "Bloodrage", 60}, {1, 2, "Divine Plea", 61}, {1, 1, "Intimidating Shout", 62}, {4, 11, "Faerie Fire", 63}, {4, 11, "Innervate", 64}, {1, 4, "Vanish", 65}, {1, 4, "Feint", 66}, {4, 11, "Demoralizing Roar", 67}, {1, 1, "Challenging Shout", 68}, {1, 8, "Cone of Cold", 69}, {1, 5, "Fade", 70}, {1, 1, "Spell Reflection", 71}, {1, 1, "Retaliation", 56}, {1, 1, "Recklessness", 73}, {2, 7, "Flametongue Weapon", 74}, {2, 7, "Windfury Weapon", 74}, {2, 7, "Rockbiter Weapon", 74}, {2, 7, "Frostbrand Weapon", 74},
         };
         size_t passed = 0;
         // Incinerate carries the Immolate bonus (a quarter more on an Immolated target).
@@ -492,7 +492,9 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
         const auto lowIt = std::find_if(clientSpells->begin(), clientSpells->end(), [](const auto& d) { return d.id == 172; });
         if (const auto* low = lowIt == clientSpells->end() ? nullptr : &*lowIt; !low || !low->unsupportedReason.empty() || !low->periodicDamage) {
             out << "FAIL class ability Corruption rank 1: " << (low ? low->unsupportedReason : std::string("missing")) << "\n"; return false; }
+        const char* abilityOnly = std::getenv("ABILITY_ONLY"); // one ability by name, to debug it
         for (const auto& a : abilities) {
+            if (abilityOnly && std::string(a.name) != abilityOnly) { ++passed; continue; }
             LocalGameplay arena; SELFTEST_CHECK(arena.loadContent(worldPath, error));
             SELFTEST_CHECK(arena.setStarterSpells(*clientSpells, "selftest", error));
             LocalRealmPlayer p; p.guid = 500 + passed; p.race = a.race; p.classId = a.cls; p.name = "Tester";
@@ -689,9 +691,11 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                         if (foe) {
                             foe->x = foe->homeX = p.x + 1.5f; foe->y = foe->homeY = p.y; foe->z = foe->homeZ = p.z; foe->maxHealth = foe->health = 1000000;
                             p.orientation = 0; p.attackTarget = foe->guid;
-                            const uint32_t use = imbue->kind == 2 ? 10444u : 25504u;
+                            const uint32_t use = imbue->kind == 2 ? 10444u : imbue->kind == 3 ? 25504u : imbue->useSpell;
+                            const uint64_t foeId = foe->guid; // arena.npcs() may reallocate while it ticks
                             for (int t = 0; t < 1200 && !struck; ++t) {
-                                p.health = p.maxHealth; foe->health = foe->maxHealth; arena.tick(0.05f, players);
+                                p.health = p.maxHealth; arena.tick(0.05f, players);
+                                for (const auto& m : arena.npcs()) if (m.guid == foeId) const_cast<LocalRealmNpc&>(m).health = m.maxHealth;
                                 for (const auto& e : arena.combatEvents()) if (e.spell == use && e.source == p.guid) struck = true;
                             }
                             p.attackTarget = 0;
@@ -782,10 +786,16 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                         if (const float dist = std::hypot(m.x - p.x, m.y - p.y); dist < best) { best = dist; foe = const_cast<LocalRealmNpc*>(&m); }
                     if (foe && sd) {
                         foe->x = foe->homeX = p.x + 1.5f; foe->y = foe->homeY = p.y; foe->z = foe->homeZ = p.z; foe->maxHealth = foe->health = 1000000;
-                        foe->level = p.level; foe->targetGuid = p.guid; p.attackTarget = foe->guid; p.orientation = std::atan2(foe->y - p.y, foe->x - p.x);
+                        foe->level = p.level; foe->targetGuid = p.guid; p.orientation = std::atan2(foe->y - p.y, foe->x - p.x);
+                        std::string engaged; arena.execute(p, {LocalAction::Attack, foe->guid, 0}, players, engaged); // the fight starts both ways
+                        if (std::getenv("ABILITY_VERBOSE")) out << "  attack: " << engaged << " form " << p.formSpellId << " target " << p.attackTarget << "\n";
+                        // arena.npcs() may reallocate while it ticks: find the creature again each time.
+                        const uint64_t foeId = foe->guid;
+                        const auto refind = [&] { foe = nullptr; for (const auto& m : arena.npcs()) if (m.guid == foeId) foe = const_cast<LocalRealmNpc*>(&m); return foe != nullptr; };
                         for (int t = 0; t < 400 && !chilled && chargesAfter == chargesBefore; ++t) {
-                            arena.tick(0.05f, players); foe->health = foe->maxHealth; p.health = p.maxHealth;
+                            arena.tick(0.05f, players); if (!refind()) break; foe->health = foe->maxHealth; p.health = p.maxHealth;
                             for (const auto& b : foe->npcBuffs) if (b.spellId == sd->chillSpell && b.casterGuid == p.guid && b.remainingMs && b.hastePct < 0 && b.speedPct < 0) chilled = true;
+                            if (std::getenv("ABILITY_VERBOSE") && t % 20 == 0) out << "  t" << t << " target " << (foe->targetGuid == p.guid) << " dist " << std::hypot(foe->x - p.x, foe->y - p.y) << " timer " << foe->attackTimer << " hp " << foe->health << " dead " << foe->dead << "\n";
                             chargesAfter = held() ? held()->procCharges : 0;
                         }
                         p.attackTarget = 0;
@@ -793,7 +803,8 @@ bool runLocalGameplaySelfTest(const std::string& worldPath, const std::string& c
                     ok = ok && sd && foe && (sd->classBuffRetaliationSpell || armorAfter > armorBefore) &&
                          (sd->chillSpell ? chilled : sd->classBuffHitCharges && chargesBefore == sd->classBuffHitCharges && chargesAfter + 1 == chargesBefore);
                     if (!ok) result = "armor " + std::to_string(armorBefore) + "->" + std::to_string(armorAfter) + " chill " + std::to_string(sd ? sd->chillSpell : 0) + " chilled " + std::to_string(chilled) +
-                                      " charges " + std::to_string(chargesBefore) + "->" + std::to_string(chargesAfter) + " foe " + std::to_string(foe != nullptr) + " (" + result + ")";
+                                      " charges " + std::to_string(chargesBefore) + "->" + std::to_string(chargesAfter) + " foe " + std::to_string(foe ? foe->entry : 0) +
+                                      " targeting " + std::to_string(foe && foe->targetGuid == p.guid) + " (" + result + ")";
                 }
                 if (a.kind == 55) {
                     // Blessing of Kings: every stat 10% higher; Blessing of Wisdom: mana every 5 s.
