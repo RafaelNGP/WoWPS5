@@ -105,6 +105,7 @@ int main(int argc,char** argv){
         check(tables["Spell"].load(bytes["Spell"]));
     }
 
+    if(std::getenv("PROC_FROM")&&std::string(std::getenv("PROC_FROM"))=="10")goto section10;
     // 2. Deep Wounds + Trauma + Wrecking Crew on a melee critical.
     {
         World w({{662,2},{121,3},{1859,2},{2231,5}}); // Deep Wounds needs Impale 2/2 (talent 662)
@@ -173,10 +174,13 @@ int main(int argc,char** argv){
         bool longer=false;for(const auto& cd:w.p.categoryCooldowns)if(cd.remainingMs>15000)longer=true;check(longer);
         w.p.mana=100;check(w.cast(12294));check(!w.aura(65156));
     }
+    section10:
     // 10. Improved Berserker Rage 2: +20 rage on Berserker Rage, which doubles struck rage.
     {
         World w({{1541,2}},2458);
-        w.p.mana=0;check(w.cast(kLocalBerserkerRage));check(w.p.mana==20&&w.aura(kLocalBerserkerRage));
+        w.p.mana=0;const bool cast=w.cast(kLocalBerserkerRage);
+        if(!cast||w.p.mana!=20||!w.aura(kLocalBerserkerRage))std::cerr<<"Berserker Rage: "<<w.message<<" rage="<<w.p.mana<<" aura="<<bool(w.aura(kLocalBerserkerRage))<<'\n';
+        check(cast&&w.p.mana==20&&w.aura(kLocalBerserkerRage));
     }
     // 11. Sword Specialization 5: an extra swing without moving the swing timer.
     {
