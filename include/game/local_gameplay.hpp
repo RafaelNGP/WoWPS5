@@ -1572,6 +1572,9 @@ struct LocalSpellDefinition {
     // Fan of Knives: a weapon-percent strike on every creature around the
     // rogue (18/16), with no four-target cap.
     bool fanOfKnives = false;
+    // Pounce: the TRIGGER_SPELL beside its stun (Pounce Bleed), a DoT of its
+    // own definition and duration, applied when the stun lands.
+    uint32_t triggerDotSpell = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.

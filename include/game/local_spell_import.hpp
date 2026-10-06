@@ -1901,6 +1901,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(!d.energizeRage&&effect==0)unavailable("Unreviewed rage energize");
             continue;
         }
+        // Pounce: its bleed is the triggered spell's own DoT (see riderOk).
+        if(!creatureCaster&&d.spellFamily==7&&effect==1&&type==64&&u(86+1)==6&&!u(89+1)&&u(117)&&u(71)==6&&u(95)==12&&u(86)==6){d.triggerDotSpell=u(117);harm=true;continue;}
         if(fanOfKnives&&effect==0) {
             const int32_t percent=i(80)+1; // CalcValue: base + 1 (one die side)
             if(percent<=0||percent>1000||u(74)>1||f(77)!=0)unavailable("Invalid weapon percentage");
@@ -2106,6 +2108,7 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 if(horrorCoil&&type==9&&k==0)return true; // Death Coil's leech
                 if(rootControl&&k==1)return true; // Entangling Roots' DoT (its own branch)
                 if(d.id==47476&&type==6&&u(95+k)==4&&!i(80+k)&&!u(74+k))return true; // Strangulate's empty dummy
+                if(d.spellFamily==7&&k==1&&type==64&&u(86+k)==6&&!u(89+k)&&u(116+k))return true; // Pounce's bleed (triggerDotSpell)
                 if(d.comboFinisher&&type==3&&u(86+k)==1)return true;
                 return d.comboFinisher&&type==6&&u(95+k)==87&&u(86+k)==6&&!i(80+k)&&!u(74+k);
             };
