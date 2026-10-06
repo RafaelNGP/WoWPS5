@@ -1554,6 +1554,10 @@ struct LocalSpellDefinition {
     // Enrage (spell_dru_enrage): the bear forms' armor multiplier lowered
     // (Bear Form Passive -48, Dire Bear Form Passive -59 points) while held.
     bool classBuffEnrage = false;
+    // SPELL_AURA_PERIODIC_LEECH's EffectValueMultiplier as a percent: the
+    // share of each tick that heals the caster (Drain Life 100, Devouring
+    // Plague 15). Zero reads as 100 for definitions compiled before it.
+    uint8_t periodicLeechPct = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.

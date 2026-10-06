@@ -2050,8 +2050,11 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             }
             if(!found)unavailable("Unsupported periodic trigger channel");
         }
-        else if(type==6&&(u(95+effect)==3||(d.channel&&u(95+effect)==53))&&d.durationMs&&d.durationMs<=600000&&u(98+effect)>0&&u(98+effect)<=d.durationMs&&!d.periodicDamage) {
-            if(u(95+effect)==53)d.periodicLeech=true; // SPELL_AURA_PERIODIC_LEECH: the damage heals the caster.
+        else if(type==6&&(u(95+effect)==3||(u(95+effect)==53&&(d.channel||(d.spellFamily==6&&!creatureCaster&&std::isfinite(f(101+effect))&&f(101+effect)>0&&f(101+effect)<=1))))&&
+                d.durationMs&&d.durationMs<=600000&&u(98+effect)>0&&u(98+effect)<=d.durationMs&&!d.periodicDamage) {
+            // SPELL_AURA_PERIODIC_LEECH: the damage heals the caster by its
+            // EffectValueMultiplier (Drain Life's channel, Devouring Plague's DoT).
+            if(u(95+effect)==53){d.periodicLeech=true;const float m=f(101+effect);d.periodicLeechPct=uint8_t(std::isfinite(m)&&m>0&&m<=1?std::lround(m*100.f):100);}
             d.periodicEffectSlot=uint8_t(effect);
             if(u(3)==kLocalMechanicBleed||u(83+effect)==kLocalMechanicBleed)d.periodicIgnoresArmor=true;d.periodicDamage=low;d.periodicDamageMax=high;d.periodicDamagePerLevel=scale;d.periodicPerCombo=perCombo;d.periodicIntervalMs=u(98+effect);harm=true;
         } else if(type==6&&u(95+effect)==8&&low>0&&d.durationMs&&d.durationMs<=600000&&u(98+effect)>0&&u(98+effect)<=d.durationMs&&
