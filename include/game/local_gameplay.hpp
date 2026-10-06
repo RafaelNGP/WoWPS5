@@ -1594,6 +1594,10 @@ struct LocalSpellDefinition {
     // Tiger's Fury: SPELL_AURA_MOD_DAMAGE_DONE on physical as a class buff, a
     // flat amount added to the weapon damage (Player::UpdateDamagePhysical).
     int32_t classBuffWeaponDamageFlat = 0;
+    // Abolish Poison / Disease: a DISPEL of these types (bit per dispel type)
+    // at once, and again every classBuffDispelIntervalMs while the aura holds.
+    uint8_t classBuffDispelMask = 0;
+    uint32_t classBuffDispelIntervalMs = 0;
     // Bloodrage: a POWER_HEALTH cost of this percent of base health
     // (ManaCostPercentage), its ENERGIZE's rage at once, and 29131's
     // PERIODIC_ENERGIZE as this spell's own aura: rage every periodicRageMs.

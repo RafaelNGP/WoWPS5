@@ -1935,6 +1935,13 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             if(effect==2&&i(82)>=0&&i(82)<100)d.deathPactPct=uint8_t(i(82)+1);
             healing=true;continue; // the dummy, the pet's instakill and the heal: spell_dk_death_pact
         }
+        // Abolish Poison / Disease: a PERIODIC_TRIGGER_SPELL of a lone DISPEL of
+        // the same type on the friendly target, beside that DISPEL at once.
+        if(!creatureCaster&&(d.spellFamily==6||d.spellFamily==7)&&u(71)==6&&u(95)==23&&u(86)==21&&u(98)>=1000&&u(116)&&
+           u(72)==38&&u(87)==21&&(u(111)==3||u(111)==4)&&!u(73)&&d.durationMs&&d.durationMs<=60000) {
+            if(effect==0){d.classBuffDispelMask=uint8_t(1u<<u(111));d.classBuffDispelIntervalMs=u(98);d.classBuff=true;buff=true;buffTarget=21;}
+            continue;
+        }
         if(fanOfKnives&&effect==0) {
             const int32_t percent=i(80)+1; // CalcValue: base + 1 (one die side)
             if(percent<=0||percent>1000||u(74)>1||f(77)!=0)unavailable("Invalid weapon percentage");
