@@ -78,8 +78,10 @@ Regeneration.
   bonus once per Sunder Armor application on the target. Each cast adds one
   application to the warrior's own Sunder Armor (4%, up to 5), and it triggers
   Sword and Board.
+- **Last Stand**: 30% of maximum health for 20 s, healed at once and taken
+  back when it ends (never below 1 health).
 
-## Talents — 61 of 85 run (183 of 228 ranks)
+## Talents — 62 of 85 run (184 of 228 ranks)
 
 Each accepted talent is pinned to its exact 12340 record. If a client's record
 differs in any gameplay column, the talent stays blocked instead of running only
@@ -153,7 +155,7 @@ part of its effect.
 | 10 | Unending Fury | 5 | yes |
 | 11 | Titan's Grip | 1 | no: effect 155 |
 
-### Protection (16 / 27)
+### Protection (17 / 27)
 
 | Tier | Talent | Ranks | Runs |
 |---|---|---|---|
@@ -162,7 +164,7 @@ part of its effect.
 | 1 | Improved Thunder Clap | 3 | yes |
 | 2 | Incite | 3 | yes |
 | 2 | Anticipation | 5 | yes |
-| 3 | Last Stand | 1 | no: effect 3 |
+| 3 | Last Stand | 1 | yes |
 | 3 | Improved Revenge | 2 | no: proc |
 | 3 | Shield Mastery | 2 | no: aura 150 |
 | 3 | Toughness | 5 | yes |
@@ -224,7 +226,7 @@ tools/tests/run_local_warrior_stats_tests.sh      DBC_DIR
 
 ## Next steps, in order of value
 
-1. Last Stand, Concussion Blow,
+1. Concussion Blow,
    Shockwave, Piercing Howl, Titan's Grip, Bladestorm.
 2. Remaining procs and party effects: Second Wind, Sweeping Strikes, Improved
    Revenge, Gag Order, Improved Defensive Stance, Furious Attacks, Safeguard,

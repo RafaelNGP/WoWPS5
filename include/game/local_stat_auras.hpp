@@ -26,8 +26,15 @@ inline uint32_t localStatAuraBonus(const LocalRealmPlayer& p,const LocalWorldCon
     if(p.dead)return 0;
     for(const auto& a:p.statAuras)if(a.remainingMs&&a.mapId==p.mapId&&a.instanceId==p.instanceId)
         if(const auto* d=c.spell(a.spellId);d&&d->unsupportedReason.empty()&&!d->passive)
-            value+=localStackedAuraAmount(armor?(d->buffArmor?(a.buffArmorSnapshot?std::min(a.buffArmorSnapshot,uint32_t(std::min(uint64_t(1000000),uint64_t(d->buffArmor)*11))):d->buffArmor):0):d->buffHealth,std::min(a.stacks,d->maxAuraStacks));
+            value+=localStackedAuraAmount(armor?(d->buffArmor?(a.buffArmorSnapshot?std::min(a.buffArmorSnapshot,uint32_t(std::min(uint64_t(1000000),uint64_t(d->buffArmor)*11))):d->buffArmor):0):d->lastStandPct?a.buffArmorSnapshot:d->buffHealth,std::min(a.stacks,d->maxAuraStacks));
     return uint32_t(std::min(value,uint64_t(1000000)));
+}
+// HandleAuraModIncreaseHealth on removal: the health the aura gave goes
+// with it, down to 1 (Last Stand).
+inline void localEndHealthAura(LocalRealmPlayer& p,const LocalWorldContent& c,const LocalStatAura& a){
+    const auto* d=c.spell(a.spellId);
+    if(p.dead||!p.health||!d||!d->lastStandPct||a.mapId!=p.mapId||a.instanceId!=p.instanceId)return;
+    p.health=p.health>a.buffArmorSnapshot?p.health-a.buffArmorSnapshot:1;
 }
 // Damage enters after armor. Ordinary absorbs precede mana-powered absorbs,
 // independently of application order. Order within each category stays stable.

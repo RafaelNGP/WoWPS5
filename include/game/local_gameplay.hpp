@@ -1085,6 +1085,10 @@ struct LocalSpellDefinition {
     // target (one more application, kept under Sunder's own 7386 entry) and
     // adds the flat bonus after the weapon percentage, once per application.
     bool devastate=false;
+    // Last Stand: spell_warr_last_stand casts 12976 (MOD_INCREASE_HEALTH) for
+    // this percent of the warrior's maximum health; the amount is kept in the
+    // aura's buffArmorSnapshot, healed on application and taken back at the end.
+    uint8_t lastStandPct=0;
     uint32_t triggeredAuraSpellId=0; // Scripted self aura, resolved and admitted before cast commit.
     bool triggeredOnly=false; // Internal chain child: never learned, trained or directly cast.
     uint8_t meleeHastePct=0; // Reviewed temporary aura 138: both melee hands, never ranged.

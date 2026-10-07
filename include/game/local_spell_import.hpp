@@ -1934,6 +1934,19 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             else d.energizeMana=uint32_t(i(81)+1);
             continue;
         }
+        // Last Stand: a DUMMY on the warrior that spell_warr_last_stand turns
+        // into 12976's MOD_INCREASE_HEALTH, this percent of maximum health.
+        if(!creatureCaster&&d.spellFamily==4&&(d.spellFamilyFlags[1]&0x80000u)&&effect==0&&type==3&&u(86)==1&&!u(89)&&!u(72)&&!u(73)&&
+           !u(116)&&i(80)+1>0&&i(80)+1<100&&!u(spell335::ProcFlags)) {
+            const auto child=ClientSpellTables::lookup(t.spellIndex,12976);
+            const auto cu=[&](uint32_t col){return child>=0?t.spells->getUInt32(uint32_t(child),col):0u;};
+            const auto durationRow=child>=0?ClientSpellTables::lookup(t.durationIndex,cu(40)):-1;
+            const int32_t duration=durationRow>=0?t.durations->getInt32(uint32_t(durationRow),1):0;
+            if(child<0||cu(71)!=6||cu(95)!=34||cu(86)!=1||cu(89)||cu(72)||cu(73)||cu(spell335::ProcFlags)||duration<=0||duration>600000)
+                unavailable("Unreviewed Last Stand profile");
+            else {d.lastStandPct=uint8_t(i(80)+1);d.classBuff=true;d.buffSelfOnly=true;d.durationMs=uint32_t(duration);buff=true;buffTarget=1;}
+            continue;
+        }
         if(druidEnrage) {
             if(effect==0){d.periodicRage=uint8_t((i(80)+1)/10);d.periodicRageMs=u(98);d.classBuff=true;d.classBuffEnrage=true;buff=true;buffTarget=1;}
             else if(effect==1)d.energizeRage=uint8_t((i(81)+1)/10);

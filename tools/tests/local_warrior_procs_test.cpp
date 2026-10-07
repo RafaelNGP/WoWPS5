@@ -218,7 +218,31 @@ int main(int argc,char** argv){
         check(w.until([&]{w.p.mana=100;w.cast(1715);},[&]{
             for(const auto& ctl:w.npc().controls)if(ctl.spellId==23694&&ctl.kind==uint8_t(LocalNpcControlKind::Root))return true;return false;}));
     }
+    // 13. Last Stand (talent 153): +30% of maximum health for 20 s, healed on
+    //     application and taken back when it ends (down to 1).
+    {
+        World w({{153,1}},71);
+        w.p.knownSpells.push_back(12975);
+        const auto* stand=w.c->spell(12975);
+        check(stand&&stand->unsupportedReason.empty()&&stand->lastStandPct==30&&stand->durationMs==20000);
+        // The fixture's pools are not the computed ones: a cancelled cast settles them.
+        check(w.cast(12975,w.p.guid));check(w.game.execute(w.p,{LocalAction::CancelStatAura,0,12975},{&w.p},w.message));
+        const uint32_t before=w.p.maxHealth;w.p.health=before/2;
+        check(w.cast(12975,w.p.guid));
+        const auto* held=w.aura(12975);
+        check(held&&held->buffArmorSnapshot==before*30/100&&w.p.maxHealth==before+held->buffArmorSnapshot&&w.p.health==before/2+held->buffArmorSnapshot);
+        const uint32_t gained=held->buffArmorSnapshot;
+        w.p.health=gained+10;
+        while(w.aura(12975)){const auto h=w.p.health;w.game.tick(.1f,{&w.p});if(w.aura(12975))w.p.health=h;}
+        // 10 left after the bonus goes, plus that last tick's regeneration.
+        check(w.p.maxHealth==before&&w.p.health>=10&&w.p.health<gained/10);
+        // Cancelled at 1 health over the bonus or less: 1 health is left.
+        w.p.cooldowns.clear();w.p.categoryCooldowns.clear();w.p.globalCooldownMs=0;
+        check(w.cast(12975,w.p.guid));w.p.health=5;
+        check(w.game.execute(w.p,{LocalAction::CancelStatAura,0,12975},{&w.p},w.message));
+        check(w.p.health==1&&w.p.maxHealth==before);
+    }
     std::cout<<"PASS: "<<ranks<<" Warrior proc talent ranks and their children pinned; Deep Wounds, Trauma, Wrecking Crew, Enrage, "
                "Sudden Death, Bloodsurge, Taste for Blood, Devastate with Sunder Armor and Sword and Board, Shield Specialization, Damage Shield, Juggernaut, "
-               "Improved Berserker Rage with Berserker Rage, Sword Specialization and Improved Hamstring through real combat\n";
+               "Improved Berserker Rage with Berserker Rage, Sword Specialization, Improved Hamstring and Last Stand through real combat\n";
 }
