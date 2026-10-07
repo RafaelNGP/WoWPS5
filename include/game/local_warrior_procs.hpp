@@ -91,7 +91,7 @@ inline bool decodeClientWarriorProcTalent(const Tables& t,uint32_t row,LocalSpel
                    d.warriorProcChance=uint8_t(amount(0));d.warriorProcAmount=uint16_t(amount(1));break;
         case 1859: d.warriorProc=uint8_t(LocalWarriorProc::Trauma);break;
         case 1866: d.warriorProc=uint8_t(LocalWarriorProc::Bloodsurge);break;
-        case 1871: d.warriorProc=uint8_t(LocalWarriorProc::SwordAndBoard);break; // its Devastate crit bonus has no castable Devastate
+        case 1871: d.warriorProc=uint8_t(LocalWarriorProc::SwordAndBoard);break;
         case 2231: d.warriorProc=uint8_t(LocalWarriorProc::WreckingCrew);break;
         case 2232: d.warriorProc=uint8_t(LocalWarriorProc::TasteForBlood);break;
         case 2246: d.warriorProc=uint8_t(LocalWarriorProc::DamageShield);d.warriorProcAmount=uint16_t(amount(0));

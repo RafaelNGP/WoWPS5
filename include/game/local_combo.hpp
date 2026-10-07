@@ -59,6 +59,9 @@ inline uint32_t localComboAmount(const LocalRealmPlayer& p,const LocalWorldConte
             const auto w=localWeaponAmounts(p,c,false,s.normalizedWeapon,false);
             low=w.low+w.magicLow;high=w.high+w.magicHigh;
         }
+        // Devastate's percentage effect precedes its flat one: only the weapon
+        // damage is scaled.
+        if(s.devastate)return uint32_t(std::clamp(double(base)+(low+high)*.5*s.weaponPercent/100.0,0.0,1000000.0));
         return uint32_t(std::clamp((double(base)+(low+high)*.5)*s.weaponPercent/100.0,0.0,1000000.0));
     }
     const auto profile=LocalComboProfile(s.comboProfile);const double ap=localComboAttackRating(p,c);

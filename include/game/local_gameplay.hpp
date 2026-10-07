@@ -1081,6 +1081,10 @@ struct LocalSpellDefinition {
     uint8_t spiritCritRatingPct=0,incomingCritReductionPct=0,mageArmorGroup=0;
     uint8_t meleeSpecialProfile=0; // 1: reviewed Bloodthirst AP-based melee special.
     bool nextSwing=false; // A warrior's ON_NEXT_SWING weapon strike (Heroic Strike, Cleave).
+    // Devastate: Spell::EffectWeaponDmg casts Sunder Armor's 58567 on the
+    // target (one more application, kept under Sunder's own 7386 entry) and
+    // adds the flat bonus after the weapon percentage, once per application.
+    bool devastate=false;
     uint32_t triggeredAuraSpellId=0; // Scripted self aura, resolved and admitted before cast commit.
     bool triggeredOnly=false; // Internal chain child: never learned, trained or directly cast.
     uint8_t meleeHastePct=0; // Reviewed temporary aura 138: both melee hands, never ranged.
@@ -2054,6 +2058,7 @@ struct LocalNpcControl {
 };
 // A player's armor reduction on a creature (Expose Armor). Authority-only: the
 // armor curve runs on the authority, so it is neither saved nor replicated.
+inline constexpr uint32_t kLocalSunderArmorSpell = 7386;
 struct LocalNpcArmorDebuff {
     uint32_t spellId=0, remainingMs=0, durationMs=0;
     uint64_t casterGuid=0;

@@ -155,6 +155,28 @@ int main(int argc,char** argv){
         for(int i=0;i<200;++i){w.p.mana=100;w.p.revengeWindowMs=5000;w.cast(6572);}
         check(!w.aura(50227));
     }
+    // 7b. Devastate 5 (talent 1666) with a shield: each cast adds one Sunder
+    //     Armor application (the warrior's own 7386 entry, 4% up to 5 stacks)
+    //     and 242 damage per application after its 120% weapon damage; Sword
+    //     and Board 3 then resets Shield Slam.
+    {
+        World w({{1666,1},{1871,3}},71,true);
+        w.p.knownSpells.insert(w.p.knownSpells.end(),{47498,47488});
+        const auto* devastate=w.c->spell(47498);
+        check(devastate&&devastate->unsupportedReason.empty()&&devastate->devastate&&devastate->weaponPercent==120&&devastate->damage==242);
+        check(localWarriorProcTalent(w.p,*w.c,LocalWarriorProc::SwordAndBoard)!=nullptr);
+        const auto sunder=[&]{for(const auto& a:w.npc().armorDebuffs)if(a.spellId==kLocalSunderArmorSpell)return unsigned(a.percent);return 0u;};
+        std::map<unsigned,uint32_t> hits; // Sunder stacks -> a plain hit's damage
+        check(w.until([&]{w.p.mana=100;const unsigned before=sunder();w.events();if(!w.cast(47498))return;
+                for(const auto& e:w.events())if(e.spell==47498&&e.kind==LocalCombatEventKind::SpellDamage&&e.outcome==LocalMeleeOutcome::Hit)
+                    hits[std::min(5u,before/4+1)]=e.attempted;},
+            [&]{return hits.count(1)&&hits.count(5);},400));
+        // A plain hit's own percentage modifiers scale the whole amount alike.
+        check(sunder()==20&&hits[5]>hits[1]&&hits[5]-hits[1]>=4*242*9/10&&hits[5]-hits[1]<=4*242+4);
+        check(w.until([&]{w.p.mana=100;w.p.globalCooldownMs=0;w.p.cooldowns.clear();w.p.cooldowns.push_back({47488,6000});
+                w.game.execute(w.p,{LocalAction::CastSpell,10,47498},{&w.p},w.message);},
+            [&]{return w.aura(50227)&&std::none_of(w.p.cooldowns.begin(),w.p.cooldowns.end(),[](const auto& cd){return cd.spellId==47488;});},400));
+    }
     // 8. Shield Specialization 5: rage on block/dodge/parry; Damage Shield 2 hits back.
     {
         World w({{1601,5},{2246,2}},71,true);
@@ -197,6 +219,6 @@ int main(int argc,char** argv){
             for(const auto& ctl:w.npc().controls)if(ctl.spellId==23694&&ctl.kind==uint8_t(LocalNpcControlKind::Root))return true;return false;}));
     }
     std::cout<<"PASS: "<<ranks<<" Warrior proc talent ranks and their children pinned; Deep Wounds, Trauma, Wrecking Crew, Enrage, "
-               "Sudden Death, Bloodsurge, Taste for Blood, Sword and Board (held back without Devastate), Shield Specialization, Damage Shield, Juggernaut, "
+               "Sudden Death, Bloodsurge, Taste for Blood, Devastate with Sunder Armor and Sword and Board, Shield Specialization, Damage Shield, Juggernaut, "
                "Improved Berserker Rage with Berserker Rage, Sword Specialization and Improved Hamstring through real combat\n";
 }

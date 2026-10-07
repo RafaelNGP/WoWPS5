@@ -40,8 +40,8 @@ Berserker Rage now runs as well: 10 s of immunity to fear, knockout and sap
 (it also removes them) and twice the rage from damage taken. It was refused
 because its client record carries proc flags for that rage.
 
-Still refused by the importer: Intervene, Shattering Throw, Enraged
-Regeneration, and the talent-granted Devastate.
+Still refused by the importer: Intervene, Shattering Throw and Enraged
+Regeneration.
 
 ### Systems added in this round
 
@@ -74,8 +74,12 @@ Regeneration, and the talent-granted Devastate.
     Damage Shield: 10/20% of block value back at the attacker. Improved
     Berserker Rage: 10/20 rage on cast.
 - **Impale**: the abilities' critical bonus becomes 110/120% instead of 100%.
+- **Devastate** (all five ranks): 120% normalized weapon damage plus its flat
+  bonus once per Sunder Armor application on the target. Each cast adds one
+  application to the warrior's own Sunder Armor (4%, up to 5), and it triggers
+  Sword and Board.
 
-## Talents — 59 of 85 run (179 of 228 ranks)
+## Talents — 61 of 85 run (183 of 228 ranks)
 
 Each accepted talent is pinned to its exact 12340 record. If a client's record
 differs in any gameplay column, the talent stays blocked instead of running only
@@ -149,7 +153,7 @@ part of its effect.
 | 10 | Unending Fury | 5 | yes |
 | 11 | Titan's Grip | 1 | no: effect 155 |
 
-### Protection (14 / 27)
+### Protection (16 / 27)
 
 | Tier | Talent | Ranks | Runs |
 |---|---|---|---|
@@ -175,9 +179,9 @@ part of its effect.
 | 8 | Vitality | 3 | yes |
 | 8 | Safeguard | 2 | no: proc |
 | 9 | Warbringer | 1 | no: aura 262 |
-| 9 | Devastate | 1 | no: repeated weapon damage |
+| 9 | Devastate | 1 | yes |
 | 9 | Critical Block | 3 | no: aura 253 |
-| 10 | Sword and Board | 3 | admitted; inactive until Devastate (its prerequisite) runs |
+| 10 | Sword and Board | 3 | yes |
 | 10 | Damage Shield | 2 | yes |
 | 11 | Shockwave | 1 | no: area targeting |
 
@@ -213,14 +217,14 @@ All tests need a build-12340 DBC directory:
 ```
 tools/tests/run_local_warrior_talents_tests.sh    DBC_DIR   # 73 pinned ranks, column mutations, runtime effects
 tools/tests/run_local_warrior_next_swing_tests.sh DBC_DIR   # Heroic Strike / Cleave queue
-tools/tests/run_local_warrior_procs_tests.sh      DBC_DIR   # 45 proc ranks + children, every proc in real combat
+tools/tests/run_local_warrior_procs_tests.sh      DBC_DIR   # 45 proc ranks + children, every proc in real combat, Devastate
 tools/tests/run_local_warrior_progression_tests.sh DBC_DIR
 tools/tests/run_local_warrior_stats_tests.sh      DBC_DIR
 ```
 
 ## Next steps, in order of value
 
-1. Devastate (also unlocks Sword and Board), Last Stand, Concussion Blow,
+1. Last Stand, Concussion Blow,
    Shockwave, Piercing Howl, Titan's Grip, Bladestorm.
 2. Remaining procs and party effects: Second Wind, Sweeping Strikes, Improved
    Revenge, Gag Order, Improved Defensive Stance, Furious Attacks, Safeguard,

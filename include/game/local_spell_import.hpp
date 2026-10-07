@@ -2132,6 +2132,26 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             // spell_warr_slam: the dummy casts 50783 (WEAPON_DAMAGE) with its own
             // value as the bonus, so Slam is the weapon strike plus that value.
             directSlot(effect);d.weaponDamage=true;d.damage+=low;d.damageMax+=high;d.damagePerLevel+=scale;harm=true;
+        } else if(!combo&&!creatureCaster&&d.spellFamily==4&&(d.spellFamilyFlags[1]&0x40u)&&target==6&&!secondary&&!u(89+effect)&&
+                  ((effect==1&&type==31&&!d.weaponDamage)||(effect==2&&type==121&&d.weaponDamage&&!d.devastate))) {
+            // Devastate: WEAPON_PERCENT_DAMAGE, then NORMALIZED_WEAPON_DMG whose
+            // value Spell::EffectWeaponDmg adds after the percentage, once per
+            // application of the Sunder Armor (58567) it casts on the target.
+            const auto child=ClientSpellTables::lookup(t.spellIndex,58567);
+            const auto cu=[&](uint32_t col){return child>=0?t.spells->getUInt32(uint32_t(child),col):0u;};
+            const auto ci=[&](uint32_t col){return child>=0?t.spells->getInt32(uint32_t(child),col):0;};
+            const auto durationRow=child>=0?ClientSpellTables::lookup(t.durationIndex,cu(40)):-1;
+            const int32_t duration=durationRow>=0?t.durations->getInt32(uint32_t(durationRow),1):0;
+            const int32_t sunder=ci(80)+(cu(74)?1:0);
+            if(dice>1||scale!=0||!low||low>(type==31?1000u:100000u))unavailable("Invalid Devastate amount");
+            else if(type==31){d.weaponPercent=uint16_t(low);d.weaponDamage=true;harm=true;}
+            else if(child<0||cu(71)!=6||cu(95)!=101||cu(110)!=1||cu(86)!=6||cu(89)||sunder>=0||sunder<=-100||cu(72)!=63||cu(87)!=6||ci(81)||cu(73)||
+                    cu(spell335::StackAmount)<=1||cu(spell335::StackAmount)>10||-sunder*int32_t(cu(spell335::StackAmount))>=100||
+                    duration<=0||duration>600000||cu(spell335::ProcFlags))unavailable("Unreviewed Devastate Sunder Armor profile");
+            else {
+                directSlot(effect);d.normalizedWeapon=true;d.damage+=low;d.damageMax+=high;d.devastate=true;
+                d.armorDebuffPct=uint8_t(-sunder);d.armorDebuffStackMax=uint8_t(cu(spell335::StackAmount));d.durationMs=uint32_t(duration);harm=true;
+            }
         } else if(!combo&&(type==58||type==121||type==17)&&target==6&&!secondary) {
             // Spell::EffectWeaponDmg for a single hostile target: the weapon's
             // damage (normalized for 121) plus this flat bonus, through the
