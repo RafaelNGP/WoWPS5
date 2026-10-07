@@ -242,7 +242,22 @@ int main(int argc,char** argv){
         check(w.game.execute(w.p,{LocalAction::CancelStatAura,0,12975},{&w.p},w.message));
         check(w.p.health==1&&w.p.maxHealth==before);
     }
+    // 14. Concussion Blow (talent 152): a 5 s stun and 38% of attack power as
+    //     the hit's damage (spell_warr_concussion_blow).
+    {
+        World w({{152,1}});
+        w.p.knownSpells.push_back(12809);
+        const auto* blow=w.c->spell(12809);
+        check(blow&&blow->unsupportedReason.empty()&&blow->apHitPct==38&&blow->controlProfile);
+        bool stunned=false,hit=false;
+        check(w.until([&]{w.p.mana=100;w.npc().controls.clear();w.events();if(!w.cast(12809))return;
+                for(const auto& ctl:w.npc().controls)if(ctl.spellId==12809&&ctl.kind==uint8_t(LocalNpcControlKind::Stun)&&ctl.remainingMs==5000)stunned=true;
+                const auto expected=localMeleeSpecialAmount(localMeleeStats(w.p,*w.c).attackPower,38);
+                for(const auto& e:w.events())if(e.spell==12809&&e.kind==LocalCombatEventKind::SpellDamage&&e.outcome==LocalMeleeOutcome::Hit)
+                    hit=hit||e.attempted==expected;},
+            [&]{return stunned&&hit;},200));
+    }
     std::cout<<"PASS: "<<ranks<<" Warrior proc talent ranks and their children pinned; Deep Wounds, Trauma, Wrecking Crew, Enrage, "
                "Sudden Death, Bloodsurge, Taste for Blood, Devastate with Sunder Armor and Sword and Board, Shield Specialization, Damage Shield, Juggernaut, "
-               "Improved Berserker Rage with Berserker Rage, Sword Specialization, Improved Hamstring and Last Stand through real combat\n";
+               "Improved Berserker Rage with Berserker Rage, Sword Specialization, Improved Hamstring, Last Stand and Concussion Blow through real combat\n";
 }

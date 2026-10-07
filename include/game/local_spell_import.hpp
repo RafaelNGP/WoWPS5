@@ -1934,6 +1934,10 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
             else d.energizeMana=uint32_t(i(81)+1);
             continue;
         }
+        // Concussion Blow: the DUMMY whose value spell_warr_concussion_blow
+        // turns into the hit's damage, as a percent of attack power.
+        if(!creatureCaster&&d.spellFamily==4&&(d.spellFamilyFlags[0]&0x4000000u)&&effect==2&&type==3&&u(86+effect)==6&&!u(89+effect)&&
+           !u(116+effect)&&u(71+1)==2&&i(80+effect)+1>0&&i(80+effect)+1<=100){d.apHitPct=uint8_t(i(80+effect)+1);continue;}
         // Last Stand: a DUMMY on the warrior that spell_warr_last_stand turns
         // into 12976's MOD_INCREASE_HEALTH, this percent of maximum health.
         if(!creatureCaster&&d.spellFamily==4&&(d.spellFamilyFlags[1]&0x80000u)&&effect==0&&type==3&&u(86)==1&&!u(89)&&!u(72)&&!u(73)&&
@@ -2241,6 +2245,8 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
                 if(type==2&&k<effect&&u(86+k)==6&&!u(89+k))return true;
                 if(type==58&&k<effect&&d.comboFinisher&&d.spellFamily==7&&u(86+k)==6&&!u(89+k))return true; // Maim's weapon strike
                 if(horrorCoil&&type==9&&k==0)return true; // Death Coil's leech
+                // Concussion Blow: its damage and the script dummy that sets it.
+                if(d.spellFamily==4&&(d.spellFamilyFlags[0]&0x4000000u)&&effect==0&&((k==1&&type==2)||(k==2&&type==3))&&u(86+k)==6&&!u(89+k))return true;
                 if(rootControl&&k==1)return true; // Entangling Roots' DoT (its own branch)
                 if(d.id==47476&&type==6&&u(95+k)==4&&!i(80+k)&&!u(74+k))return true; // Strangulate's empty dummy
                 if(d.spellFamily==7&&k==1&&type==64&&u(86+k)==6&&!u(89+k)&&u(116+k))return true; // Pounce's bleed (triggerDotSpell)

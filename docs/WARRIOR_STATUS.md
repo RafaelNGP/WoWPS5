@@ -80,8 +80,9 @@ Regeneration.
   Sword and Board.
 - **Last Stand**: 30% of maximum health for 20 s, healed at once and taken
   back when it ends (never below 1 health).
+- **Concussion Blow**: a 5 s stun, and 38% of attack power as the hit's damage.
 
-## Talents — 62 of 85 run (184 of 228 ranks)
+## Talents — 63 of 85 run (185 of 228 ranks)
 
 Each accepted talent is pinned to its exact 12340 record. If a client's record
 differs in any gameplay column, the talent stays blocked instead of running only
@@ -155,7 +156,7 @@ part of its effect.
 | 10 | Unending Fury | 5 | yes |
 | 11 | Titan's Grip | 1 | no: effect 155 |
 
-### Protection (17 / 27)
+### Protection (18 / 27)
 
 | Tier | Talent | Ranks | Runs |
 |---|---|---|---|
@@ -172,7 +173,7 @@ part of its effect.
 | 4 | Improved Disarm | 2 | yes |
 | 4 | Puncture | 3 | yes |
 | 5 | Improved Disciplines | 2 | yes |
-| 5 | Concussion Blow | 1 | no: control beside damage |
+| 5 | Concussion Blow | 1 | yes |
 | 5 | Gag Order | 2 | no: proc |
 | 6 | One-Handed Weapon Specialization | 5 | yes |
 | 7 | Improved Defensive Stance | 2 | no: proc |
@@ -226,8 +227,7 @@ tools/tests/run_local_warrior_stats_tests.sh      DBC_DIR
 
 ## Next steps, in order of value
 
-1. Concussion Blow,
-   Shockwave, Piercing Howl, Titan's Grip, Bladestorm.
+1. Shockwave, Piercing Howl, Titan's Grip, Bladestorm.
 2. Remaining procs and party effects: Second Wind, Sweeping Strikes, Improved
    Revenge, Gag Order, Improved Defensive Stance, Furious Attacks, Safeguard,
    Vigilance. Poleaxe Specialization's critical damage (aura 163) on white hits.

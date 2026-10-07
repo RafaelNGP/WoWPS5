@@ -7,7 +7,7 @@
 - **Thunder Clap:** its −10% attack-speed slow now lands on the creatures it hits.
 - **Mechanic durations:** stun, charm, snare and disarm effects cast on a character are shortened by its talents (auras 232/234), after diminishing returns.
 - **Procs:** 14 Warrior proc talents run (Deep Wounds, Trauma, Enrage, Wrecking Crew, Sudden Death, Bloodsurge, Taste for Blood, Juggernaut, Sword/Shield Specialization, Improved Hamstring, Damage Shield, Improved Berserker Rage; Sword and Board waits on Devastate), plus Impale and Berserker Rage. 59 of 85 Warrior talents now run.
-- **Devastate:** all five ranks run: 120% weapon damage plus the bonus per Sunder Armor application, adding one to the warrior's Sunder Armor; Sword and Board now triggers from it. Berserker Rage can be cast while feared or sapped (its own immunity cancels them). Last Stand: 30% of maximum health for 20 s, taken back when it ends. 62 of 85 Warrior talents now run.
+- **Devastate:** all five ranks run: 120% weapon damage plus the bonus per Sunder Armor application, adding one to the warrior's Sunder Armor; Sword and Board now triggers from it. Berserker Rage can be cast while feared or sapped (its own immunity cancels them). Last Stand: 30% of maximum health for 20 s, taken back when it ends. Concussion Blow: a 5 s stun with 38% of attack power as damage. 63 of 85 Warrior talents now run.
 - **Status page:** [docs/WARRIOR_STATUS.md](docs/WARRIOR_STATUS.md) lists every ability and talent, the formulas, and what remains.
 
 ## 2.12 — quest and memory stability

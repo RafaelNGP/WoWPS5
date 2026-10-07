@@ -1089,6 +1089,9 @@ struct LocalSpellDefinition {
     // this percent of the warrior's maximum health; the amount is kept in the
     // aura's buffArmorSnapshot, healed on application and taken back at the end.
     uint8_t lastStandPct=0;
+    // Concussion Blow: spell_warr_concussion_blow's SetHitDamage, this percent
+    // of the caster's melee attack power in place of the damage effect's value.
+    uint8_t apHitPct=0;
     uint32_t triggeredAuraSpellId=0; // Scripted self aura, resolved and admitted before cast commit.
     bool triggeredOnly=false; // Internal chain child: never learned, trained or directly cast.
     uint8_t meleeHastePct=0; // Reviewed temporary aura 138: both melee hands, never ranged.
