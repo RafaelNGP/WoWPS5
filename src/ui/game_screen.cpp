@@ -421,6 +421,11 @@ void openBagsForTrading(game::GameHandler& gameHandler) {
 
 }  // namespace
 
+void GameScreen::renderLocalWorldOverlays(game::GameHandler& gameHandler) {
+    if (showMinimap_) renderMinimapMarkers(gameHandler);
+    renderWorldMap(gameHandler);
+}
+
 void GameScreen::render(game::GameHandler& gameHandler) {
     // Apply before any Begin() calls so a scale change cannot alter style
     // metrics halfway through an ImGui frame.

@@ -503,6 +503,12 @@ void GameScreen::renderWorldMap(game::GameHandler& gameHandler) {
     const bool wanted = frameXmlDrivesMap
         ? (wm->hasFrameRect() || wm->isTaxiMapOpen())
         : (showWorldMap_ || wm->isTaxiMapOpen());
+    static int lastWanted = -1;
+    if (lastWanted != int(wanted)) {
+        lastWanted = int(wanted);
+        LOG_INFO("[WORLD_MAP] wanted=", wanted, " frameXml=", frameXmlDrivesMap,
+                 " rect=", wm->hasFrameRect());
+    }
     if (!wanted) return;
 
     // Keep map name in sync with minimap's map name

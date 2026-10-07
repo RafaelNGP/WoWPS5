@@ -227,10 +227,11 @@ bool LocalFrameXml::padWorldMapToggle() {
         // Where the player is, and then the map. The map remembers whatever
         // zone it was last left on, so without this it opens on somewhere
         // else's coastline - which is not an answer to "where am I". The
-        // interface's own minimap button does exactly this pair.
+        // interface's own minimap button does exactly this pair. 3.3.5 has no
+        // ToggleWorldMap (its binding is ToggleFrame(WorldMapFrame)); the name
+        // is the API fallback's stub, which opened nothing.
         : "if SetMapToCurrentZone then SetMapToCurrentZone() end "
-          "if ToggleWorldMap then ToggleWorldMap() elseif WorldMapFrame then "
-          "if ShowUIPanel then ShowUIPanel(WorldMapFrame) else WorldMapFrame:Show() end end");
+          "if WorldMapFrame then if ShowUIPanel then ShowUIPanel(WorldMapFrame) else WorldMapFrame:Show() end end");
     return true;
 #else
     return false;

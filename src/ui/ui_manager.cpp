@@ -535,6 +535,8 @@ void UIManager::render(core::AppState appState, auth::AuthHandler* authHandler, 
             authScreen->stopLoginMusic();
             if (gameHandler && !gameHandler->isLocalExploration()) {
                 gameScreen->render(*gameHandler);
+            } else if (gameHandler) {
+                gameScreen->renderLocalWorldOverlays(*gameHandler);
             }
             break;
 

@@ -130,6 +130,10 @@ public:
      * @param gameHandler Reference to game handler
      */
     void render(game::GameHandler& gameHandler);
+    /// The standalone world draws its own interface instead of render(), and
+    /// with it went the two layers only render() fed: the world map inside
+    /// FrameXML's WorldMapFrame and the blips on its minimap.
+    void renderLocalWorldOverlays(game::GameHandler& gameHandler);
 
     /**
      * Check if chat input is active

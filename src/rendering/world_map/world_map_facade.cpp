@@ -514,6 +514,10 @@ void WorldMapFacade::render(const glm::vec3& playerRenderPos,
         // ClearAll branch run and GetMapZones(0) return an empty list. Both
         // came up blank and stayed blank, because nothing asked again.
         d.viewChanged = true;
+        LOG_INFO("[WORLD_MAP] opened map='", d.mapName, "' zones=", d.data.zones().size(),
+                 " playerZone=", playerZone, " zoneId=", d.playerZoneId,
+                 " continent=", d.viewState.continentIdx(), " level=",
+                 static_cast<int>(d.viewState.currentLevel()));
     }
 
     // Process input
@@ -1491,6 +1495,23 @@ int continentZoneIdx(const std::vector<Zone>& zones, uint32_t mapId) {
 
 } // namespace
 
+/// The continent entry the interface's continent number stands for: the one
+/// the map is showing when it is on that continent, so the zone dropdown lists
+/// the zones of the view the player sees. The leaf test alone found no entry
+/// for Kalimdor while the view sat on one, and the dropdown came up empty.
+static int continentForIndex(const std::vector<Zone>& zones, int viewContIdx, uint32_t mapId) {
+    if (viewContIdx >= 0 && viewContIdx < static_cast<int>(zones.size()) &&
+        zones[static_cast<size_t>(viewContIdx)].mapID == mapId &&
+        zones[static_cast<size_t>(viewContIdx)].areaID == 0) return viewContIdx;
+    if (const int leaf = continentZoneIdx(zones, mapId); leaf >= 0) return leaf;
+    for (size_t i = 0; i < zones.size(); ++i) {
+        if (zones[i].mapID != mapId || zones[i].areaID != 0) continue;
+        for (size_t j = 0; j < zones.size(); ++j)
+            if (zoneBelongsToContinent(zones, static_cast<int>(j), static_cast<int>(i))) return static_cast<int>(i);
+    }
+    return -1;
+}
+
 std::vector<std::string> WorldMapFacade::continentNames() const {
     std::vector<std::string> out;
     out.reserve(kContinentCount);
@@ -1527,8 +1548,8 @@ std::vector<std::string> WorldMapFacade::zoneNames(int continentIndex) const {
     std::vector<std::string> out;
     if (continentIndex < 1 || continentIndex > kContinentCount) return out;
     const auto& zones = impl_->data.zones();
-    const int contIdx = continentZoneIdx(
-        zones, kContinents[continentIndex - 1].mapId);
+    const int contIdx = continentForIndex(
+        zones, impl_->viewState.continentIdx(), kContinents[continentIndex - 1].mapId);
     for (auto& row : zonesOnContinent(zones, impl_->data.areaNameByAreaId(), contIdx)) {
         out.push_back(std::move(row.first));
     }
@@ -1544,8 +1565,8 @@ bool WorldMapFacade::showMap(int continentIndex, int zoneIndex) {
     }
     if (continentIndex > kContinentCount) return false;
     const auto& zones = impl_->data.zones();
-    const int contIdx = continentZoneIdx(
-        zones, kContinents[continentIndex - 1].mapId);
+    const int contIdx = continentForIndex(
+        zones, impl_->viewState.continentIdx(), kContinents[continentIndex - 1].mapId);
     if (contIdx < 0) return false;
 
     if (zoneIndex <= 0) {

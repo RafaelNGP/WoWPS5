@@ -1,6 +1,7 @@
 #ifdef WOWEE_PS4
 #include <unordered_map>
 #include "platform/ps4/ps4_platform.hpp"
+#include "platform/ps4/input_ps4.hpp"
 #endif
 #include "addons/lua_engine.hpp"
 #include "ui/link_hit.hpp"
@@ -10830,7 +10831,22 @@ bool LuaEngine::dispatchFrameKey(int sdlKeycode, bool down) {
     const ui::Widget* best = topKeyboardFrame();
     if (!best) return false;
 
-    callFrameScript(best->id, down ? "OnKeyDown" : "OnKeyUp", key.c_str());
+    std::string sent = key;
+#ifdef WOWEE_PS4
+    // ConsolePort's pad is a keyboard of keys nothing else binds (Circle F10,
+    // Options PAGEUP, the touchpad's map half PAGEDOWN). A frame that takes
+    // the keyboard only knows WoW's own keys: WorldMapFrame's OnKeyDown closes
+    // on TOGGLEWORLDMAP or TOGGLEGAMEMENU and swallows the rest, so with the
+    // map up no button could ever close it. To such a frame Circle and Options
+    // are Escape, the console's "back", and on the map so is its own button.
+    // ConsolePort's own frames keep the keys they were written for.
+    if (platform::ps4::consolePortMode() && best->name.rfind("ConsolePort", 0) != 0 &&
+        (key == "F10" || key == "PAGEUP" || (key == "PAGEDOWN" && best->name == "WorldMapFrame"))) {
+        sent = "ESCAPE";
+        if (down) LOG_INFO("[PAD_UI] ", key, " is Escape to ", best->name, " (ConsolePort)");
+    }
+#endif
+    callFrameScript(best->id, down ? "OnKeyDown" : "OnKeyUp", sent.c_str());
     // Consumed unless the frame asked for the key to carry on, which is WoW's
     // default and the reason a dialog stops the character walking.
     return !best->propagateKeys;
