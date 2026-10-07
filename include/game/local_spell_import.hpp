@@ -1371,8 +1371,9 @@ inline bool decodeClientSpell(const ClientSpellTables& t, uint32_t row, LocalSpe
     if((u(43)&&!creatureCaster)||u(44)||u(45)) unavailable("Scaling or periodic resource costs are not implemented");
     // A creature's next-swing special replaces its next main-hand swing
     // (Unit::AttackerStateUpdate casts CURRENT_MELEE_SPELL instead).
-    // ON_NEXT_SWING (Heroic Strike, Raptor Strike, Cleave, Maul): a player's
-    // is struck at once as a weapon attack; the realm has no swing queue.
+    // ON_NEXT_SWING (Heroic Strike, Cleave, Raptor Strike, Maul): a Warrior's
+    // waits for the next main-hand swing (nextSwing); the others are still
+    // struck at once as a weapon attack.
     if(u(4)&0x404u){if(creatureCaster)d.npcNextSwing=true;else if(u(spell335::SpellFamily)==4)d.nextSwing=true;}
     d.sourceNoAttackDodge=(u(11)&0x00800000u)!=0;d.sourceNoAttackParry=(u(11)&0x01000000u)!=0;d.sourceNoAttackMiss=(u(11)&0x02000000u)!=0;
     // A player channel is admitted when its effect is single-target periodic

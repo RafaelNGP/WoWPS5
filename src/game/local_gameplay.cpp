@@ -5775,7 +5775,23 @@ bool LocalGameplay::executeUnsettled(LocalRealmPlayer& p,const LocalRealmCommand
         std::erase_if(p.statAuras,[&](const auto& a){const auto* d=c.spell(a.spellId);return d&&d->classBuffFeignDeath;});
         g.feignOrigins.erase(p.guid);
     }
-    if(const auto control=localPlayerControl(p);control&0xdu) switch(cmd.action) {
+    // Spell::CheckCasterAuras: CheckSpellCancelsStun/Fear/Confuse lets a spell
+    // through when its own mechanic immunity cancels every aura behind the
+    // control (Berserker Rage under a fear or a sap).
+    auto control=localPlayerControl(p);
+    if(control&0xdu&&cmd.action==LocalAction::CastSpell)
+        if(const auto* cast=c.spell(cmd.id);cast&&cast->classBuffMechanicImmunity) {
+            uint8_t held=0;
+            for(const auto& a:p.harmfulAuras) {
+                if(a.controlKind!=1&&a.controlKind!=3&&a.controlKind!=4)continue;
+                const auto* source=c.spell(a.spellId);
+                const uint32_t mechanic=source&&source->mechanic?source->mechanic:a.controlKind==1?12u:a.controlKind==3?5u:2u;
+                if(mechanic>=32||!(cast->classBuffMechanicImmunity&(1u<<mechanic)))held|=a.controlKind==1?1:a.controlKind==3?4:8;
+            }
+            for(const auto& a:p.statAuras)if(a.spellId==kLocalIceBlockSpell&&a.remainingMs)held|=1;
+            control=(control&~0xdu)|held;
+        }
+    if(control&0xdu) switch(cmd.action) {
         case LocalAction::Attack: case LocalAction::CastSpell: case LocalAction::Loot: case LocalAction::UseItem:
         case LocalAction::Interact: case LocalAction::EnterPortal: case LocalAction::TakeFlight: case LocalAction::BoardTransport:
         case LocalAction::ReturnHome: case LocalAction::CraftItem: case LocalAction::EnterVehicle: case LocalAction::UseGameObject:
